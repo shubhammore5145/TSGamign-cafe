@@ -26,7 +26,7 @@ export default function AdminLogin() {
 
   // If already logged in, redirect
   useEffect(() => {
-    if (isAdminLoggedIn()) navigate('/admin', { replace: true });
+    if (isAdminLoggedIn()) navigate('/', { replace: true });
   }, [navigate]);
 
   const handleSubmit = (e) => {
@@ -37,7 +37,7 @@ export default function AdminLogin() {
     setTimeout(() => {
       if (password === ADMIN_PASSWORD) {
         sessionStorage.setItem('ts_admin_auth', 'true');
-        navigate('/admin');
+        navigate('/');
       } else {
         setError('Wrong password. Access denied.');
         setShake(true);
@@ -117,10 +117,6 @@ export default function AdminLogin() {
             }
           </button>
         </form>
-
-        <div style={{ textAlign: 'center', marginTop: 'var(--space-lg)' }}>
-          <a href="/" style={{ color: 'var(--color-text-dim)', fontSize: '0.8rem', textDecoration: 'none' }}>← Back to Website</a>
-        </div>
 
         <div style={{
           textAlign: 'center',

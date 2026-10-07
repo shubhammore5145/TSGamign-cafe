@@ -8,13 +8,11 @@ import {
 import './Admin.css';
 
 const NAV_LINKS = [
-  { to: '/admin',           label: 'Dashboard',  icon: LayoutDashboard, end: true },
-  { to: '/admin/sessions',  label: 'Live Sessions', icon: Zap },
-  { to: '/admin/timer',     label: 'Big Timer',  icon: Clock },
-  { to: '/admin/bookings',  label: 'Bookings',   icon: Calendar },
-  { to: '/admin/setups',    label: 'Setups',     icon: Monitor },
-  { to: '/admin/tournaments', label: 'Tournaments', icon: Trophy },
-  { to: '/admin/users',     label: 'Users',      icon: Users },
+  { to: '/',            label: 'Bookings & Add',    icon: Calendar, end: true },
+  { to: '/sessions',     label: 'Live Sessions',     icon: Zap },
+  { to: '/timer',        label: 'Big Timer',         icon: Clock },
+  { to: '/setups',       label: 'PlayStation Setups',icon: Gamepad2 },
+  { to: '/dashboard',    label: 'Dashboard Stats',   icon: LayoutDashboard },
 ];
 
 export default function AdminLayout() {
@@ -23,7 +21,7 @@ export default function AdminLayout() {
 
   const handleSignOut = () => {
     adminLogout();
-    navigate('/admin/login');
+    navigate('/login');
   };
 
   return (
@@ -34,12 +32,12 @@ export default function AdminLayout() {
           <div className="admin-sidebar__logo-icon"><Gamepad2 size={18} /></div>
           <div>
             <div className="admin-sidebar__logo-text">TS Gaming Café</div>
-            <div className="admin-sidebar__logo-sub">ADMIN PANEL</div>
+            <div className="admin-sidebar__logo-sub">ADMIN PORTAL</div>
           </div>
         </div>
 
         <nav className="admin-sidebar__nav">
-          <div className="admin-sidebar__section-label">Management</div>
+          <div className="admin-sidebar__section-label">Booking & Cafe Control</div>
           {NAV_LINKS.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -56,9 +54,6 @@ export default function AdminLayout() {
         </nav>
 
         <div className="admin-sidebar__footer">
-          <a href="/" className="admin-nav-link" target="_blank" rel="noopener noreferrer">
-            <Gamepad2 size={16} /> View Website
-          </a>
           <button className="admin-nav-link" style={{ color: 'var(--color-danger)' }} onClick={handleSignOut}>
             <LogOut size={16} /> Sign Out
           </button>

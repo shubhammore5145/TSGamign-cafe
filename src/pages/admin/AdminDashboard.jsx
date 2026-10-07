@@ -5,7 +5,7 @@ import {
   subscribeToSetups,
   subscribeToAllBookings,
 } from '../../firebase/firestore';
-import { Monitor, Calendar, Zap, CheckCircle, DollarSign, Users, TrendingUp } from 'lucide-react';
+import { Gamepad2, Calendar, Zap, CheckCircle, DollarSign, Users, TrendingUp } from 'lucide-react';
 import { useSessionTimer, formatTime } from '../../hooks/useSessionTimer';
 
 export default function AdminDashboard() {
@@ -35,9 +35,9 @@ export default function AdminDashboard() {
   const kpis = [
     { icon: Calendar,  label: "Today's Bookings", value: todayBookings.length,  color: 'var(--color-primary)',   bg: 'var(--color-primary-dim)' },
     { icon: Zap,       label: 'Active Sessions',   value: activeSessions.length, color: 'var(--color-accent)',    bg: 'var(--color-accent-dim)' },
-    { icon: Monitor,   label: 'Available PCs',     value: availableSetups,       color: 'var(--color-secondary)', bg: 'var(--color-secondary-dim)' },
+    { icon: Gamepad2,  label: 'Available Consoles',value: availableSetups,       color: 'var(--color-secondary)', bg: 'var(--color-secondary-dim)' },
     { icon: DollarSign,label: "Today's Revenue",   value: `₹${todayRevenue}`,    color: 'var(--color-warning)',   bg: 'rgba(245,158,11,0.15)' },
-    { icon: Monitor,   label: 'Occupied PCs',      value: occupiedSetups,         color: 'var(--color-danger)',    bg: 'var(--color-danger-dim)' },
+    { icon: Gamepad2,  label: 'In-Play Consoles',  value: occupiedSetups,         color: 'var(--color-danger)',    bg: 'var(--color-danger-dim)' },
     { icon: TrendingUp,label: 'Monthly Revenue',   value: `₹${monthRevenue}`,    color: 'var(--color-primary)',   bg: 'var(--color-primary-dim)' },
     { icon: Users,     label: 'Total Bookings',    value: bookings.length,        color: 'var(--color-secondary)', bg: 'var(--color-secondary-dim)' },
     { icon: CheckCircle,label: 'In Maintenance',  value: maintenanceSetups,      color: 'var(--color-text-dim)',  bg: 'rgba(100,116,139,0.15)' },
@@ -70,8 +70,8 @@ export default function AdminDashboard() {
       {/* Live Setup Overview */}
       <div className="glass" style={{ padding: 'var(--space-lg)', marginBottom: 'var(--space-xl)' }}>
         <div className="admin-section-header">
-          <h3 className="admin-section-title">Setup Status Overview</h3>
-          <Link to="/admin/setups" className="btn btn-sm btn-ghost">Manage →</Link>
+          <h3 className="admin-section-title">PlayStation Consoles Status (PS2 / PS3 / PS4 / PS5)</h3>
+          <Link to="/setups" className="btn btn-sm btn-ghost">Manage Consoles →</Link>
         </div>
         <div className="admin-setups-grid">
           {setups.map(setup => (
@@ -82,12 +82,12 @@ export default function AdminDashboard() {
             >
               <div className="admin-setup-tile__number">#{String(setup.setupNumber || '?').padStart(2, '0')}</div>
               <div className={`status-dot ${setup.status === 'available' ? 'green' : setup.status === 'occupied' ? 'red' : 'gray'}`} style={{ margin: '4px auto' }} />
-              <div className="admin-setup-tile__name">{setup.type}</div>
+              <div className="admin-setup-tile__name">{setup.type || 'PS'}</div>
             </div>
           ))}
           {setups.length === 0 && (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--color-text-muted)' }}>
-              No setups found. <Link to="/admin/setups">Add Setups →</Link>
+              No PlayStation setups found. <Link to="/setups">Add Consoles →</Link>
             </div>
           )}
         </div>

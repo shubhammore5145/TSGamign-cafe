@@ -175,13 +175,13 @@ export default function AdminSessions() {
 
       {/* Setup status */}
       <div className="glass" style={{ padding: 'var(--space-lg)', marginTop: 'var(--space-xl)' }}>
-        <h3 className="admin-section-title" style={{ marginBottom: 'var(--space-lg)' }}>All Setups Status</h3>
+        <h3 className="admin-section-title" style={{ marginBottom: 'var(--space-lg)' }}>PlayStation Consoles Status (PS2 / PS3 / PS4 / PS5)</h3>
         <div className="admin-setups-grid">
           {setups.map(s => (
             <div key={s.id} className={`admin-setup-tile admin-setup-tile--${s.status}`}>
               <div className="admin-setup-tile__number">#{String(s.setupNumber || '?').padStart(2, '0')}</div>
               <div className={`status-dot ${s.status === 'available' ? 'green' : s.status === 'occupied' ? 'red' : 'gray'}`} style={{ margin: '4px auto' }} />
-              <div className="admin-setup-tile__name">{s.type}</div>
+              <div className="admin-setup-tile__name">{s.type || 'PS'}</div>
             </div>
           ))}
         </div>
@@ -191,7 +191,7 @@ export default function AdminSessions() {
       {showModal && (
         <div className="admin-modal-overlay">
           <div className="admin-modal glass-strong">
-            <h2 className="admin-modal-title">Start New Session</h2>
+            <h2 className="admin-modal-title">Start Live PlayStation Session</h2>
             <form onSubmit={handleStartNewSession} className="admin-modal-form">
               <div className="form-group">
                 <label className="form-label">Customer Name</label>
@@ -211,20 +211,20 @@ export default function AdminSessions() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Assign Setup</label>
+                <label className="form-label">Assign PlayStation Console</label>
                 <select
                   className="form-input"
                   value={newSessionData.setupId}
                   onChange={e => setNewSessionData(d => ({ ...d, setupId: e.target.value }))}
                 >
-                  <option value="">-- Select Available Setup --</option>
+                  <option value="">-- Select Available PlayStation --</option>
                   {availableSetups.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} (₹{s.pricePerHour}/hr)</option>
+                    <option key={s.id} value={s.id}>{s.name} ({s.type || 'PS'}) — ₹{s.pricePerHour}/hr</option>
                   ))}
                 </select>
                 {availableSetups.length === 0 && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--color-warning)', marginTop: 4 }}>
-                    No setups currently available!
+                    No PlayStation consoles currently available!
                   </div>
                 )}
               </div>

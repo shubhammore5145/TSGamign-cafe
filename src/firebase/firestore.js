@@ -45,8 +45,8 @@ export const subscribeToSetups = (callback, onError) =>
 // ─── BOOKINGS ────────────────────────────────────────────────
 export const createBooking = (data) =>
   addDoc(collection(db, 'bookings'), {
+    status: 'confirmed',
     ...data,
-    status: 'pending',
     createdAt: serverTimestamp(),
   });
 
@@ -54,6 +54,8 @@ export const getBooking = (id) => getDoc(doc(db, 'bookings', id));
 
 export const updateBooking = (id, data) =>
   updateDoc(doc(db, 'bookings', id), { ...data, updatedAt: serverTimestamp() });
+
+export const deleteBooking = (id) => deleteDoc(doc(db, 'bookings', id));
 
 export const getUserBookings = (uid) =>
   getDocs(

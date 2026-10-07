@@ -4,7 +4,7 @@ import { isAdminLoggedIn } from '../pages/admin/AdminLogin';
 
 export default function AdminRoute({ children }) {
   if (!isAdminLoggedIn()) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/login" replace />;
   }
   return children;
 }
