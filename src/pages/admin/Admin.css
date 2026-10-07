@@ -465,7 +465,12 @@
 @media (max-width: 900px) {
   .admin-sidebar { transform: translateX(-260px); }
   .admin-sidebar--open { transform: translateX(0); z-index: 1000; }
-  .admin-main { margin-left: 0; }
+  .admin-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
   .admin-mobile-toggle { display: flex !important; }
 }
 
@@ -715,17 +720,56 @@
 
 /* ── Phone & Mobile Responsive Styles ────────────────────────── */
 @media (max-width: 768px) {
+  .admin-layout {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  .admin-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
   .admin-topbar {
-    padding: 0 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 10px !important;
     height: 52px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .admin-topbar__title {
+    font-size: 0.95rem !important;
+    white-space: nowrap !important;
   }
 
   .admin-content {
-    padding: 8px 6px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 10px 10px 76px 10px !important; /* Space for mobile bottom bar */
+    overflow-x: hidden !important;
   }
 
   .admin-section-header {
-    margin-bottom: 8px !important;
+    margin-bottom: 10px !important;
+    width: 100% !important;
+  }
+
+  .admin-sessions-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-setups-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
   }
 
   /* Matrix Container for Mobile Touch */
@@ -733,30 +777,32 @@
     -webkit-overflow-scrolling: touch !important;
     touch-action: pan-x pan-y !important;
     border-radius: var(--radius-md) !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .admin-matrix-inner {
-    min-width: 1240px !important;
+    min-width: 1180px !important;
   }
 
   /* Compact Sticky PlayStation Console column on phone */
   .admin-matrix-console-col {
-    width: 96px !important;
-    min-width: 96px !important;
-    max-width: 96px !important;
-    padding: 6px 6px !important;
-    font-size: 0.72rem !important;
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
+    padding: 6px 4px !important;
+    font-size: 0.7rem !important;
     box-shadow: 4px 0 10px rgba(0, 0, 0, 0.7) !important;
   }
 
   .admin-matrix-slots-col {
-    padding: 6px 6px !important;
-    gap: 6px !important;
+    padding: 6px 4px !important;
+    gap: 4px !important;
   }
 
   .admin-matrix-slot-cell {
-    width: 82px !important;
-    min-width: 82px !important;
+    width: 78px !important;
+    min-width: 78px !important;
     height: 50px !important;
     font-size: 0.68rem !important;
     padding: 4px 2px !important;
@@ -765,21 +811,27 @@
 
   .admin-time-jump-pill {
     padding: 4px 8px !important;
-    font-size: 0.7rem !important;
+    font-size: 0.68rem !important;
   }
 
   /* Form and Modals on phone */
   .modal-overlay {
-    padding: 8px !important;
+    padding: 0 !important;
     align-items: flex-end !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    backdrop-filter: blur(8px) !important;
   }
 
   .modal-card {
-    padding: 16px 12px !important;
-    max-height: 92vh !important;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    padding: 16px 14px !important;
+    max-height: 88vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 20px 20px 0 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    margin: 0 !important;
+    border-bottom: none !important;
   }
 
   .admin-slot-grid {
@@ -792,6 +844,305 @@
     font-size: 0.72rem !important;
   }
 }
+
+/* ── Cool Interactive Action & Payment Selector Chips ── */
+.admin-action-chip {
+  padding: 10px 8px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: #0d111c;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.admin-action-chip:hover {
+  border-color: rgba(147, 51, 234, 0.6);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.admin-action-chip--confirmed {
+  border-color: #22c55e !important;
+  background: rgba(34, 197, 94, 0.15) !important;
+  color: #22c55e !important;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.35) !important;
+}
+
+.admin-action-chip--active {
+  border-color: #06b6d4 !important;
+  background: rgba(6, 182, 212, 0.18) !important;
+  color: #06b6d4 !important;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.45) !important;
+}
+
+.admin-action-chip--pending {
+  border-color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #f59e0b !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.3) !important;
+}
+
+.admin-payment-chip {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: #0d111c;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.admin-payment-chip:hover {
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.admin-payment-chip--selected {
+  border-color: #9333ea !important;
+  background: rgba(147, 51, 234, 0.22) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(147, 51, 234, 0.4) !important;
+}
+
+/* ── PWA Installation Topbar Button ── */
+.pwa-install-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(6, 182, 212, 0.2));
+  border: 1px solid rgba(147, 51, 234, 0.5);
+  color: #c084fc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.pwa-install-nav-btn:hover {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.35), rgba(6, 182, 212, 0.35));
+  border-color: #9333ea;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(147, 51, 234, 0.4);
+}
+
+.pwa-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+  animation: pwa-pulse 2s infinite;
+}
+
+@keyframes pwa-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* ── PWA Mobile Bottom Banner ── */
+.pwa-mobile-banner {
+  display: none;
+  position: fixed;
+  bottom: 60px; /* Sits right above the mobile bottom nav */
+  left: 10px;
+  right: 10px;
+  z-index: 80;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(147, 51, 234, 0.4);
+  background: rgba(13, 17, 28, 0.95);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(147, 51, 234, 0.25);
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  animation: slide-up 0.3s ease-out;
+}
+
+@media (max-width: 768px) {
+  .pwa-mobile-banner {
+    display: flex;
+  }
+}
+
+.pwa-mobile-banner__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pwa-mobile-banner__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #9333ea, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.pwa-mobile-banner__title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pwa-mobile-banner__sub {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+.pwa-mobile-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pwa-install-btn {
+  padding: 6px 12px !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  background: linear-gradient(135deg, #9333ea, #7c3aed) !important;
+}
+
+.pwa-close-btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  color: var(--color-text-dim) !important;
+}
+
+/* ── PWA Installation Guide Modal ── */
+.pwa-guide-modal {
+  max-width: 440px !important;
+}
+
+.pwa-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pwa-step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.pwa-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.pwa-step-content {
+  flex: 1;
+}
+
+.pwa-step-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.pwa-step-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* ── Native Mobile Bottom Navigation Bar ── */
+.admin-mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: rgba(10, 14, 23, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 70;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 4px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 768px) {
+  .admin-mobile-bottom-nav {
+    display: flex;
+  }
+}
+
+.admin-mobile-bottom-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  color: var(--color-text-dim);
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.admin-mobile-bottom-tab:hover {
+  color: var(--color-text);
+}
+
+.admin-mobile-bottom-tab--active {
+  color: var(--color-primary) !important;
+  font-weight: 800;
+}
+
+.admin-mobile-bottom-tab--active svg {
+  color: var(--color-primary);
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 6px rgba(147, 51, 234, 0.6));
+}
+
+
 
 
 

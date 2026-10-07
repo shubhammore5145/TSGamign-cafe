@@ -690,21 +690,21 @@ export default function AdminBookings() {
       >
         {/* Row 1: Back Day, Today, Next Day & Date Picker */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
             <button
               type="button"
               className="btn btn-sm btn-ghost"
               onClick={handlePrevDay}
-              style={{ padding: '5px 10px', fontSize: '0.78rem', fontWeight: 700 }}
+              style={{ padding: '5px 8px', fontSize: '0.78rem', fontWeight: 700 }}
               title="Go to Previous Day"
             >
-              <ChevronLeft size={16} /> ◀ Back
+              <ChevronLeft size={15} /> Back
             </button>
             <button
               type="button"
               className={`btn btn-sm ${dateFilter === todayStr ? 'btn-primary' : 'btn-ghost'}`}
               onClick={handleToday}
-              style={{ padding: '5px 12px', fontSize: '0.78rem', fontWeight: 800 }}
+              style={{ padding: '5px 10px', fontSize: '0.78rem', fontWeight: 800 }}
             >
               Today
             </button>
@@ -712,26 +712,26 @@ export default function AdminBookings() {
               type="button"
               className="btn btn-sm btn-ghost"
               onClick={handleNextDay}
-              style={{ padding: '5px 10px', fontSize: '0.78rem', fontWeight: 700 }}
+              style={{ padding: '5px 8px', fontSize: '0.78rem', fontWeight: 700 }}
               title="Go to Next Day"
             >
-              Next ▶ <ChevronRight size={16} />
+              Next <ChevronRight size={15} />
             </button>
 
             <input
               type="date"
               className="form-input"
-              style={{ width: 'auto', height: '32px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 700 }}
+              style={{ width: 'auto', maxWidth: '135px', height: '32px', padding: '2px 6px', fontSize: '0.78rem', fontWeight: 700 }}
               value={dateFilter}
               onChange={e => setDateFilter(e.target.value)}
             />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>
               📅 {getFormattedDateTitle(dateFilter)}
             </span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', whiteSpace: 'nowrap' }}>
               (₹{todayRevenue})
             </span>
           </div>
@@ -739,56 +739,56 @@ export default function AdminBookings() {
 
         {/* Row 2: Time Jumps & Quick Scroll (Board Mode only) */}
         {viewMode === 'board' && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'nowrap' }}>
+            <div style={{ display: 'flex', gap: 4, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexShrink: 1 }}>
               <button
                 type="button"
                 className={`admin-time-jump-pill ${activeTimeRange === 'morning' ? 'active' : ''}`}
                 onClick={() => scrollToRange('morning')}
               >
-                🌅 Morning (9-1)
+                🌅 9-1
               </button>
               <button
                 type="button"
                 className={`admin-time-jump-pill ${activeTimeRange === 'afternoon' ? 'active' : ''}`}
                 onClick={() => scrollToRange('afternoon')}
               >
-                ☀️ Afternoon (1-5)
+                ☀️ 1-5
               </button>
               <button
                 type="button"
                 className={`admin-time-jump-pill ${activeTimeRange === 'evening' ? 'active' : ''}`}
                 onClick={() => scrollToRange('evening')}
               >
-                🌙 Evening (5-10)
+                🌙 5-10
               </button>
               <button
                 type="button"
                 className={`admin-time-jump-pill ${activeTimeRange === 'all' ? 'active' : ''}`}
                 onClick={() => scrollToRange('all')}
               >
-                ⚡ All Slots
+                ⚡ All
               </button>
             </div>
 
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexShrink: 0 }}>
               <button
                 type="button"
                 className="btn btn-sm btn-ghost"
                 onClick={() => scrollMatrix(-260)}
-                style={{ padding: '4px 8px', fontSize: '0.72rem' }}
+                style={{ padding: '4px 6px', fontSize: '0.72rem' }}
                 title="Scroll Left"
               >
-                <ChevronLeft size={14} /> Left
+                <ChevronLeft size={14} />
               </button>
               <button
                 type="button"
                 className="btn btn-sm btn-ghost"
                 onClick={() => scrollMatrix(260)}
-                style={{ padding: '4px 8px', fontSize: '0.72rem' }}
+                style={{ padding: '4px 6px', fontSize: '0.72rem' }}
                 title="Scroll Right"
               >
-                Right <ChevronRight size={14} />
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>
@@ -1539,18 +1539,37 @@ export default function AdminBookings() {
                 </div>
 
                 {/* Action & Notes */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-md)' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Booking Action</label>
-                    <select
-                      className="form-input"
-                      value={formData.status}
-                      onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
-                    >
-                      <option value="confirmed">📅 Confirmed (Slot Reserved)</option>
-                      <option value="active">🟢 Start Playing Right Now (Live Session)</option>
-                      <option value="pending">⏳ Pending Confirmation</option>
-                    </select>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>Booking Action</label>
+                      <span style={{ fontSize: '0.72rem', color: formData.status === 'active' ? '#06b6d4' : formData.status === 'confirmed' ? '#22c55e' : '#f59e0b', fontWeight: 800 }}>
+                        {formData.status === 'active' ? '⚡ Starts Live Session Now' : formData.status === 'confirmed' ? '✓ Slot Reserved (Confirmed)' : '⏳ Awaiting Confirmation'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className={`admin-action-chip ${formData.status === 'confirmed' ? 'admin-action-chip--confirmed' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, status: 'confirmed' }))}
+                      >
+                        📅 Confirmed (Reserved)
+                      </button>
+                      <button
+                        type="button"
+                        className={`admin-action-chip ${formData.status === 'active' ? 'admin-action-chip--active' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, status: 'active' }))}
+                      >
+                        🟢 Play Now (Live)
+                      </button>
+                      <button
+                        type="button"
+                        className={`admin-action-chip ${formData.status === 'pending' ? 'admin-action-chip--pending' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, status: 'pending' }))}
+                      >
+                        ⏳ Pending
+                      </button>
+                    </div>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1768,11 +1787,11 @@ export default function AdminBookings() {
                       value={formData.status}
                       onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
                     >
-                      <option value="confirmed">CONFIRMED</option>
-                      <option value="active">ACTIVE (PLAYING)</option>
-                      <option value="pending">PENDING</option>
-                      <option value="completed">COMPLETED</option>
-                      <option value="cancelled">CANCELLED</option>
+                      <option value="confirmed">📅 Confirmed (Slot Reserved)</option>
+                      <option value="active">🟢 Active (Live Playing)</option>
+                      <option value="pending">⏳ Pending Confirmation</option>
+                      <option value="completed">✓ Completed</option>
+                      <option value="cancelled">✕ Cancelled (Free Slot)</option>
                     </select>
                   </div>
                 </div>

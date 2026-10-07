@@ -3,16 +3,17 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { adminLogout } from './AdminLogin';
 import {
   LayoutDashboard, Monitor, Calendar, Users, Trophy,
-  LogOut, Gamepad2, Zap, Menu, X, Clock
+  LogOut, Gamepad2, Zap, Menu, X, Clock, Download
 } from 'lucide-react';
+import PWAInstallModal from '../../components/PWAInstallModal';
 import './Admin.css';
 
 const NAV_LINKS = [
-  { to: '/',            label: 'Bookings & Add',    icon: Calendar, end: true },
-  { to: '/sessions',     label: 'Live Sessions',     icon: Zap },
-  { to: '/timer',        label: 'Big Timer',         icon: Clock },
-  { to: '/setups',       label: 'PlayStation Setups',icon: Gamepad2 },
-  { to: '/dashboard',    label: 'Dashboard Stats',   icon: LayoutDashboard },
+  { to: '/',            label: 'Bookings & Add',    shortLabel: 'Slots',     icon: Calendar, end: true },
+  { to: '/sessions',     label: 'Live Sessions',     shortLabel: 'Live',      icon: Zap },
+  { to: '/timer',        label: 'Big Timer',         shortLabel: 'Timer',     icon: Clock },
+  { to: '/setups',       label: 'PlayStation Setups',shortLabel: 'PS Setups', icon: Gamepad2 },
+  { to: '/dashboard',    label: 'Dashboard Stats',   shortLabel: 'Stats',     icon: LayoutDashboard },
 ];
 
 export default function AdminLayout() {
@@ -68,19 +69,19 @@ export default function AdminLayout() {
             <button className="btn btn-icon btn-ghost admin-mobile-toggle" onClick={() => setSidebarOpen(v => !v)} id="admin-sidebar-toggle">
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="admin-topbar__title">⚡ Admin Panel</span>
+            <span className="admin-topbar__title">⚡ TS Gaming</span>
           </div>
 
-          <div className="admin-topbar__user">
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-              Admin
-            </span>
+          <div className="admin-topbar__user" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* PWA Install Button and Handlers */}
+            <PWAInstallModal />
+
             <div style={{
-              width: 34, height: 34, borderRadius: '50%',
+              width: 32, height: 32, borderRadius: '50%',
               background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '0.8rem', fontWeight: 700, color: '#fff',
-            }}>
+            }} title="Admin logged in">
               👑
             </div>
           </div>
@@ -90,6 +91,23 @@ export default function AdminLayout() {
         <main className="admin-content">
           <Outlet />
         </main>
+
+        {/* Mobile Bottom Navigation Bar (Visible on phones) */}
+        <nav className="admin-mobile-bottom-nav">
+          {NAV_LINKS.map(({ to, shortLabel, icon: Icon, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `admin-mobile-bottom-tab ${isActive ? 'admin-mobile-bottom-tab--active' : ''}`
+              }
+            >
+              <Icon size={18} />
+              <span>{shortLabel}</span>
+            </NavLink>
+          ))}
+        </nav>
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -102,3 +120,4 @@ export default function AdminLayout() {
     </div>
   );
 }
+

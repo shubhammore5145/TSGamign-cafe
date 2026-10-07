@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1018" />
+      <stop offset="100%" stop-color="#060608" />
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#9333ea" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGrad)" stroke="#9333ea" stroke-width="8" />
+  
+  <!-- Inner Frame -->
+  <rect x="36" y="36" width="440" height="440" rx="80" fill="none" stroke="url(#accentGrad)" stroke-width="4" stroke-opacity="0.4" />
+
+  <!-- PlayStation Gamepad Shape -->
+  <g filter="url(#neonGlow)" transform="translate(106, 110)">
+    <!-- Controller Body -->
+    <path d="M 60 50 C 90 20, 210 20, 240 50 C 270 80, 290 190, 260 250 C 240 290, 190 260, 180 200 C 170 190, 130 190, 120 200 C 110 260, 60 290, 40 250 C 10 190, 30 80, 60 50 Z" 
+          fill="#1e1b4b" stroke="url(#primaryGrad)" stroke-width="8" />
+    
+    <!-- D-Pad Left -->
+    <rect x="70" y="95" width="16" height="45" rx="4" fill="#a855f7" />
+    <rect x="55" y="110" width="45" height="16" rx="4" fill="#a855f7" />
+    
+    <!-- PlayStation Buttons Right -->
+    <circle cx="215" cy="98" r="9" fill="#06b6d4" /> <!-- Triangle -->
+    <circle cx="232" cy="118" r="9" fill="#ef4444" /> <!-- Circle -->
+    <circle cx="215" cy="138" r="9" fill="#3b82f6" /> <!-- Cross -->
+    <circle cx="198" cy="118" r="9" fill="#ec4899" /> <!-- Square -->
+    
+    <!-- Thumbsticks -->
+    <circle cx="110" cy="155" r="22" fill="#0f172a" stroke="#06b6d4" stroke-width="4" />
+    <circle cx="190" cy="155" r="22" fill="#0f172a" stroke="#a855f7" stroke-width="4" />
+  </g>
+
+  <!-- Text TS GAMING -->
+  <text x="256" y="445" font-family="'Orbitron', sans-serif, Arial" font-weight="900" font-size="44" fill="#f8fafc" text-anchor="middle" letter-spacing="6">
+    TS GAMING
+  </text>
+</svg>

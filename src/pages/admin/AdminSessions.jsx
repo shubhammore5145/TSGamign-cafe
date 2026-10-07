@@ -181,7 +181,7 @@ export default function AdminSessions() {
             <div key={s.id} className={`admin-setup-tile admin-setup-tile--${s.status}`}>
               <div className="admin-setup-tile__number">#{String(s.setupNumber || '?').padStart(2, '0')}</div>
               <div className={`status-dot ${s.status === 'available' ? 'green' : s.status === 'occupied' ? 'red' : 'gray'}`} style={{ margin: '4px auto' }} />
-              <div className="admin-setup-tile__name">{s.type || 'PS'}</div>
+              <div className="admin-setup-tile__name">{s.type === 'PC' ? 'PS' : (s.type || 'PS')}</div>
             </div>
           ))}
         </div>
