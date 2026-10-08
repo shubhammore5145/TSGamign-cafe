@@ -26,7 +26,7 @@ const CATEGORY_COLORS = {
   'FPS':          { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)',   text: '#ef4444' },
   'Racing':       { bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)',  text: '#f59e0b' },
   'Sports':       { bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.25)',   text: '#22c55e' },
-  'Battle Royale':{ bg: 'rgba(147,51,234,0.1)',  border: 'rgba(147,51,234,0.25)',  text: '#9333ea' },
+  'Battle Royale':{ bg: 'rgba(255,85,0,0.12)',  border: 'rgba(255,85,0,0.3)',  text: '#ff5500' },
   'Open World':   { bg: 'rgba(6,182,212,0.1)',   border: 'rgba(6,182,212,0.25)',   text: '#06b6d4' },
   'Multiplayer':  { bg: 'rgba(236,72,153,0.1)',  border: 'rgba(236,72,153,0.25)',  text: '#ec4899' },
 };

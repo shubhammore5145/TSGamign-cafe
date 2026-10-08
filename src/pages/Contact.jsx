@@ -4,14 +4,14 @@ import { Link } from 'react-router-dom';
 import './Contact.css';
 
 const CONTACT_INFO = [
-  { icon: MapPin,   label: 'Address',   value: '123, Gaming Street, Cyber City, Mumbai — 400001', link: null },
+  { icon: MapPin,   label: 'Address',   value: 'TS Gaming Cafe, Waluj, Aurangabad, Maharashtra', link: 'https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad' },
   { icon: Phone,    label: 'Phone',      value: '+91 98765 43210',      link: 'tel:+919876543210' },
   { icon: Mail,     label: 'Email',      value: 'hello@tsgamingcafe.in', link: 'mailto:hello@tsgamingcafe.in' },
-  { icon: Clock,    label: 'Hours',      value: 'Monday – Sunday: 10:00 AM – 2:00 AM', link: null },
+  { icon: Clock,    label: 'Hours',      value: 'Open Daily: 5:00 AM – 11:30 PM (Last Booking: 10:30 PM)', link: null },
 ];
 
 const SOCIAL = [
-  { icon: Instagram, label: 'Instagram', handle: '@TSGamingCafe', color: '#e1306c', link: 'https://instagram.com' },
+  { icon: Instagram, label: 'Instagram', handle: '@ts_gaming_cafe_waluj', color: '#e1306c', link: 'https://www.instagram.com/ts_gaming_cafe_waluj' },
   { icon: MessageCircle, label: 'WhatsApp', handle: '+91 98765 43210', color: '#25d366', link: 'https://wa.me/919876543210' },
 ];
 
@@ -76,7 +76,7 @@ export default function Contact() {
             {/* CTA buttons */}
             <div className="contact-ctas">
               <a
-                href="https://www.google.com/maps/search/gaming+cafe+mumbai"
+                href="https://www.google.com/maps/search/TS+Gaming+Cafe+Waluj+Aurangabad"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-secondary"

@@ -2,12 +2,12 @@ import React from 'react';
 import './Gallery.css';
 
 const GALLERY_ITEMS = [
-  { id: 1, label: 'Gaming PCs',      emoji: '🖥️',  color: '#9333ea', span: 'wide' },
+  { id: 1, label: 'Gaming PCs',      emoji: '🖥️',  color: '#ff5500', span: 'wide' },
   { id: 2, label: 'PS5 Arena',       emoji: '🎮',  color: '#06b6d4', span: 'tall' },
   { id: 3, label: 'Tournament Night',emoji: '🏆',  color: '#f59e0b', span: '' },
   { id: 4, label: 'Racing Sim',      emoji: '🏎️',  color: '#22c55e', span: '' },
   { id: 5, label: 'VR Zone',         emoji: '🥽',  color: '#ec4899', span: 'wide' },
-  { id: 6, label: 'Café Lounge',     emoji: '☕',  color: '#9333ea', span: '' },
+  { id: 6, label: 'Café Lounge',     emoji: '☕',  color: '#ff5500', span: '' },
   { id: 7, label: 'Night Gaming',    emoji: '🌙',  color: '#06b6d4', span: '' },
   { id: 8, label: 'Champions',       emoji: '🥇',  color: '#f59e0b', span: 'tall' },
   { id: 9, label: 'Squad Goals',     emoji: '👾',  color: '#ef4444', span: '' },
