@@ -10,8 +10,6 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Games from './pages/Games';
 import Setups from './pages/Setups';
-import Tournaments from './pages/Tournaments';
-import Membership from './pages/Membership';
 import Gallery from './pages/Gallery';
 import Contact from './pages/Contact';
 
@@ -25,7 +23,9 @@ import AdminBookings from './pages/admin/AdminBookings';
 import AdminSessions from './pages/admin/AdminSessions';
 import AdminTimer from './pages/admin/AdminTimer';
 import AdminSetups from './pages/admin/AdminSetups';
+import AdminStaff from './pages/admin/AdminStaff';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminFood from './pages/admin/AdminFood';
 
 // CSS
 import './pages/admin/AdminSetups.css';
@@ -43,8 +43,6 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/games" element={<Games />} />
         <Route path="/setups" element={<Setups />} />
-        <Route path="/tournaments" element={<Tournaments />} />
-        <Route path="/membership" element={<Membership />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/contact" element={<Contact />} />
 
@@ -65,7 +63,9 @@ function AppContent() {
           <Route path="bookings" element={<AdminBookings />} />
           <Route path="sessions" element={<AdminSessions />} />
           <Route path="timer" element={<AdminTimer />} />
+          <Route path="food" element={<AdminFood />} />
           <Route path="setups" element={<AdminSetups />} />
+          <Route path="staff" element={<AdminStaff />} />
           <Route path="dashboard" element={<AdminDashboard />} />
         </Route>
 

@@ -45,15 +45,16 @@ export default function Footer() {
             <h4 className="footer__col-title">Quick Links</h4>
             <div className="footer__links-split">
               <ul className="footer__links">
-                <li><a href="#hero" onClick={(e) => { e.preventDefault(); handleScroll('#hero'); }}>Home</a></li>
+                <li><Link to="/">Home</Link></li>
                 <li><Link to="/games">Games</Link></li>
-                <li><a href="#pricing" onClick={(e) => { e.preventDefault(); handleScroll('#pricing'); }}>Pricing</a></li>
+                <li><Link to="/setups">Setups</Link></li>
               </ul>
               <ul className="footer__links">
+                <li><a href="#pricing" onClick={(e) => { e.preventDefault(); handleScroll('#pricing'); }}>Pricing</a></li>
                 <li><a href="#food" onClick={(e) => { e.preventDefault(); handleScroll('#food'); }}>Food & Drinks</a></li>
                 <li><Link to="/gallery">Gallery</Link></li>
+                <li><Link to="/contact">Contact Us</Link></li>
                 <li><a href="#booking" onClick={(e) => { e.preventDefault(); handleScroll('#booking'); }}>Book Session</a></li>
-                <li><a href="#location" onClick={(e) => { e.preventDefault(); handleScroll('#location'); }}>Location</a></li>
               </ul>
             </div>
           </div>
@@ -85,8 +86,8 @@ export default function Footer() {
                   <Clock size={15} />
                 </div>
                 <div>
-                  <div>Open : <strong>5:00 AM - 11:30 PM</strong></div>
-                  <div className="footer__last-booking">Last Booking : 10:30 PM</div>
+                  <div>Open : <strong>5:00 AM - 10:00 PM</strong></div>
+                  <div className="footer__last-booking">Last Booking : 9:00 PM</div>
                 </div>
               </li>
             </ul>

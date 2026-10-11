@@ -3,6 +3,7 @@ import {
   subscribeToAllBookings,
   subscribeToSetups,
   subscribeToAllActiveSessions,
+  subscribeToStaff,
   createBooking,
   updateBooking,
   deleteBooking,
@@ -12,6 +13,8 @@ import {
   toFirestoreTimestamp,
 } from '../../firebase/firestore';
 import { useToast } from '../../context/ToastContext';
+import { getStaffUser, isAdminLoggedIn, isStaffLoggedIn } from '../../utils/adminAuth';
+import { calculateStaffStats, isBookingHandledByStaff } from '../../utils/staffStats';
 import {
   Search,
   Plus,
@@ -33,23 +36,29 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
+  UserCheck,
+  Receipt,
 } from 'lucide-react';
 
-// ── Fixed 1-Hour Slots up to Closing Time (10:00 PM) ──
+// ── Fixed 1-Hour Slots from Opening (5:00 AM) to Closing Time (10:00 PM) ──
 export const ONE_HOUR_SLOTS = [
-  { id: '09:00', start: '09:00', end: '10:00', label: '09:00 AM - 10:00 AM', short: '9 - 10 AM' },
-  { id: '10:00', start: '10:00', end: '11:00', label: '10:00 AM - 11:00 AM', short: '10 - 11 AM' },
-  { id: '11:00', start: '11:00', end: '12:00', label: '11:00 AM - 12:00 PM', short: '11 - 12 PM' },
-  { id: '12:00', start: '12:00', end: '13:00', label: '12:00 PM - 01:00 PM', short: '12 - 1 PM' },
-  { id: '13:00', start: '13:00', end: '14:00', label: '01:00 PM - 02:00 PM', short: '1 - 2 PM' },
-  { id: '14:00', start: '14:00', end: '15:00', label: '02:00 PM - 03:00 PM', short: '2 - 3 PM' },
-  { id: '15:00', start: '15:00', end: '16:00', label: '03:00 PM - 04:00 PM', short: '3 - 4 PM' },
-  { id: '16:00', start: '16:00', end: '17:00', label: '04:00 PM - 05:00 PM', short: '4 - 5 PM' },
-  { id: '17:00', start: '17:00', end: '18:00', label: '05:00 PM - 06:00 PM', short: '5 - 6 PM' },
-  { id: '18:00', start: '18:00', end: '19:00', label: '06:00 PM - 07:00 PM', short: '6 - 7 PM' },
-  { id: '19:00', start: '19:00', end: '20:00', label: '07:00 PM - 08:00 PM', short: '7 - 8 PM' },
-  { id: '20:00', start: '20:00', end: '21:00', label: '08:00 PM - 09:00 PM', short: '8 - 9 PM' },
-  { id: '21:00', start: '21:00', end: '22:00', label: '09:00 PM - 10:00 PM', short: '9 - 10 PM (Closing)' },
+  { id: '05:00', start: '05:00', end: '06:00', label: '05:00 AM - 06:00 AM', short: '5 - 6 AM', time12: '5:00 AM' },
+  { id: '06:00', start: '06:00', end: '07:00', label: '06:00 AM - 07:00 AM', short: '6 - 7 AM', time12: '6:00 AM' },
+  { id: '07:00', start: '07:00', end: '08:00', label: '07:00 AM - 08:00 AM', short: '7 - 8 AM', time12: '7:00 AM' },
+  { id: '08:00', start: '08:00', end: '09:00', label: '08:00 AM - 09:00 AM', short: '8 - 9 AM', time12: '8:00 AM' },
+  { id: '09:00', start: '09:00', end: '10:00', label: '09:00 AM - 10:00 AM', short: '9 - 10 AM', time12: '9:00 AM' },
+  { id: '10:00', start: '10:00', end: '11:00', label: '10:00 AM - 11:00 AM', short: '10 - 11 AM', time12: '10:00 AM' },
+  { id: '11:00', start: '11:00', end: '12:00', label: '11:00 AM - 12:00 PM', short: '11 - 12 PM', time12: '11:00 AM' },
+  { id: '12:00', start: '12:00', end: '13:00', label: '12:00 PM - 01:00 PM', short: '12 - 1 PM', time12: '12:00 PM' },
+  { id: '13:00', start: '13:00', end: '14:00', label: '01:00 PM - 02:00 PM', short: '1 - 2 PM', time12: '1:00 PM' },
+  { id: '14:00', start: '14:00', end: '15:00', label: '02:00 PM - 03:00 PM', short: '2 - 3 PM', time12: '2:00 PM' },
+  { id: '15:00', start: '15:00', end: '16:00', label: '03:00 PM - 04:00 PM', short: '3 - 4 PM', time12: '3:00 PM' },
+  { id: '16:00', start: '16:00', end: '17:00', label: '04:00 PM - 05:00 PM', short: '4 - 5 PM', time12: '4:00 PM' },
+  { id: '17:00', start: '17:00', end: '18:00', label: '05:00 PM - 06:00 PM', short: '5 - 6 PM', time12: '5:00 PM' },
+  { id: '18:00', start: '18:00', end: '19:00', label: '06:00 PM - 07:00 PM', short: '6 - 7 PM', time12: '6:00 PM' },
+  { id: '19:00', start: '19:00', end: '20:00', label: '07:00 PM - 08:00 PM', short: '7 - 8 PM', time12: '7:00 PM' },
+  { id: '20:00', start: '20:00', end: '21:00', label: '08:00 PM - 09:00 PM', short: '8 - 9 PM', time12: '8:00 PM' },
+  { id: '21:00', start: '21:00', end: '22:00', label: '09:00 PM - 10:00 PM', short: '9 - 10 PM (Closing)', time12: '9:00 PM' },
 ];
 
 const STATUS_TABS = [
@@ -153,6 +162,12 @@ export default function AdminBookings() {
   const [selectedSlotBooking, setSelectedSlotBooking] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [staffList, setStaffList] = useState([]);
+  const [staffFilter, setStaffFilter] = useState('all'); // 'all' | 'my' | specific staffId
+
+  const isStaff = isStaffLoggedIn();
+  const isAdmin = isAdminLoggedIn();
+  const currentStaffUser = getStaffUser();
 
   // Form State
   const initialForm = {
@@ -171,6 +186,8 @@ export default function AdminBookings() {
     paymentStatus: 'paid_cash',
     status: 'confirmed',
     notes: '',
+    staffId: currentStaffUser?.id || 'admin',
+    staffName: currentStaffUser?.name || 'Super Admin',
   };
   const [formData, setFormData] = useState(initialForm);
 
@@ -181,9 +198,16 @@ export default function AdminBookings() {
       subscribeToAllBookings(setBookings),
       subscribeToSetups(setSetups),
       subscribeToAllActiveSessions(setActiveSessions),
+      subscribeToStaff(setStaffList),
     ];
     return () => unsubs.forEach(f => f && f());
   }, []);
+
+  // Calculate personal duty stats for logged-in staff
+  const myStaffStats = useMemo(() => {
+    if (!currentStaffUser) return null;
+    return calculateStaffStats(currentStaffUser.id, currentStaffUser.name, bookings);
+  }, [currentStaffUser, bookings]);
 
   // When setups load, auto-select first available console
   useEffect(() => {
@@ -248,10 +272,12 @@ export default function AdminBookings() {
     if (!matrixContainerRef.current) return;
     if (range === 'morning') {
       matrixContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    } else if (range === 'midday') {
+      matrixContainerRef.current.scrollTo({ left: 420, behavior: 'smooth' });
     } else if (range === 'afternoon') {
-      matrixContainerRef.current.scrollTo({ left: 330, behavior: 'smooth' });
+      matrixContainerRef.current.scrollTo({ left: 840, behavior: 'smooth' });
     } else if (range === 'evening') {
-      matrixContainerRef.current.scrollTo({ left: 700, behavior: 'smooth' });
+      matrixContainerRef.current.scrollTo({ left: 1260, behavior: 'smooth' });
     } else if (range === 'all') {
       matrixContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
     }
@@ -393,6 +419,8 @@ export default function AdminBookings() {
       paymentStatus: b.paymentStatus || 'paid_cash',
       status: b.status || 'confirmed',
       notes: b.notes || '',
+      staffId: b.staffId || b.handledByStaffId || (currentStaffUser ? currentStaffUser.id : 'admin'),
+      staffName: b.staffName || '',
     });
     setShowSlotDetailsModal(false);
     setShowEditModal(true);
@@ -415,6 +443,12 @@ export default function AdminBookings() {
     try {
       const setup = setups.find(s => s.id === formData.setupId);
 
+      // Determine staff attribution
+      const selectedStaffObj = staffList.find(s => s.id === formData.staffId) || (currentStaffUser?.id === formData.staffId ? currentStaffUser : null);
+      const staffIdToSave = formData.staffId || (currentStaffUser ? currentStaffUser.id : 'admin');
+      const staffNameToSave = selectedStaffObj ? selectedStaffObj.name : (formData.staffName || (staffIdToSave === 'admin' ? 'Super Admin' : 'Staff'));
+      const staffLabelToSave = staffIdToSave === 'admin' ? 'Super Admin' : `${staffNameToSave} (Staff)`;
+
       const payload = {
         userId: 'admin-walkin',
         userName: formData.userName.trim(),
@@ -431,7 +465,11 @@ export default function AdminBookings() {
         paymentStatus: formData.paymentStatus,
         status: formData.status,
         notes: formData.notes.trim(),
-        createdBy: 'admin',
+        staffId: staffIdToSave,
+        staffName: staffNameToSave,
+        handledByStaffId: staffIdToSave,
+        createdBy: staffLabelToSave,
+        handledBy: staffLabelToSave,
       };
 
       const docRef = await createBooking(payload);
@@ -476,6 +514,12 @@ export default function AdminBookings() {
     try {
       const setup = setups.find(s => s.id === formData.setupId);
 
+      // Determine updated staff attribution
+      const selectedStaffObj = staffList.find(s => s.id === formData.staffId);
+      const staffIdToSave = formData.staffId || editingBooking.staffId || 'admin';
+      const staffNameToSave = selectedStaffObj ? selectedStaffObj.name : (formData.staffName || editingBooking.staffName || (staffIdToSave === 'admin' ? 'Super Admin' : 'Staff'));
+      const staffLabelToSave = staffIdToSave === 'admin' ? 'Super Admin' : `${staffNameToSave} (Staff)`;
+
       const updates = {
         userName: formData.userName.trim(),
         userPhone: formData.userPhone.trim(),
@@ -491,6 +535,10 @@ export default function AdminBookings() {
         paymentStatus: formData.paymentStatus,
         status: formData.status,
         notes: formData.notes.trim(),
+        staffId: staffIdToSave,
+        staffName: staffNameToSave,
+        handledByStaffId: staffIdToSave,
+        handledBy: staffLabelToSave,
       };
 
       await updateBooking(editingBooking.id, updates);
@@ -596,13 +644,203 @@ export default function AdminBookings() {
         b.userName?.toLowerCase().includes(q) ||
         b.userPhone?.toLowerCase().includes(q) ||
         b.setupName?.toLowerCase().includes(q) ||
+        b.handledBy?.toLowerCase().includes(q) ||
+        b.createdBy?.toLowerCase().includes(q) ||
         b.id?.toLowerCase().includes(q);
-      return matchStatus && matchDate && matchSearch;
+
+      // Staff filtering
+      let matchStaff = true;
+      if (staffFilter === 'my' && currentStaffUser) {
+        matchStaff = isBookingHandledByStaff(b, currentStaffUser.id, currentStaffUser.name);
+      } else if (staffFilter !== 'all') {
+        const targetStaff = staffList.find(s => s.id === staffFilter);
+        matchStaff = isBookingHandledByStaff(b, staffFilter, targetStaff?.name);
+      }
+
+      return matchStatus && matchDate && matchSearch && matchStaff;
     });
-  }, [bookings, statusFilter, dateFilter, search]);
+  }, [bookings, statusFilter, dateFilter, search, staffFilter, currentStaffUser, staffList]);
 
   return (
     <div>
+      {/* ─── STAFF VIEW: MY SHIFT & DUTY COLLECTION CARD ─── */}
+      {isStaff && myStaffStats && (
+        <div className="glass" style={{
+          padding: '14px 16px',
+          marginBottom: '14px',
+          borderRadius: 'var(--radius-md)',
+          background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.12), rgba(6, 182, 212, 0.08))',
+          border: '1px solid rgba(147, 51, 234, 0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontWeight: 800,
+              }}>
+                👤
+              </div>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>माझी आजची ड्युटी: {currentStaffUser?.name}</span>
+                  <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 10, background: 'rgba(147,51,234,0.3)', color: 'var(--color-primary-light)' }}>
+                    {currentStaffUser?.role || 'Staff'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>
+                  शिफ्ट: {currentStaffUser?.shift || 'General Shift'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setStaffFilter('all')}
+                className="btn btn-xs"
+                style={{
+                  background: staffFilter === 'all' ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)',
+                  color: staffFilter === 'all' ? '#fff' : 'var(--color-text-dim)',
+                  border: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                All Bookings
+              </button>
+              <button
+                onClick={() => setStaffFilter('my')}
+                className="btn btn-xs"
+                style={{
+                  background: staffFilter === 'my' ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
+                  color: staffFilter === 'my' ? '#fff' : 'var(--color-text-dim)',
+                  border: 'none',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                🎯 Only My Bookings ({myStaffStats.todayCount})
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Stats Chips for Staff */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+            gap: 10,
+          }}>
+            <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>आजच्या बुकिंग्स</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--color-primary-light)' }}>
+                {myStaffStats.todayCount} <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>Slots</span>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(16,185,129,0.08)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <div style={{ fontSize: '0.7rem', color: '#10b981' }}>आजचे एकूण कलेक्शन</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>
+                ₹{myStaffStats.todayCollection}
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(245,158,11,0.08)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>रोख जमा (Cash)</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f59e0b' }}>
+                ₹{myStaffStats.todayCash}
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(6,182,212,0.08)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(6,182,212,0.2)' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-accent)' }}>ऑनलाइन जमा (UPI)</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-accent)' }}>
+                ₹{myStaffStats.todayUpi}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── SUPER ADMIN VIEW: STAFF DAILY COLLECTION OVERVIEW & FILTER ─── */}
+      {isAdmin && (
+        <div className="glass" style={{
+          padding: '12px 14px',
+          marginBottom: '14px',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>👥 आजचे स्टाफनिहाय कलेक्शन व बुकिंग्स (Staff Duty Summary):</span>
+            </div>
+            <div style={{ fontSize: '0.73rem', color: 'var(--color-text-dim)' }}>
+              Click any staff to inspect their bookings:
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <button
+              onClick={() => setStaffFilter('all')}
+              className="btn btn-xs"
+              style={{
+                background: staffFilter === 'all' ? 'var(--color-primary)' : 'rgba(255,255,255,0.05)',
+                color: staffFilter === 'all' ? '#fff' : 'var(--color-text-dim)',
+                border: 'none',
+                fontWeight: 700,
+              }}
+            >
+              All Staff ({todayBookings.length} • ₹{todayRevenue})
+            </button>
+
+            {staffList.map(s => {
+              const sStats = calculateStaffStats(s.id, s.name, bookings);
+              const isSelected = staffFilter === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setStaffFilter(isSelected ? 'all' : s.id)}
+                  className="btn btn-xs"
+                  style={{
+                    background: isSelected ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                    color: isSelected ? '#fff' : 'var(--color-text-dim)',
+                    border: `1px solid ${isSelected ? 'var(--color-accent)' : 'rgba(255,255,255,0.08)'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>👤 {s.name}</span>
+                  <span style={{
+                    background: isSelected ? 'rgba(0,0,0,0.3)' : 'rgba(16,185,129,0.15)',
+                    color: isSelected ? '#fff' : '#10b981',
+                    padding: '1px 6px',
+                    borderRadius: 8,
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                  }}>
+                    {sStats.todayCount} bks • ₹{sStats.todayCollection}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {/* ── Sleek, Mobile-First Header Bar ── */}
       <div className="admin-section-header" style={{ marginBottom: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 8 }}>
@@ -746,21 +984,28 @@ export default function AdminBookings() {
                 className={`admin-time-jump-pill ${activeTimeRange === 'morning' ? 'active' : ''}`}
                 onClick={() => scrollToRange('morning')}
               >
-                🌅 9-1
+                🌅 5-10
+              </button>
+              <button
+                type="button"
+                className={`admin-time-jump-pill ${activeTimeRange === 'midday' ? 'active' : ''}`}
+                onClick={() => scrollToRange('midday')}
+              >
+                ☀️ 10-3
               </button>
               <button
                 type="button"
                 className={`admin-time-jump-pill ${activeTimeRange === 'afternoon' ? 'active' : ''}`}
                 onClick={() => scrollToRange('afternoon')}
               >
-                ☀️ 1-5
+                🌆 3-7
               </button>
               <button
                 type="button"
                 className={`admin-time-jump-pill ${activeTimeRange === 'evening' ? 'active' : ''}`}
                 onClick={() => scrollToRange('evening')}
               >
-                🌙 5-10
+                🌙 7-10
               </button>
               <button
                 type="button"
@@ -1018,6 +1263,11 @@ export default function AdminBookings() {
                             "{b.notes}"
                           </div>
                         )}
+                        {(b.handledBy || b.createdBy) && (
+                          <div style={{ fontSize: '0.68rem', color: 'var(--color-primary-light)', marginTop: 2 }}>
+                            👤 By: {b.handledBy || b.createdBy}
+                          </div>
+                        )}
                       </td>
 
                       <td>
@@ -1260,6 +1510,11 @@ export default function AdminBookings() {
                 {selectedSlotBooking.booking.notes && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginTop: 8, fontStyle: 'italic' }}>
                     Note: "{selectedSlotBooking.booking.notes}"
+                  </div>
+                )}
+                {(selectedSlotBooking.booking.handledBy || selectedSlotBooking.booking.createdBy) && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-primary-light)', marginTop: 6 }}>
+                    👤 Handled by: {selectedSlotBooking.booking.handledBy || selectedSlotBooking.booking.createdBy}
                   </div>
                 )}
               </div>
@@ -1536,6 +1791,33 @@ export default function AdminBookings() {
                       ))}
                     </select>
                   </div>
+
+                  {/* Staff attribution selector */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by (कर्मचारी)
+                    </label>
+                    <select
+                      className="form-input"
+                      value={formData.staffId || ''}
+                      onChange={e => {
+                        const sId = e.target.value;
+                        const sObj = staffList.find(s => s.id === sId);
+                        setFormData(p => ({
+                          ...p,
+                          staffId: sId,
+                          staffName: sObj ? sObj.name : 'Super Admin',
+                        }));
+                      }}
+                    >
+                      <option value="admin">👑 Super Admin</option>
+                      {staffList.map(s => (
+                        <option key={s.id} value={s.id}>
+                          👤 {s.name} ({s.role || 'Staff'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Action & Notes */}
@@ -1775,6 +2057,33 @@ export default function AdminBookings() {
                       {PAYMENT_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Edit Staff Selector */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by (कर्मचारी)
+                    </label>
+                    <select
+                      className="form-input"
+                      value={formData.staffId || ''}
+                      onChange={e => {
+                        const sId = e.target.value;
+                        const sObj = staffList.find(s => s.id === sId);
+                        setFormData(p => ({
+                          ...p,
+                          staffId: sId,
+                          staffName: sObj ? sObj.name : 'Super Admin',
+                        }));
+                      }}
+                    >
+                      <option value="admin">👑 Super Admin</option>
+                      {staffList.map(s => (
+                        <option key={s.id} value={s.id}>
+                          👤 {s.name} ({s.role || 'Staff'})
                         </option>
                       ))}
                     </select>

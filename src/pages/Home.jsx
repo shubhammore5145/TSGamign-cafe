@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Gamepad2,
   Clock,
@@ -13,10 +13,14 @@ import {
   Gift,
   Phone,
   MessageCircle,
-  X
+  X,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { createBooking } from '../firebase/firestore';
+import {
+  createBooking,
+  subscribeToFoodItems,
+  DEFAULT_FOOD_ITEMS,
+} from '../firebase/firestore';
 import './Home.css';
 
 /* ── STATIONS DATA ── */
@@ -28,7 +32,7 @@ const STATIONS = [
     image: '/images/ps2.jpg',
     badge: 'Retro Classic',
     shortInfo: 'Group games only (WWE, SmackDown etc.)',
-    pricing: { '30m': 15, '1h': 30, '2h': 60, 'group': 20 },
+    pricing: { '1h': 30, '2h': 60, 'group': 20 },
   },
   {
     id: 'ps3',
@@ -37,7 +41,7 @@ const STATIONS = [
     image: '/images/ps3.jpg',
     badge: 'Co-op Favorite',
     shortInfo: 'HD Multiplayer & legendary classic titles',
-    pricing: { '30m': 30, '1h': 40, '2h': 80, 'group': 30 },
+    pricing: { '1h': 40, '2h': 80, 'group': 30 },
   },
   {
     id: 'ps4',
@@ -46,7 +50,7 @@ const STATIONS = [
     image: '/images/ps4.jpg',
     badge: 'Pro 4K HDR',
     shortInfo: 'High-end gaming library & competitive sports',
-    pricing: { '30m': 40, '1h': 50, '2h': 100, 'group': 40 },
+    pricing: { '1h': 50, '2h': 100, 'group': 40 },
   },
   {
     id: 'ps5',
@@ -55,7 +59,7 @@ const STATIONS = [
     image: '/images/ps5.jpg',
     badge: 'Next-Gen 120Hz',
     shortInfo: 'Ultra-fast SSD, 120 FPS & DualSense Haptics',
-    pricing: { '30m': 70, '1h': 80, '2h': 160, 'group': 70 },
+    pricing: { '1h': 80, '2h': 160, 'group': 70 },
   },
   {
     id: 'sim_racing',
@@ -64,44 +68,77 @@ const STATIONS = [
     image: '/images/sim-racing.jpg',
     badge: 'Force Feedback',
     shortInfo: 'Pro racing wheel, metal pedals & cockpit seat',
-    pricing: { '30m': 100, '1h': 150, '2h': 300, 'group': 80 },
+    pricing: { '1h': 150, '2h': 300, 'group': 80 },
   },
 ];
 
-/* ── TIME SLOTS ── */
+/* ── TIME SLOTS (5:00 AM to 9:00 PM for 1-hour session start) ── */
 const TIME_SLOTS = [
+  '5:00 AM',
   '6:00 AM',
+  '7:00 AM',
   '8:00 AM',
+  '9:00 AM',
   '10:00 AM',
+  '11:00 AM',
   '12:00 PM',
+  '1:00 PM',
   '2:00 PM',
+  '3:00 PM',
   '4:00 PM',
+  '5:00 PM',
   '6:00 PM',
+  '7:00 PM',
   '8:00 PM',
+  '9:00 PM',
 ];
 
-/* ── DURATION OPTIONS ── */
+/* ── DURATION OPTIONS (30m removed, 2h without free snacks promo) ── */
 const DURATIONS = [
-  { id: '30m', label: '30 Minutes', durationHours: 0.5 },
   { id: '1h', label: '1 Hour', durationHours: 1 },
-  { id: '2h', label: '2 Hours', durationHours: 2, promo: '🎁 FREE Snack' },
+  { id: '2h', label: '2 Hours', durationHours: 2 },
   { id: 'group', label: 'Group', durationHours: 1 },
 ];
 
-/* ── FOOD ITEMS ── */
-const FOOD_ITEMS = [
-  { name: 'Pizza', image: '/images/pizza.jpg', price: '₹149', desc: 'Cheesy thin crust' },
-  { name: 'Burger', image: '/images/burger.jpg', price: '₹79', desc: 'Crispy veggie patty' },
-  { name: 'French Fries', image: '/images/french-fries.jpg', price: '₹69', desc: 'Salted & Peri Peri' },
-  { name: 'Vadapav', image: '/images/vadapav.jpg', price: '₹25', desc: 'Authentic Mumbai style' },
-  { name: 'Momos', image: '/images/momos.jpg', price: '₹89', desc: 'Steamed with spicy chutney' },
-  { name: 'Ice Cream', image: '/images/icecream.jpg', price: '₹49', desc: 'Assorted scoops' },
-  { name: 'Cold Drinks', image: '/images/cold-drinks.jpg', price: '₹35', desc: 'Chilled soda cans' },
-  { name: 'More Items', image: '/images/more-items.jpg', price: 'Explore', desc: 'Snacks & beverages' },
-];
+function time12To24(time12Str) {
+  if (!time12Str) return '05:00';
+  try {
+    const [time, modifier] = time12Str.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    return `${String(hours).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}`;
+  } catch {
+    return '05:00';
+  }
+}
 
 export default function Home() {
   const toast = useToast();
+
+  // Live Food Items from Firestore
+  const [foodItems, setFoodItems] = useState(DEFAULT_FOOD_ITEMS);
+
+  useEffect(() => {
+    const unsub = subscribeToFoodItems((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setFoodItems(items);
+      }
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
+
+  // Handle URL hash navigation on mount
+  useEffect(() => {
+    if (window.location.hash) {
+      const el = document.querySelector(window.location.hash);
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 120);
+      }
+    }
+  }, []);
 
   // Booking Form State
   const [selectedStationId, setSelectedStationId] = useState('ps5');
@@ -111,7 +148,7 @@ export default function Home() {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
-  const [selectedTime, setSelectedTime] = useState('4:00 PM');
+  const [selectedTime, setSelectedTime] = useState('5:00 PM');
 
   // Confirmation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -135,7 +172,7 @@ export default function Home() {
       if (modifier === 'PM' && hours < 12) hours += 12;
       if (modifier === 'AM' && hours === 12) hours = 0;
 
-      const durationHours = durationType === '30m' ? 0.5 : durationType === '2h' ? 2 : 1;
+      const durationHours = durationType === '2h' ? 2 : 1;
       let totalMinutes = hours * 60 + minutes + durationHours * 60;
       let endHours = Math.floor(totalMinutes / 60) % 24;
       let endMinutes = totalMinutes % 60;
@@ -184,21 +221,34 @@ export default function Home() {
     }
 
     setIsSubmitting(true);
+    const start24 = time12To24(selectedTime);
+    const end24 = time12To24(formattedEndTime);
+
     const bookingPayload = {
       customerName: customerName.trim(),
+      userName: customerName.trim(),
       customerPhone: customerPhone.trim(),
+      userPhone: customerPhone.trim(),
       stationId: currentStation.id,
+      setupId: currentStation.id,
       stationName: currentStation.name,
+      setupName: currentStation.name,
       stationFullName: currentStation.fullName,
       duration,
       durationLabel: DURATIONS.find((d) => d.id === duration)?.label || '1 Hour',
       playerCount,
       date: selectedDate,
       timeSlot: selectedTime,
+      startTime: start24,
+      endTime: end24,
       timeSlotRange: `${selectedTime} - ${formattedEndTime}`,
       totalAmount,
       cafeLocation: 'Waluj, Aurangabad',
       status: 'confirmed',
+      paymentStatus: 'pending',
+      paymentMode: 'pay_at_cafe',
+      paymentMethod: 'Pay at Cafe',
+      source: 'website_user',
     };
 
     try {
@@ -275,8 +325,8 @@ export default function Home() {
                   </div>
                   <div>
                     <div className="hero-card__label">Open Daily</div>
-                    <div className="hero-card__value">5:00 AM - 11:30 PM</div>
-                    <div className="hero-card__sub-warning">Last Booking: 10:30 PM</div>
+                    <div className="hero-card__value">5:00 AM - 10:00 PM</div>
+                    <div className="hero-card__sub-warning">Last Booking: 9:00 PM</div>
                   </div>
                 </div>
 
@@ -540,13 +590,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {duration === '2h' && (
-                    <div className="summary-promo-callout">
-                      <Gift size={16} />
-                      <span>Eligible for 1 FREE Cold Drink or Snack!</span>
-                    </div>
-                  )}
-
                   <div className="summary-divider" />
 
                   <div className="summary-total-row">
@@ -599,12 +642,12 @@ export default function Home() {
 
                   <div className="price-card__table">
                     <div className="price-row">
-                      <span className="price-label">30 Minutes</span>
-                      <span className="price-val">₹{station.pricing['30m']}</span>
-                    </div>
-                    <div className="price-row">
                       <span className="price-label">1 Hour</span>
                       <span className="price-val">₹{station.pricing['1h']}</span>
+                    </div>
+                    <div className="price-row">
+                      <span className="price-label">2 Hours</span>
+                      <span className="price-val">₹{station.pricing['2h'] || station.pricing['1h'] * 2}</span>
                     </div>
                     <div className="price-row">
                       <span className="price-label">Group</span>
@@ -613,38 +656,6 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* Right: 2 Hours Promo Special Banner */}
-            <div className="pricing-promo-card">
-              <div className="pricing-promo-banner-header">
-                <Gift size={24} className="promo-gift-icon" />
-                <div className="promo-banner-text">
-                  <span className="promo-tagline">2 HOURS BOOKING =</span>
-                  <span className="promo-highlight">FREE</span>
-                  <span className="promo-sub">COLD DRINK / SNACK</span>
-                </div>
-              </div>
-
-              <div className="pricing-promo-body">
-                <img
-                  src="/images/promo-snack.jpg"
-                  alt="Free Snack Promo"
-                  className="pricing-promo-img"
-                />
-                <div className="pricing-promo-note">
-                  Choose from Cold Drink / Fries / Burger / Vadapav / Momos / Ice Cream
-                </div>
-                <button
-                  className="promo-book-btn"
-                  onClick={() => {
-                    setDuration('2h');
-                    scrollToBooking();
-                  }}
-                >
-                  Book 2 Hours & Claim Offer
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -661,18 +672,32 @@ export default function Home() {
           </div>
 
           <div className="food-grid">
-            {FOOD_ITEMS.map((item) => (
-              <div key={item.name} className="food-card">
-                <div className="food-card__img-box">
-                  <img src={item.image} alt={item.name} className="food-card__img" />
-                  <span className="food-card__price">{item.price}</span>
+            {foodItems.map((item) => {
+              const stock = Number(item.stock);
+              const isOut = !isNaN(stock) && stock <= 0;
+              const displayPrice = typeof item.price === 'number' ? `₹${item.price}` : item.price;
+
+              return (
+                <div key={item.id || item.name} className={`food-card ${isOut ? 'food-card--out' : ''}`}>
+                  <div className="food-card__img-box">
+                    <img
+                      src={item.image || '/images/more-items.jpg'}
+                      alt={item.name}
+                      className="food-card__img"
+                      onError={(e) => {
+                        e.target.src = '/images/more-items.jpg';
+                      }}
+                    />
+                    <span className="food-card__price">{displayPrice}</span>
+                    {isOut && <span className="food-card__out-badge">Out of Stock</span>}
+                  </div>
+                  <div className="food-card__content">
+                    <h3 className="food-card__title">{item.name}</h3>
+                    <p className="food-card__desc">{item.desc || 'Fresh cafe snack'}</p>
+                  </div>
                 </div>
-                <div className="food-card__content">
-                  <h3 className="food-card__title">{item.name}</h3>
-                  <p className="food-card__desc">{item.desc}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -695,13 +720,15 @@ export default function Home() {
               <form onSubmit={handleConfirmBookingSubmit} className="modal-form">
                 <h3 className="modal-title">Complete Your Booking</h3>
                 <p className="modal-subtitle">
-                  {currentStation.name} • {playerCount} Players • {DURATIONS.find((d) => d.id === duration)?.label}
+                  {currentStation.name} • {playerCount} {playerCount === 1 ? 'Player' : 'Players'} • {DURATIONS.find((d) => d.id === duration)?.label}
                 </p>
 
                 <div className="modal-summary-pill">
                   <div>
                     <span>📅 {formatDisplayDate(selectedDate)}</span>
-                    <span style={{ marginLeft: '12px' }}>⏰ {selectedTime} - {formattedEndTime}</span>
+                    <span style={{ marginLeft: '12px' }}>
+                      ⏰ {selectedTime} - {formattedEndTime}
+                    </span>
                   </div>
                   <strong className="text-orange">₹{totalAmount}</strong>
                 </div>

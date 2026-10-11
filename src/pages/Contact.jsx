@@ -1,13 +1,14 @@
-import React from 'react';
-import { MapPin, Phone, Mail, Clock, Instagram, MessageCircle, Navigation } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, Phone, Mail, Clock, Instagram, MessageCircle, Navigation, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 import './Contact.css';
 
 const CONTACT_INFO = [
   { icon: MapPin,   label: 'Address',   value: 'TS Gaming Cafe, Waluj, Aurangabad, Maharashtra', link: 'https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad' },
   { icon: Phone,    label: 'Phone',      value: '+91 98765 43210',      link: 'tel:+919876543210' },
   { icon: Mail,     label: 'Email',      value: 'hello@tsgamingcafe.in', link: 'mailto:hello@tsgamingcafe.in' },
-  { icon: Clock,    label: 'Hours',      value: 'Open Daily: 5:00 AM – 11:30 PM (Last Booking: 10:30 PM)', link: null },
+  { icon: Clock,    label: 'Hours',      value: 'Open Daily: 5:00 AM – 10:00 PM (Last Booking: 9:00 PM)', link: null },
 ];
 
 const SOCIAL = [
@@ -16,6 +17,23 @@ const SOCIAL = [
 ];
 
 export default function Contact() {
+  const toast = useToast();
+  const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.message.trim()) {
+      toast.show('Please enter your name and message.', 'error');
+      return;
+    }
+    const waUrl = `https://wa.me/919876543210?text=${encodeURIComponent(
+      `Hello TS Gaming Cafe!\n\nName: ${formData.name}\nEmail: ${formData.email || 'N/A'}\nMessage: ${formData.message}`
+    )}`;
+    window.open(waUrl, '_blank');
+    toast.show('Opening WhatsApp to send your message directly to TS Gaming Cafe!', 'success');
+    setFormData({ name: '', email: '', message: '' });
+  };
+
   return (
     <div className="contact-page page-enter">
       <div className="container">
@@ -76,7 +94,7 @@ export default function Contact() {
             {/* CTA buttons */}
             <div className="contact-ctas">
               <a
-                href="https://www.google.com/maps/search/TS+Gaming+Cafe+Waluj+Aurangabad"
+                href="https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-secondary"
@@ -84,7 +102,7 @@ export default function Contact() {
               >
                 <Navigation size={16} /> Get Directions
               </a>
-              <Link to="/setups" className="btn btn-primary" id="contact-book-btn">
+              <Link to="/#booking" className="btn btn-primary" id="contact-book-btn">
                 🎮 Book Now
               </Link>
             </div>
@@ -95,7 +113,7 @@ export default function Contact() {
             {/* Map */}
             <div className="contact-map glass">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d241316.9938432403!2d72.74109974898816!3d19.08252485!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3be7c6306644edc1%3A0x5da4ed8f8d648c69!2sMumbai%2C%20Maharashtra!5e0!3m2!1sen!2sin!4v1695000000000!5m2!1sen!2sin"
+                src="https://maps.google.com/maps?q=TS+Gaming+Cafe,+Waluj,+Aurangabad,+Maharashtra&t=&z=15&ie=UTF8&iwloc=&output=embed"
                 width="100%"
                 height="300"
                 style={{ border: 0, borderRadius: 'var(--radius-lg)' }}
@@ -109,27 +127,45 @@ export default function Contact() {
             {/* Contact form */}
             <div className="glass contact-form">
               <h3 className="contact-form__title">Send Us a Message</h3>
-              <form onSubmit={e => { e.preventDefault(); }} className="contact-form__fields">
+              <form onSubmit={handleSubmit} className="contact-form__fields">
                 <div className="form-group">
-                  <label className="form-label">Your Name</label>
-                  <input type="text" placeholder="Shubham Singh" className="form-input" id="contact-name-input" />
+                  <label className="form-label">Your Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rahul Sharma"
+                    className="form-input"
+                    id="contact-name-input"
+                    value={formData.name}
+                    onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                  />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input type="email" placeholder="gamer@example.com" className="form-input" id="contact-email-input" />
+                  <label className="form-label">Phone or Email</label>
+                  <input
+                    type="text"
+                    placeholder="+91 98765 43210 or email"
+                    className="form-input"
+                    id="contact-email-input"
+                    value={formData.email}
+                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                  />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Message</label>
+                  <label className="form-label">Message *</label>
                   <textarea
-                    placeholder="Your message..."
+                    required
+                    placeholder="How can we help you? Ask about bookings, setups, or timings..."
                     className="form-input"
                     rows={4}
                     style={{ resize: 'vertical', minHeight: '100px' }}
                     id="contact-message-input"
+                    value={formData.message}
+                    onChange={(e) => setFormData(p => ({ ...p, message: e.target.value }))}
                   />
                 </div>
-                <button type="submit" className="btn btn-primary full-width" id="contact-submit-btn">
-                  Send Message
+                <button type="submit" className="btn btn-primary full-width" id="contact-submit-btn" style={{ gap: '8px' }}>
+                  <Send size={16} /> Send via WhatsApp
                 </button>
               </form>
             </div>

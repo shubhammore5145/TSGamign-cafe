@@ -155,9 +155,21 @@ function TournamentCard({ tournament: t }) {
           <div className="tournament-card__fee">
             Entry: <span>₹{t.entryFee}</span>
           </div>
-          <div className={`badge ${isFull ? 'badge-occupied' : 'badge-active'}`} style={{ fontSize: '0.7rem' }}>
-            {isFull ? 'Registration Closed' : 'Registration Open'}
-          </div>
+          {!isFull ? (
+            <a
+              href={`https://wa.me/919876543210?text=${encodeURIComponent(
+                `Hello TS Gaming Cafe! I want to register for the "${t.title}" (${t.game}) tournament on ${t.date}. Please reserve my spot!`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+              style={{ padding: '5px 12px', fontSize: '0.78rem', borderRadius: '6px' }}
+            >
+              Register Now
+            </a>
+          ) : (
+            <span className="badge badge-occupied" style={{ fontSize: '0.7rem' }}>Registration Closed</span>
+          )}
         </div>
       </div>
     </div>

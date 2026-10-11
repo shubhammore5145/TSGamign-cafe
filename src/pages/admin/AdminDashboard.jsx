@@ -1,26 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   subscribeToAllActiveSessions,
   subscribeToSetups,
   subscribeToAllBookings,
+  subscribeToStaff,
 } from '../../firebase/firestore';
-import { Gamepad2, Calendar, Zap, CheckCircle, DollarSign, Users, TrendingUp } from 'lucide-react';
+import { Gamepad2, Calendar, Zap, CheckCircle, DollarSign, Users, TrendingUp, ShieldAlert, UserCheck } from 'lucide-react';
 import { useSessionTimer, formatTime } from '../../hooks/useSessionTimer';
+import { isAdminLoggedIn } from '../../utils/adminAuth';
+import { calculateAllStaffSummary } from '../../utils/staffStats';
 
 export default function AdminDashboard() {
+  const isAdmin = isAdminLoggedIn();
   const [activeSessions, setActiveSessions] = useState([]);
   const [setups, setSetups] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [staffList, setStaffList] = useState([]);
 
   useEffect(() => {
+    if (!isAdmin) return;
     const unsubs = [
       subscribeToAllActiveSessions(setActiveSessions),
       subscribeToSetups(setSetups),
       subscribeToAllBookings(setBookings),
+      subscribeToStaff(setStaffList),
     ];
     return () => unsubs.forEach(f => f());
-  }, []);
+  }, [isAdmin]);
+
+  const { summary: staffDailySummary, totals: staffDailyTotals } = useMemo(() => {
+    return calculateAllStaffSummary(staffList, bookings);
+  }, [staffList, bookings]);
+
+  if (!isAdmin) {
+    return (
+      <div style={{ maxWidth: 600, margin: '60px auto', padding: 'var(--space-2xl)', textAlign: 'center' }} className="glass">
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)',
+          color: 'var(--color-danger)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto var(--space-md)'
+        }}>
+          <ShieldAlert size={32} />
+        </div>
+        <h2 style={{ color: '#fff', marginBottom: 'var(--space-sm)' }}>Access Restricted</h2>
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--space-xl)', fontSize: '0.9rem' }}>
+          Revenue & cafe financial analytics are only accessible by Super Admin.
+        </p>
+        <Link to="/admin" className="btn btn-primary">
+          ← Back to Bookings & Slots
+        </Link>
+      </div>
+    );
+  }
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayBookings = bookings.filter(b => b.date === todayStr);
@@ -67,11 +99,94 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* Staff Collection Breakdown */}
+      <div className="glass" style={{ padding: 'var(--space-lg)', marginBottom: 'var(--space-xl)' }}>
+        <div className="admin-section-header">
+          <div>
+            <h3 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <UserCheck size={18} style={{ color: 'var(--color-primary)' }} />
+              Staff Collection Breakdown Today (आजचा स्टाफनिहाय हिशोब)
+            </h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              कोणत्या स्टाफने किती बुकिंग्स घेतल्या व किती रक्कम गोळा केली
+            </span>
+          </div>
+          <Link to="/admin/staff" className="btn btn-sm btn-ghost">Full Staff Report →</Link>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 'var(--space-md)',
+          marginTop: 'var(--space-sm)',
+        }}>
+          {staffDailySummary.map(({ staff, todayCount, todayCash, todayUpi, todayCollection }) => (
+            <div
+              key={staff.id}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 800, fontSize: '0.75rem'
+                  }}>
+                    {(staff.name || 'S')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#fff' }}>{staff.name}</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--color-text-dim)' }}>{staff.role}</div>
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: '0.7rem', padding: '2px 6px', borderRadius: 6,
+                  background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700,
+                }}>
+                  {todayCount} Bookings
+                </span>
+              </div>
+
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+                background: 'rgba(255,255,255,0.02)',
+              }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>एकूण जमा:</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981' }}>
+                  ₹{todayCollection}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>
+                <span>💵 Cash: <strong style={{ color: '#f59e0b' }}>₹{todayCash}</strong></span>
+                <span>📱 UPI: <strong style={{ color: 'var(--color-accent)' }}>₹{todayUpi}</strong></span>
+              </div>
+            </div>
+          ))}
+
+          {staffDailySummary.length === 0 && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--color-text-muted)', padding: 'var(--space-md)' }}>
+              No staff members registered. <Link to="/admin/staff">Add Staff →</Link>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Live Setup Overview */}
       <div className="glass" style={{ padding: 'var(--space-lg)', marginBottom: 'var(--space-xl)' }}>
         <div className="admin-section-header">
           <h3 className="admin-section-title">PlayStation Consoles Status (PS2 / PS3 / PS4 / PS5)</h3>
-          <Link to="/setups" className="btn btn-sm btn-ghost">Manage Consoles →</Link>
+          <Link to="/admin/setups" className="btn btn-sm btn-ghost">Manage Consoles →</Link>
         </div>
         <div className="admin-setups-grid">
           {setups.map(setup => (
@@ -87,7 +202,7 @@ export default function AdminDashboard() {
           ))}
           {setups.length === 0 && (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--color-text-muted)' }}>
-              No PlayStation setups found. <Link to="/setups">Add Consoles →</Link>
+              No PlayStation setups found. <Link to="/admin/setups">Add Consoles →</Link>
             </div>
           )}
         </div>

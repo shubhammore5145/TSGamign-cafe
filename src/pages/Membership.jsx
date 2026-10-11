@@ -132,8 +132,12 @@ export default function Membership() {
                 ))}
               </ul>
 
-              <Link
-                to="/login"
+              <a
+                href={`https://wa.me/919876543210?text=${encodeURIComponent(
+                  `Hello TS Gaming Cafe! I want to join the ${plan.name} Membership Plan (₹${plan.price}/${plan.period}). Please activate my membership pass.`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="btn full-width membership-card__cta"
                 style={plan.popular
                   ? { background: `linear-gradient(135deg, ${plan.color}, #0891b2)`, color: '#fff' }
@@ -141,8 +145,8 @@ export default function Membership() {
                 }
                 id={`membership-join-${plan.id}`}
               >
-                <Crown size={16} /> Join {plan.name}
-              </Link>
+                <Crown size={16} /> Get {plan.name} Pass
+              </a>
             </div>
           ))}
         </div>

@@ -1,45 +1,120 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { adminLogout } from './AdminLogin';
+import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
+import { adminLogout, isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
 import {
-  LayoutDashboard, Monitor, Calendar, Users, Trophy,
-  LogOut, Gamepad2, Zap, Menu, X, Clock, Download
+  LayoutDashboard,
+  Calendar,
+  Users,
+  LogOut,
+  Gamepad2,
+  Zap,
+  Menu,
+  X,
+  Clock,
+  UserCheck,
+  ShieldCheck,
+  ExternalLink,
+  Coffee,
 } from 'lucide-react';
 import PWAInstallModal from '../../components/PWAInstallModal';
 import './Admin.css';
 
-const NAV_LINKS = [
-  { to: '/',            label: 'Bookings & Add',    shortLabel: 'Slots',     icon: Calendar, end: true },
-  { to: '/sessions',     label: 'Live Sessions',     shortLabel: 'Live',      icon: Zap },
-  { to: '/timer',        label: 'Big Timer',         shortLabel: 'Timer',     icon: Clock },
-  { to: '/setups',       label: 'PlayStation Setups',shortLabel: 'PS Setups', icon: Gamepad2 },
-  { to: '/dashboard',    label: 'Dashboard Stats',   shortLabel: 'Stats',     icon: LayoutDashboard },
-];
-
 export default function AdminLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const isAdmin = isAdminLoggedIn();
+  const isStaff = isStaffLoggedIn();
+  const staffUser = getStaffUser();
 
   const handleSignOut = () => {
     adminLogout();
     navigate('/login');
   };
 
+  // Role-based Navigation Links (Available to both Admin & Staff!)
+  const navLinks = [
+    { to: '/admin', label: 'Bookings & Slots', shortLabel: 'Slots', icon: Calendar, end: true },
+    { to: '/admin/sessions', label: 'Live Sessions', shortLabel: 'Live', icon: Zap },
+    { to: '/admin/timer', label: 'Big Timer', shortLabel: 'Timer', icon: Clock },
+    { to: '/admin/food', label: 'Cafe Food & Stock', shortLabel: 'Food', icon: Coffee },
+    ...(isAdmin
+      ? [
+          { to: '/admin/setups', label: 'PlayStation Setups', shortLabel: 'Setups', icon: Gamepad2 },
+          { to: '/admin/staff', label: 'Staff Management', shortLabel: 'Staff', icon: Users },
+          { to: '/admin/dashboard', label: 'Dashboard Stats', shortLabel: 'Stats', icon: LayoutDashboard },
+        ]
+      : []),
+  ];
+
   return (
     <div className="admin-layout">
       {/* Sidebar */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'admin-sidebar--open' : ''}`}>
         <div className="admin-sidebar__logo">
-          <div className="admin-sidebar__logo-icon"><Gamepad2 size={18} /></div>
+          <div className="admin-sidebar__logo-icon">
+            <Gamepad2 size={18} />
+          </div>
           <div>
             <div className="admin-sidebar__logo-text">TS Gaming Café</div>
-            <div className="admin-sidebar__logo-sub">ADMIN PORTAL</div>
+            <div className="admin-sidebar__logo-sub">
+              {isAdmin ? 'ADMIN PORTAL' : 'STAFF DUTY DESK'}
+            </div>
+          </div>
+        </div>
+
+        {/* User Identity Chip in Sidebar */}
+        <div style={{
+          margin: '12px 14px',
+          padding: '10px 12px',
+          borderRadius: 'var(--radius-md)',
+          background: isAdmin ? 'rgba(245, 158, 11, 0.1)' : 'rgba(147, 51, 234, 0.12)',
+          border: `1px solid ${isAdmin ? 'rgba(245, 158, 11, 0.25)' : 'rgba(147, 51, 234, 0.25)'}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: isAdmin ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #9333ea, #06b6d4)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: '0.85rem',
+            flexShrink: 0,
+          }}>
+            {isAdmin ? '👑' : <UserCheck size={16} />}
+          </div>
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              color: '#fff',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {isAdmin ? 'Super Admin' : (staffUser?.name || 'Staff')}
+            </div>
+            <div style={{
+              fontSize: '0.68rem',
+              color: isAdmin ? '#f59e0b' : 'var(--color-primary-light)',
+              fontWeight: 600,
+            }}>
+              {isAdmin ? 'Full Owner Access' : (staffUser?.role || 'Staff Operator')}
+            </div>
           </div>
         </div>
 
         <nav className="admin-sidebar__nav">
-          <div className="admin-sidebar__section-label">Booking & Cafe Control</div>
-          {NAV_LINKS.map(({ to, label, icon: Icon, end }) => (
+          <div className="admin-sidebar__section-label">
+            {isAdmin ? 'Cafe & System Control' : 'Duty Operations'}
+          </div>
+          {navLinks.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -54,9 +129,23 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="admin-sidebar__footer">
-          <button className="admin-nav-link" style={{ color: 'var(--color-danger)' }} onClick={handleSignOut}>
-            <LogOut size={16} /> Sign Out
+        <div className="admin-sidebar__footer" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="admin-nav-link"
+            style={{ color: 'var(--color-text-dim)', fontSize: '0.8rem' }}
+          >
+            <ExternalLink size={14} /> View Website
+          </a>
+
+          <button
+            className="admin-nav-link"
+            style={{ color: 'var(--color-danger)' }}
+            onClick={handleSignOut}
+          >
+            <LogOut size={16} /> Sign Out ({isAdmin ? 'Admin' : 'Staff'})
           </button>
         </div>
       </aside>
@@ -66,23 +155,50 @@ export default function AdminLayout() {
         {/* Topbar */}
         <header className="admin-topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            <button className="btn btn-icon btn-ghost admin-mobile-toggle" onClick={() => setSidebarOpen(v => !v)} id="admin-sidebar-toggle">
+            <button
+              className="btn btn-icon btn-ghost admin-mobile-toggle"
+              onClick={() => setSidebarOpen((v) => !v)}
+              id="admin-sidebar-toggle"
+            >
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             <span className="admin-topbar__title">⚡ TS Gaming</span>
           </div>
 
           <div className="admin-topbar__user" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* PWA Install Button and Handlers */}
+            {/* PWA Install Button */}
             <PWAInstallModal />
 
+            {/* Role Chip */}
             <div style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.8rem', fontWeight: 700, color: '#fff',
-            }} title="Admin logged in">
-              👑
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '4px 10px',
+              borderRadius: 20,
+              background: isAdmin ? 'rgba(245, 158, 11, 0.15)' : 'rgba(147, 51, 234, 0.15)',
+              border: `1px solid ${isAdmin ? 'rgba(245, 158, 11, 0.3)' : 'rgba(147, 51, 234, 0.3)'}`,
+            }}>
+              <div style={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: isAdmin ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #9333ea, #06b6d4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.75rem',
+                color: '#fff',
+              }}>
+                {isAdmin ? '👑' : '👤'}
+              </div>
+              <span style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: isAdmin ? '#f59e0b' : 'var(--color-primary-light)',
+              }}>
+                {isAdmin ? 'Super Admin' : `${staffUser?.name || 'Staff'}`}
+              </span>
             </div>
           </div>
         </header>
@@ -94,7 +210,7 @@ export default function AdminLayout() {
 
         {/* Mobile Bottom Navigation Bar (Visible on phones) */}
         <nav className="admin-mobile-bottom-nav">
-          {NAV_LINKS.map(({ to, shortLabel, icon: Icon, end }) => (
+          {navLinks.map(({ to, shortLabel, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -120,4 +236,3 @@ export default function AdminLayout() {
     </div>
   );
 }
-

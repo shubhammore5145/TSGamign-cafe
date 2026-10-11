@@ -21,7 +21,7 @@ export default function Gallery() {
         <div className="gallery-header">
           <div className="section-tag">📸 Gallery</div>
           <h1 className="section-title">Life at <span>TS Gaming Café</span></h1>
-          <p className="section-desc">Snapshots from our gaming arena, tournaments, and community events.</p>
+          <p className="section-desc">Snapshots from our gaming arena and community gaming sessions.</p>
         </div>
 
         <div className="gallery-grid">
@@ -46,13 +46,13 @@ export default function Gallery() {
             Follow us on Instagram for daily gaming moments
           </p>
           <a
-            href="https://instagram.com"
+            href="https://www.instagram.com/ts_gaming_cafe_waluj"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary"
             id="gallery-instagram-btn"
           >
-            📷 @TSGamingCafe
+            📷 @ts_gaming_cafe_waluj
           </a>
         </div>
       </div>

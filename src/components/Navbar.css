@@ -88,23 +88,24 @@
 .navbar__menu {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .navbar__menu-link {
-  padding: 0.45rem 0.9rem;
+  padding: 0.4rem 0.65rem;
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   color: #cbd5e1;
   text-decoration: none;
   border-radius: 6px;
   transition: all 0.2s ease;
   position: relative;
+  white-space: nowrap;
 }
 
 .navbar__menu-link:hover {
@@ -325,7 +326,7 @@
 }
 
 /* ── Responsive Queries ── */
-@media (max-width: 1080px) {
+@media (max-width: 1180px) {
   .navbar__menu {
     display: none;
   }

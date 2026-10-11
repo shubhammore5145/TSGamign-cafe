@@ -31,11 +31,12 @@ export default function Navbar() {
 
   const navItems = [
     { label: 'Home', target: '#hero', to: '/' },
-    { label: 'Games', target: '#stations', to: '/games' },
+    { label: 'Games', to: '/games' },
+    { label: 'Setups', to: '/setups' },
     { label: 'Pricing', target: '#pricing' },
     { label: 'Food & Drinks', target: '#food' },
     { label: 'Gallery', to: '/gallery' },
-    { label: 'Location', target: '#location' },
+    { label: 'Contact', to: '/contact' },
   ];
 
   return (

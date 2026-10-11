@@ -1,25 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Gamepad2, Monitor } from 'lucide-react';
+import { Search, Gamepad2, Monitor, Calendar } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { getGames } from '../firebase/firestore';
 import './Games.css';
 
 const CATEGORIES = ['All', 'FPS', 'Racing', 'Sports', 'Battle Royale', 'Open World', 'Multiplayer'];
 
 const FALLBACK_GAMES = [
-  { id: '1', name: 'Valorant',       category: 'FPS',         supportedSetups: ['PC'],    playerCount: '5v5',   image: null },
-  { id: '2', name: 'Counter-Strike 2', category: 'FPS',       supportedSetups: ['PC'],    playerCount: '5v5',   image: null },
-  { id: '3', name: 'GTA V',           category: 'Open World', supportedSetups: ['PC', 'PS5'], playerCount: '1-30', image: null },
-  { id: '4', name: 'Fortnite',        category: 'Battle Royale', supportedSetups: ['PC','PS5'], playerCount: '1-100', image: null },
-  { id: '5', name: 'Minecraft',       category: 'Open World', supportedSetups: ['PC'],    playerCount: '1-20',  image: null },
-  { id: '6', name: 'EA Sports FC 25', category: 'Sports',     supportedSetups: ['PS5'],   playerCount: '1v1',   image: null },
-  { id: '7', name: 'Forza Horizon 5', category: 'Racing',     supportedSetups: ['PC','Racing'], playerCount: '1-12', image: null },
-  { id: '8', name: 'Call of Duty: Warzone', category: 'Battle Royale', supportedSetups: ['PC','PS5'], playerCount: '1-150', image: null },
-  { id: '9', name: 'Rocket League',  category: 'Sports',     supportedSetups: ['PC','PS5'], playerCount: '3v3',  image: null },
-  { id: '10', name: 'Cyberpunk 2077', category: 'Open World', supportedSetups: ['PC'],    playerCount: '1',     image: null },
-  { id: '11', name: 'Apex Legends',  category: 'Battle Royale', supportedSetups: ['PC'], playerCount: '3',      image: null },
-  { id: '12', name: 'Gran Turismo 7', category: 'Racing',     supportedSetups: ['PS5','Racing'], playerCount: '1-20', image: null },
-  { id: '13', name: 'Beat Saber',    category: 'Multiplayer', supportedSetups: ['VR'],    playerCount: '1-2',   image: null },
-  { id: '14', name: 'Half-Life: Alyx', category: 'FPS',       supportedSetups: ['VR'],    playerCount: '1',     image: null },
+  { id: '1', name: 'Valorant', category: 'FPS', supportedSetups: ['PC'], playerCount: '5v5', image: null },
+  { id: '2', name: 'Counter-Strike 2', category: 'FPS', supportedSetups: ['PC'], playerCount: '5v5', image: null },
+  { id: '3', name: 'GTA V', category: 'Open World', supportedSetups: ['PC', 'PS5', 'PS4'], playerCount: '1-30', image: null },
+  { id: '4', name: 'EA Sports FC 25', category: 'Sports', supportedSetups: ['PS5', 'PS4'], playerCount: '1v1 / 2v2', image: null },
+  { id: '5', name: 'Forza Horizon 5', category: 'Racing', supportedSetups: ['Racing', 'PC'], playerCount: '1-12', image: null },
+  { id: '6', name: 'Gran Turismo 7', category: 'Racing', supportedSetups: ['Racing', 'PS5'], playerCount: '1-20', image: null },
+  { id: '7', name: 'WWE 2K24', category: 'Sports', supportedSetups: ['PS5', 'PS4', 'PS3', 'PS2'], playerCount: '1-4', image: null },
+  { id: '8', name: 'Tekken 8', category: 'Multiplayer', supportedSetups: ['PS5'], playerCount: '1v1', image: null },
+  { id: '9', name: 'Spider-Man 2', category: 'Open World', supportedSetups: ['PS5'], playerCount: '1 Player', image: null },
+  { id: '10', name: 'Mortal Kombat 1', category: 'Multiplayer', supportedSetups: ['PS5'], playerCount: '1v1', image: null },
+  { id: '11', name: 'Call of Duty: Warzone', category: 'Battle Royale', supportedSetups: ['PC', 'PS5'], playerCount: '1-150', image: null },
+  { id: '12', name: 'Fortnite', category: 'Battle Royale', supportedSetups: ['PC', 'PS5'], playerCount: '1-100', image: null },
+  { id: '13', name: 'Minecraft', category: 'Open World', supportedSetups: ['PC'], playerCount: '1-20', image: null },
+  { id: '14', name: 'Rocket League', category: 'Sports', supportedSetups: ['PC', 'PS5'], playerCount: '3v3', image: null },
+  { id: '15', name: 'Need for Speed Unbound', category: 'Racing', supportedSetups: ['Racing', 'PS5'], playerCount: '1-8', image: null },
 ];
 
 const CATEGORY_COLORS = {
@@ -123,6 +125,16 @@ export default function Games() {
                       ))}
                     </div>
                   )}
+
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <Link
+                      to="/#booking"
+                      className="btn btn-ghost"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#ff5500', gap: '4px' }}
+                    >
+                      <Calendar size={12} /> Book to Play
+                    </Link>
+                  </div>
                 </div>
               </div>
             );

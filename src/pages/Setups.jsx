@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Monitor, Gamepad2, Glasses, Car, Filter } from 'lucide-react';
+import { Monitor, Gamepad2, Glasses, Car, Filter, Calendar } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useSetups } from '../hooks/useSetups';
 import './Setups.css';
 
@@ -12,9 +13,80 @@ const TYPE_ICONS = {
   Racing: Car,
 };
 
+const FALLBACK_SETUPS = [
+  {
+    id: 'setup-ps5-1',
+    setupNumber: 1,
+    name: 'PlayStation 5 Arena #01',
+    type: 'PS5',
+    status: 'available',
+    pricePerHour: 80,
+    specs: ['Sony 4K HDR 120Hz Display', 'DualSense Haptic Controllers', 'Pulse 3D Audio Headset', 'Ultra-fast NVMe SSD'],
+    games: ['EA Sports FC 25', 'Spider-Man 2', 'God of War Ragnarok', 'Tekken 8', 'Mortal Kombat 1'],
+    image: '/images/ps5.jpg',
+  },
+  {
+    id: 'setup-ps5-2',
+    setupNumber: 2,
+    name: 'PlayStation 5 Arena #02',
+    type: 'PS5',
+    status: 'available',
+    pricePerHour: 80,
+    specs: ['Sony 4K HDR 120Hz Display', 'DualSense Haptic Controllers', 'Surround Sound Audio'],
+    games: ['Call of Duty: Modern Warfare III', 'GTA V', 'Gran Turismo 7', 'NBA 2K25'],
+    image: '/images/ps5.jpg',
+  },
+  {
+    id: 'setup-sim-1',
+    setupNumber: 3,
+    name: 'Sim Racing Pro Cockpit',
+    type: 'Racing',
+    status: 'available',
+    pricePerHour: 150,
+    specs: ['Logitech G29 Force Feedback Wheel', 'Sequential 6-Speed Shifter', 'Cockpit Racing Bucket Seat', 'Surround Sound Audio'],
+    games: ['Forza Horizon 5', 'Gran Turismo 7', 'F1 24', 'Assetto Corsa', 'Need for Speed Unbound'],
+    image: '/images/sim-racing.jpg',
+  },
+  {
+    id: 'setup-ps4-1',
+    setupNumber: 4,
+    name: 'PlayStation 4 Pro Arena',
+    type: 'PS5',
+    status: 'available',
+    pricePerHour: 50,
+    specs: ['55" 4K HDR Screen', 'DualShock 4 Wireless Controllers', 'Full Sports & Action Library'],
+    games: ['WWE 2K24', 'FIFA 23', 'Cricket 24', 'Uncharted 4', 'Red Dead Redemption 2'],
+    image: '/images/ps4.jpg',
+  },
+  {
+    id: 'setup-ps3-1',
+    setupNumber: 5,
+    name: 'PlayStation 3 Co-Op Station',
+    type: 'PC',
+    status: 'available',
+    pricePerHour: 40,
+    specs: ['HD Gaming Display', '4-Player Co-Op Multiplayer', 'Classic Golden Era Titles'],
+    games: ['WWE SmackDown vs Raw', 'Blur', 'Tekken 6', 'NFS Most Wanted', 'Call of Duty Black Ops II'],
+    image: '/images/ps3.jpg',
+  },
+  {
+    id: 'setup-ps2-1',
+    setupNumber: 6,
+    name: 'PlayStation 2 Retro Lounge',
+    type: 'PC',
+    status: 'available',
+    pricePerHour: 30,
+    specs: ['Retro Arcade Setup', 'Group Multiplayer Action', 'Nostalgic Classics'],
+    games: ['WWE SmackDown Here Comes The Pain', 'GTA San Andreas', 'Dragon Ball Z Budokai Tenkaichi 3'],
+    image: '/images/ps2.jpg',
+  },
+];
+
 export default function Setups() {
-  const { setups, loading, error } = useSetups();
+  const { setups: liveSetups, loading, error } = useSetups();
   const [activeCategory, setActiveCategory] = useState('All');
+
+  const setups = (liveSetups && liveSetups.length > 0) ? liveSetups : FALLBACK_SETUPS;
 
   const filtered = activeCategory === 'All'
     ? setups
@@ -28,36 +100,9 @@ export default function Setups() {
           <div className="section-tag"><Monitor size={12} /> Gaming Arsenal</div>
           <h1 className="section-title">Our <span>Gaming Setups</span></h1>
           <p className="section-desc">
-            Choose your weapon. From RTX-powered gaming PCs to PS5, VR, and Racing Simulators — we've got the gear to match your game.
+            Choose your weapon. From PS5 next-gen consoles to Sim Racing Cockpit, PS4, PS3 and PS2 — we've got the gear to match your game.
           </p>
         </div>
-
-        {/* Firestore Error Message */}
-        {error && (
-          <div className="glass" style={{
-            padding: 'var(--space-xl)',
-            marginBottom: 'var(--space-xl)',
-            border: '1px solid var(--color-warning)',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-md)' }}>⚠️</div>
-            <h3 style={{ color: 'var(--color-warning)', marginBottom: 'var(--space-sm)' }}>
-              Firebase Setup Required
-            </h3>
-            <p className="text-muted" style={{ marginBottom: 'var(--space-md)', maxWidth: '500px', margin: '0 auto var(--space-md)' }}>
-              Firestore Database needs to be created in your Firebase Console. Follow these steps:
-            </p>
-            <div style={{ textAlign: 'left', maxWidth: '500px', margin: '0 auto', color: 'var(--color-text-muted)', fontSize: '0.85rem', lineHeight: 1.8 }}>
-              <p>1️⃣ Go to <strong style={{ color: 'var(--color-primary)' }}>console.firebase.google.com</strong></p>
-              <p>2️⃣ Open your project (<strong style={{ color: 'var(--color-primary)' }}>smartprint-1fd4a</strong>)</p>
-              <p>3️⃣ Click <strong style={{ color: 'var(--color-accent)' }}>Firestore Database</strong> in the left sidebar (NOT Realtime Database)</p>
-              <p>4️⃣ Click <strong style={{ color: 'var(--color-accent)' }}>Create database</strong></p>
-              <p>5️⃣ Select <strong>Start in test mode</strong></p>
-              <p>6️⃣ Choose a location and click <strong>Enable</strong></p>
-              <p>7️⃣ Refresh this page!</p>
-            </div>
-          </div>
-        )}
 
         {/* Category Filter */}
         <div className="setups-filter">
@@ -75,7 +120,7 @@ export default function Setups() {
         </div>
 
         {/* Grid */}
-        {loading ? (
+        {loading && setups.length === 0 ? (
           <div className="setups-grid">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="glass setup-card-skeleton">
@@ -94,7 +139,7 @@ export default function Setups() {
           </div>
         )}
 
-        {!loading && !error && filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="setups-empty glass">
             <Monitor size={48} className="text-dim" />
             <h3>No setups found</h3>
@@ -148,7 +193,7 @@ function SetupCard({ setup }) {
         {/* Games */}
         {setup.games && setup.games.length > 0 && (
           <div className="setup-card__games">
-            <span className="setup-card__games-label">Games:</span>
+            <span className="setup-card__games-label">Popular Games:</span>
             <div className="setup-card__games-list">
               {setup.games.slice(0, 3).map((game, i) => (
                 <span key={i} className="setup-card__game-tag">{game}</span>
@@ -166,9 +211,13 @@ function SetupCard({ setup }) {
             <span className="setup-card__price-amount">₹{setup.pricePerHour}</span>
             <span className="setup-card__price-unit">/hour</span>
           </div>
-          <div className={`badge ${isAvailable ? 'badge-available' : isOccupied ? 'badge-occupied' : 'badge-maintenance'}`} style={{ fontSize: '0.7rem' }}>
-            {isAvailable ? '✅ Available' : isOccupied ? '🔴 In Use' : '🔧 Maintenance'}
-          </div>
+          <Link
+            to="/#booking"
+            className="btn btn-primary"
+            style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '6px', gap: '6px' }}
+          >
+            <Calendar size={13} /> Book Now
+          </Link>
         </div>
       </div>
     </div>

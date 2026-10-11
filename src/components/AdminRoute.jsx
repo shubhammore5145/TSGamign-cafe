@@ -1,10 +1,11 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { isAdminLoggedIn } from '../pages/admin/AdminLogin';
+import { isAuthenticated } from '../utils/adminAuth';
 
 export default function AdminRoute({ children }) {
-  if (!isAdminLoggedIn()) {
+  if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
   return children;
 }
+
