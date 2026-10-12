@@ -58,9 +58,16 @@ export default function AdminFood() {
 
   const [foodItems, setFoodItems] = useState([]);
   const [foodSales, setFoodSales] = useState([]);
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'pos' | 'history'
+  const [activeTab, setActiveTab] = useState(() => (isAdmin ? 'inventory' : 'pos')); // 'inventory' | 'pos' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  // Security guard: staff cannot access inventory tab
+  useEffect(() => {
+    if (!isAdmin && activeTab === 'inventory') {
+      setActiveTab('pos');
+    }
+  }, [isAdmin, activeTab]);
 
   // Modal State for Add / Edit Product
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -359,9 +366,13 @@ ${itemLines}
       {/* ── Header ── */}
       <div className="admin-page__header">
         <div>
-          <h1 className="admin-page__title">Cafe Food & Stock Management</h1>
+          <h1 className="admin-page__title">
+            {isAdmin ? 'Cafe Food & Stock Management' : 'Cafe POS Counter & Billing'}
+          </h1>
           <p className="admin-page__subtitle">
-            {isAdmin ? '👑 Super Admin: Manage stock, add new food items & audit sales' : '👤 Staff Desk: Quick Cafe POS billing & stock lookup'}
+            {isAdmin
+              ? '👑 Super Admin: Manage stock inventory, pricing & audit food sales'
+              : '👤 Staff Desk: Quick Cafe Food & Drinks POS billing counter'}
           </p>
         </div>
 
@@ -375,53 +386,72 @@ ${itemLines}
       </div>
 
       {/* ── Metric Stat Cards ── */}
-      <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card">
-          <div className="stat-card__icon" style={{ background: 'rgba(255, 85, 0, 0.15)', color: '#ff5500' }}>
-            <Coffee size={24} />
-          </div>
-          <div>
-            <div className="stat-card__value">{totalProducts}</div>
-            <div className="stat-card__label">Total Products</div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-            <Package size={24} />
-          </div>
-          <div>
-            <div className="stat-card__value">{totalStockUnits}</div>
-            <div className="stat-card__label">Total Stock Units</div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__icon" style={{
-            background: lowStockItems.length > 0 || outOfStockItems.length > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
-            color: lowStockItems.length > 0 || outOfStockItems.length > 0 ? '#ef4444' : '#22c55e',
-          }}>
-            <AlertTriangle size={24} />
-          </div>
-          <div>
-            <div className="stat-card__value" style={{ color: outOfStockItems.length > 0 ? '#ef4444' : '#f59e0b' }}>
-              {outOfStockItems.length} out / {lowStockItems.length} low
+      <div className="stats-grid">
+        {isAdmin && (
+          <>
+            <div className="stat-card glass">
+              <div className="stat-card__icon" style={{ background: 'rgba(255, 85, 0, 0.12)', color: '#ff5500', border: '1px solid rgba(255, 85, 0, 0.25)' }}>
+                <Coffee size={24} />
+              </div>
+              <div className="stat-card__content">
+                <div className="stat-card__value">{totalProducts}</div>
+                <div className="stat-card__label">Total Products</div>
+              </div>
             </div>
-            <div className="stat-card__label">Stock Alerts</div>
-          </div>
-        </div>
 
-        <div className="stat-card">
-          <div className="stat-card__icon" style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
+            <div className="stat-card glass">
+              <div className="stat-card__icon" style={{ background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+                <Package size={24} />
+              </div>
+              <div className="stat-card__content">
+                <div className="stat-card__value">{totalStockUnits}</div>
+                <div className="stat-card__label">Total Stock Units</div>
+              </div>
+            </div>
+
+            <div className="stat-card glass">
+              <div className="stat-card__icon" style={{
+                background: lowStockItems.length > 0 || outOfStockItems.length > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)',
+                color: lowStockItems.length > 0 || outOfStockItems.length > 0 ? '#ef4444' : '#22c55e',
+                border: lowStockItems.length > 0 || outOfStockItems.length > 0 ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(34, 197, 94, 0.25)',
+              }}>
+                <AlertTriangle size={24} />
+              </div>
+              <div className="stat-card__content">
+                <div className="stat-card__value" style={{ color: outOfStockItems.length > 0 ? '#ef4444' : lowStockItems.length > 0 ? '#f59e0b' : '#22c55e' }}>
+                  {outOfStockItems.length > 0 || lowStockItems.length > 0
+                    ? `${outOfStockItems.length} out / ${lowStockItems.length} low`
+                    : 'All In Stock'}
+                </div>
+                <div className="stat-card__label">Stock Alerts</div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="stat-card glass">
+          <div className="stat-card__icon" style={{ background: 'rgba(34, 197, 94, 0.12)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.25)' }}>
             <TrendingUp size={24} />
           </div>
-          <div>
+          <div className="stat-card__content">
             <div className="stat-card__value text-orange">₹{todayRevenue}</div>
-            <div className="stat-card__label">
-              Today's Sales (💵 ₹{todayCashRevenue} • 📱 ₹{todayUpiRevenue})
-            </div>
+            <div className="stat-card__label">Today's Sales</div>
+            <div className="stat-card__sublabel">💵 ₹{todayCashRevenue} • 📱 ₹{todayUpiRevenue}</div>
           </div>
         </div>
+
+        {!isAdmin && (
+          <div className="stat-card glass">
+            <div className="stat-card__icon" style={{ background: 'rgba(147, 51, 234, 0.12)', color: 'var(--color-primary-light)', border: '1px solid rgba(147, 51, 234, 0.25)' }}>
+              <Receipt size={24} />
+            </div>
+            <div className="stat-card__content">
+              <div className="stat-card__value">{todaySales.length}</div>
+              <div className="stat-card__label">Orders Billed Today</div>
+              <div className="stat-card__sublabel">👤 Shift: {currentStaff?.name || 'Staff'}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Main Tab Navigation ── */}
@@ -432,20 +462,22 @@ ${itemLines}
         paddingBottom: '10px',
         marginBottom: '1.25rem',
       }}>
-        <button
-          onClick={() => setActiveTab('inventory')}
-          className={`btn ${activeTab === 'inventory' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <Package size={16} /> <span>📦 Stock Inventory ({totalProducts})</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`btn ${activeTab === 'inventory' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Package size={16} /> <span>Stock Inventory ({totalProducts})</span>
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('pos')}
           className={`btn ${activeTab === 'pos' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}
         >
-          <ShoppingCart size={16} /> <span>🛒 Cafe POS Billing</span>
+          <ShoppingCart size={16} /> <span>Cafe POS Billing</span>
           {cart.length > 0 && (
             <span style={{
               background: '#ff5500',
@@ -463,16 +495,28 @@ ${itemLines}
         <button
           onClick={() => setActiveTab('history')}
           className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         >
-          <Receipt size={16} /> <span>📋 Sales Records ({todaySales.length} Today)</span>
+          <Receipt size={16} /> <span>Sales Records ({todaySales.length} Today)</span>
         </button>
       </div>
 
       {/* ============================================================
-          TAB 1: STOCK & PRODUCTS INVENTORY
+          TAB 1: STOCK & PRODUCTS INVENTORY (ADMIN ONLY)
           ============================================================ */}
-      {activeTab === 'inventory' && (
+      {!isAdmin && activeTab === 'inventory' && (
+        <div className="glass" style={{ padding: '3rem', textAlign: 'center' }}>
+          <h3 style={{ color: 'var(--color-danger)' }}>Access Restricted</h3>
+          <p style={{ color: 'var(--color-text-muted)', marginTop: '8px' }}>
+            स्टाफसाठी इन्व्हेंटरी ॲक्सेस बंद आहे. फक्त सुपर ॲडमिन इन्व्हेंटरी मॅनेज करू शकतात.
+          </p>
+          <button className="btn btn-primary" onClick={() => setActiveTab('pos')} style={{ marginTop: '14px' }}>
+            Go to Cafe POS Billing →
+          </button>
+        </div>
+      )}
+
+      {isAdmin && activeTab === 'inventory' && (
         <div>
           {/* Filter Bar */}
           <div style={{

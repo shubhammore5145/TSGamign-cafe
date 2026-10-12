@@ -22,11 +22,9 @@ export default function Footer() {
           {/* ── Brand Column ── */}
           <div className="footer__brand-col">
             <Link to="/" className="footer__logo">
-              <div className="footer__logo-badge">
-                <span className="logo-ts">TS</span>
-              </div>
+              <img src="/images/logo.png" alt="TS Gaming Cafe" className="footer__logo-img" style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: '50%', flexShrink: 0, filter: 'drop-shadow(0 0 10px rgba(255, 85, 0, 0.4))' }} />
               <div className="footer__logo-info">
-                <div className="footer__logo-name">GAMING CAFE</div>
+                <div className="footer__logo-name">TS GAMING CAFE</div>
                 <div className="footer__logo-tagline">PLAY · COMPETE · BELONG</div>
               </div>
             </Link>
@@ -68,8 +66,8 @@ export default function Footer() {
                   <Phone size={15} />
                 </div>
                 <div>
-                  <a href="tel:+919876543210" className="footer__phone-link">
-                    +91 98765 43210
+                  <a href="tel:+917972430951" className="footer__phone-link">
+                    +91 79724 30951
                   </a>
                 </div>
               </li>

@@ -9,7 +9,7 @@ import { uploadSetupImage } from '../../firebase/storage';
 import { useToast } from '../../context/ToastContext';
 import { Plus, Edit2, Trash2, X, Gamepad2, Sparkles, Filter } from 'lucide-react';
 
-const TYPES = ['PS5', 'PS4', 'PS3', 'PS2'];
+const TYPES = ['PS5', 'PS4', 'PS3', 'PS2', 'PC', 'Racing'];
 const STATUSES = ['available', 'occupied', 'maintenance'];
 
 const DEFAULT_FORM = {
@@ -84,6 +84,26 @@ const DEFAULT_PS_SEED = [
     games: ['GTA San Andreas', 'GTA Vice City', 'WWE SmackDown Here Comes The Pain', 'God of War II', 'Tekken 5', 'Need for Speed Most Wanted'],
     image: '',
   },
+  {
+    name: 'Pro Gaming PC — Station #07',
+    type: 'PC',
+    setupNumber: 7,
+    pricePerHour: 70,
+    status: 'available',
+    specs: ['RTX 4060 GPU / Intel i7 13th Gen', '240Hz Gaming Monitor', 'Mechanical RGB Keyboard & Mouse'],
+    games: ['Valorant', 'CS:GO 2', 'GTA V', 'Call of Duty Warzone', 'Fortnite', 'Apex Legends'],
+    image: '/images/gallery/gaming-pc.jpg',
+  },
+  {
+    name: 'Racing Simulator Cockpit — Station #08',
+    type: 'Racing',
+    setupNumber: 8,
+    pricePerHour: 150,
+    status: 'available',
+    specs: ['Logitech G29 Force Feedback Wheel', 'Metal Pedals & 6-Speed Shifter', 'Racing Bucket Seat'],
+    games: ['Forza Horizon 5', 'F1 23', 'Assetto Corsa', 'Need for Speed Heat', 'Dirt Rally 2.0'],
+    image: '/images/sim-racing.jpg',
+  },
 ];
 
 export default function AdminSetups() {
@@ -148,6 +168,14 @@ export default function AdminSetups() {
       rate = 30;
       specs = '2x DualShock 2 Controllers\nMemory Card 64MB';
       games = 'GTA San Andreas\nGTA Vice City\nWWE SmackDown Here Comes The Pain\nGod of War II\nTekken 5';
+    } else if (type === 'PC') {
+      rate = 70;
+      specs = 'RTX 4060 GPU / Intel i7 13th Gen\n240Hz High Refresh Monitor\nMechanical RGB Keyboard & Gaming Mouse';
+      games = 'Valorant\nCS:GO 2\nGTA V\nCall of Duty Warzone\nFortnite\nApex Legends';
+    } else if (type === 'Racing') {
+      rate = 150;
+      specs = 'Logitech G29 Force Feedback Wheel\nMetal Pedals & 6-Speed Shifter\nRacing Cockpit Bucket Seat';
+      games = 'Forza Horizon 5\nF1 23\nAssetto Corsa\nNeed for Speed Heat\nDirt Rally 2.0';
     }
 
     setForm(prev => ({

@@ -54,11 +54,24 @@
 }
 
 .game-card__image {
-  height: 140px;
+  height: 160px;
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(135deg, var(--color-bg-2), var(--color-bg-3));
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.game-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease, filter 0.4s ease;
+}
+
+.game-card:hover .game-card__img {
+  transform: scale(1.08);
 }
 
 .game-card__emoji {

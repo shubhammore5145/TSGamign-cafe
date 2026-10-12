@@ -6,14 +6,14 @@ import './Contact.css';
 
 const CONTACT_INFO = [
   { icon: MapPin,   label: 'Address',   value: 'TS Gaming Cafe, Waluj, Aurangabad, Maharashtra', link: 'https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad' },
-  { icon: Phone,    label: 'Phone',      value: '+91 98765 43210',      link: 'tel:+919876543210' },
+  { icon: Phone,    label: 'Phone',      value: '+91 79724 30951',      link: 'tel:+917972430951' },
   { icon: Mail,     label: 'Email',      value: 'hello@tsgamingcafe.in', link: 'mailto:hello@tsgamingcafe.in' },
   { icon: Clock,    label: 'Hours',      value: 'Open Daily: 5:00 AM – 10:00 PM (Last Booking: 9:00 PM)', link: null },
 ];
 
 const SOCIAL = [
   { icon: Instagram, label: 'Instagram', handle: '@ts_gaming_cafe_waluj', color: '#e1306c', link: 'https://www.instagram.com/ts_gaming_cafe_waluj' },
-  { icon: MessageCircle, label: 'WhatsApp', handle: '+91 98765 43210', color: '#25d366', link: 'https://wa.me/919876543210' },
+  { icon: MessageCircle, label: 'WhatsApp', handle: '+91 79724 30951', color: '#25d366', link: 'https://wa.me/917972430951' },
 ];
 
 export default function Contact() {
@@ -26,7 +26,7 @@ export default function Contact() {
       toast.show('Please enter your name and message.', 'error');
       return;
     }
-    const waUrl = `https://wa.me/919876543210?text=${encodeURIComponent(
+    const waUrl = `https://wa.me/917972430951?text=${encodeURIComponent(
       `Hello TS Gaming Cafe!\n\nName: ${formData.name}\nEmail: ${formData.email || 'N/A'}\nMessage: ${formData.message}`
     )}`;
     window.open(waUrl, '_blank');

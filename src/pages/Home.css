@@ -449,6 +449,228 @@
   gap: 1.6rem;
 }
 
+/* ── Booking Mode Switcher (Walk-In vs Advance Slot) ── */
+.booking-mode-selector {
+  margin-bottom: 0.5rem;
+}
+
+.booking-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.booking-mode-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: all 0.25s ease;
+}
+
+.booking-mode-tab:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.booking-mode-tab--active-now {
+  background: #f0fdf4 !important;
+  border-color: #22c55e !important;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.2);
+}
+
+.booking-mode-tab--active-slot {
+  background: #fff7ed !important;
+  border-color: #ff5500 !important;
+  box-shadow: 0 4px 16px rgba(255, 85, 0, 0.2);
+}
+
+.mode-tab-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.mode-tab-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.mode-tab-title {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.mode-tab-subtitle {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+.mode-tab-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.mode-tab-badge--live {
+  background: #22c55e;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+  animation: pulseLive 2s infinite;
+}
+
+@keyframes pulseLive {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.96); }
+}
+
+.mode-tab-badge--slot {
+  background: #ff5500;
+  color: #ffffff;
+}
+
+/* ── Walk-In Live Instant Card ── */
+.walkin-instant-card {
+  background: #f0fdf4;
+  border: 2px dashed #22c55e;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.walkin-instant-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.walkin-instant-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #15803d;
+  font-size: 0.95rem;
+}
+
+.live-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.9); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+  100% { transform: scale(0.9); opacity: 1; }
+}
+
+.walkin-instant-card__badge {
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+}
+
+.walkin-instant-card__times {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  gap: 12px;
+}
+
+.walkin-time-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.walkin-time-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+}
+
+.walkin-time-val {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.walkin-time-sub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.walkin-arrow-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #22c55e;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.walkin-arrow-block small {
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.walkin-instant-card__note {
+  font-size: 0.82rem;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #22c55e;
+}
+
+@media (max-width: 680px) {
+  .booking-mode-tabs {
+    grid-template-columns: 1fr;
+  }
+  .walkin-instant-card__times {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
 .booking-step {
   display: flex;
   align-items: flex-start;
@@ -656,6 +878,45 @@
 }
 
 /* Step 5 Time Slots */
+.slot-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+}
+
+.slot-legend-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.legend-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+}
+
+.legend-tag--na {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.legend-tag--booked {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
 .time-slots-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -663,29 +924,95 @@
 }
 
 .time-slot-btn {
-  padding: 0.55rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 54px;
+  padding: 0.5rem 0.4rem;
   border: 1.5px solid #cbd5e1;
   background: #f8fafc;
   color: #334155;
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 700;
-  border-radius: 8px;
+  border-radius: 9px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
+  position: relative;
+  user-select: none;
 }
 
-.time-slot-btn:hover {
+.time-slot-btn:hover:not(:disabled) {
   border-color: #ff5500;
   background: #fff7ed;
+  transform: translateY(-1px);
 }
 
 .time-slot-btn.active {
-  background: #ff5500;
-  border-color: #ff5500;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(255, 85, 0, 0.35);
+  background: #ff5500 !important;
+  border-color: #ff5500 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(255, 85, 0, 0.4);
+}
+
+.time-slot-btn.active .slot-badge {
+  display: none;
+}
+
+/* Passed Time Slot (N/A) */
+.time-slot-btn--passed {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  opacity: 0.65;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.time-slot-btn--passed .time-slot-label {
+  text-decoration: line-through 1.5px rgba(148, 163, 184, 0.6);
+}
+
+/* Already Booked Slot */
+.time-slot-btn--booked {
+  background: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #e11d48 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.time-slot-btn--booked .time-slot-label {
+  color: #be123c;
+}
+
+/* Slot Badges (N/A & Booked) */
+.slot-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.slot-badge--na {
+  background: #e2e8f0;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.slot-badge--booked {
+  background: #ffe4e6;
+  color: #e11d48;
+  border: 1px solid #fda4af;
+  font-weight: 900;
 }
 
 /* ── Right Column: Booking Summary Card ── */

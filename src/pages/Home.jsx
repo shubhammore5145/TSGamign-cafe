@@ -14,17 +14,20 @@ import {
   Phone,
   MessageCircle,
   X,
+  Zap,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import {
   createBooking,
   subscribeToFoodItems,
+  subscribeToSetups,
+  subscribeToAllBookings,
   DEFAULT_FOOD_ITEMS,
 } from '../firebase/firestore';
 import './Home.css';
 
-/* ── STATIONS DATA ── */
-const STATIONS = [
+/* ── DEFAULT FALLBACK STATIONS ── */
+const DEFAULT_STATIONS = [
   {
     id: 'ps2',
     name: 'PS2',
@@ -116,17 +119,74 @@ function time12To24(time12Str) {
 export default function Home() {
   const toast = useToast();
 
+  // Live Stations from Admin (Firestore gamingSetups)
+  const [stations, setStations] = useState(DEFAULT_STATIONS);
+  // Live Bookings from Firestore (to block occupied slots)
+  const [allBookings, setAllBookings] = useState([]);
   // Live Food Items from Firestore
   const [foodItems, setFoodItems] = useState(DEFAULT_FOOD_ITEMS);
 
   useEffect(() => {
-    const unsub = subscribeToFoodItems((items) => {
+    const unsubFood = subscribeToFoodItems((items) => {
       if (Array.isArray(items) && items.length > 0) {
         setFoodItems(items);
       }
     });
+
+    const unsubSetups = subscribeToSetups(
+      (docs) => {
+        if (Array.isArray(docs) && docs.length > 0) {
+          const mapped = docs
+            .filter((s) => s.status !== 'maintenance')
+            .map((s) => {
+              const type = s.type || 'PS5';
+              const fallbackImg =
+                type === 'PC'
+                  ? '/images/gallery/gaming-pc.jpg'
+                  : type === 'Racing'
+                  ? '/images/sim-racing.jpg'
+                  : type === 'PS5'
+                  ? '/images/ps5.jpg'
+                  : type === 'PS4'
+                  ? '/images/ps4.jpg'
+                  : type === 'PS3'
+                  ? '/images/ps3.jpg'
+                  : '/images/ps2.jpg';
+
+              const p1h = Number(s.pricePerHour) || 80;
+              return {
+                id: s.id,
+                name: s.name || `${s.type} #${s.setupNumber || ''}`,
+                fullName: s.name || `${s.type} Station #${s.setupNumber || ''}`,
+                image: s.image || fallbackImg,
+                badge: s.type || 'Gaming',
+                shortInfo: Array.isArray(s.specs) ? s.specs.join(' • ') : (s.specs || 'HD Gaming Setup'),
+                pricing: {
+                  '1h': p1h,
+                  '2h': p1h * 2,
+                  group: Math.round(p1h * 0.8),
+                },
+                status: s.status || 'available',
+              };
+            });
+          if (mapped.length > 0) {
+            setStations(mapped);
+          }
+        }
+      },
+      (err) => console.warn('Setups subscribe fallback:', err)
+    );
+
+    const unsubBookings = subscribeToAllBookings((data) => {
+      if (Array.isArray(data)) {
+        setAllBookings(data);
+      }
+    });
+
     return () => {
-      if (typeof unsub === 'function') unsub();
+      if (typeof unsubFood === 'function') unsubFood();
+      if (typeof unsubSetups === 'function') unsubSetups();
+      if (typeof unsubBookings === 'function') unsubBookings();
     };
   }, []);
 
@@ -140,15 +200,44 @@ export default function Home() {
     }
   }, []);
 
+  // Helper: Get Live Current Time in 12h format
+  const getCurrentTime12h = () => {
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const modifier = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const minutesStr = minutes < 10 ? `0${minutes}` : minutes;
+    return `${hours}:${minutesStr} ${modifier}`;
+  };
+
   // Booking Form State
+  const [bookingMode, setBookingMode] = useState('now'); // 'now' (Play Right Now / Walk-in) | 'slot' (Advance Slot)
   const [selectedStationId, setSelectedStationId] = useState('ps5');
   const [duration, setDuration] = useState('1h');
   const [playerCount, setPlayerCount] = useState(2);
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
-  const [selectedTime, setSelectedTime] = useState('5:00 PM');
+  const getTodayDateStr = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState(() => getTodayDateStr());
+  const [selectedTime, setSelectedTime] = useState(() => getCurrentTime12h());
+
+  // Auto-refresh current time and keep slot states updated every 30 seconds
+  const [, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMinuteTick((t) => t + 1);
+      if (bookingMode === 'now') {
+        setSelectedTime(getCurrentTime12h());
+      }
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [bookingMode]);
 
   // Confirmation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -157,8 +246,94 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
 
-  // Active Station Object
-  const currentStation = STATIONS.find((s) => s.id === selectedStationId) || STATIONS[3];
+  // Sync selectedStationId with loaded stations from admin
+  useEffect(() => {
+    if (stations && stations.length > 0 && !stations.some((s) => s.id === selectedStationId)) {
+      setSelectedStationId(stations[0].id);
+    }
+  }, [stations, selectedStationId]);
+
+  // Active Station Object (from dynamic admin setups)
+  const currentStation = stations.find((s) => s.id === selectedStationId) || stations[0] || DEFAULT_STATIONS[0];
+
+  // Helper to convert time string (12h or 24h) to total minutes from midnight
+  const timeToMinutes = (tStr) => {
+    if (!tStr) return 0;
+    try {
+      if (tStr.includes('AM') || tStr.includes('PM')) {
+        const [time, modifier] = tStr.split(' ');
+        let [hours, minutes] = time.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+        return hours * 60 + (minutes || 0);
+      }
+      const [h, m] = tStr.split(':').map(Number);
+      return h * 60 + (m || 0);
+    } catch {
+      return 0;
+    }
+  };
+
+  // Check if a time slot has already passed for today (with 15-minute grace period)
+  const isSlotPassed = (slot12) => {
+    const todayStr = getTodayDateStr();
+    if (selectedDate < todayStr) {
+      return true; // Past dates are all passed
+    }
+    if (selectedDate > todayStr) {
+      return false; // Future date slots are never passed
+    }
+    // If selected date is today: 15-minute grace period
+    // e.g. 6:00 PM slot stays open until 6:15 PM, and gets blocked at 6:15 PM
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    const slotMins = timeToMinutes(slot12);
+    return currentMins >= slotMins + 15;
+  };
+
+  // Check if a time slot is already booked for the currently selected station & date
+  const isSlotBooked = (slot12) => {
+    if (!currentStation || !selectedDate) return false;
+    const slotStartMins = timeToMinutes(slot12);
+    const durationHours = duration === '2h' ? 2 : 1;
+    const slotEndMins = slotStartMins + durationHours * 60;
+
+    return allBookings.some((b) => {
+      if (b.status === 'cancelled') return false;
+      if (b.date !== selectedDate) return false;
+
+      // Match station by ID, setupId, setupName, or stationName
+      const stationMatch =
+        b.setupId === currentStation.id ||
+        b.stationId === currentStation.id ||
+        b.setupName === currentStation.name ||
+        b.stationName === currentStation.name;
+
+      if (!stationMatch) return false;
+
+      // Check overlap with booking time
+      const bStartMins = timeToMinutes(b.startTime || b.timeSlot);
+      const bEndMins =
+        timeToMinutes(b.endTime || (b.timeSlotRange ? b.timeSlotRange.split('-')[1]?.trim() : null)) ||
+        bStartMins + 60;
+
+      // Overlap formula: slotStart < bookingEnd && slotEnd > bookingStart
+      return slotStartMins < bEndMins && slotEndMins > bStartMins;
+    });
+  };
+
+  // Auto-switch to next available slot if currently selected time is passed or already booked
+  useEffect(() => {
+    if (bookingMode === 'slot') {
+      const isCurrentInvalid = isSlotPassed(selectedTime) || isSlotBooked(selectedTime);
+      if (isCurrentInvalid) {
+        const firstAvailable = TIME_SLOTS.find((s) => !isSlotPassed(s) && !isSlotBooked(s));
+        if (firstAvailable) {
+          setSelectedTime(firstAvailable);
+        }
+      }
+    }
+  }, [selectedDate, selectedStationId, duration, bookingMode, allBookings]);
 
   // Price Calculation
   const pricePerPlayer = currentStation.pricing[duration] || currentStation.pricing['1h'];
@@ -220,6 +395,18 @@ export default function Home() {
       return;
     }
 
+    // Guard against expired or double-booked slots on submit
+    if (bookingMode === 'slot') {
+      if (isSlotPassed(selectedTime)) {
+        toast.error('Slot Expired (N/A)', 'हा स्लॉट वेळ आधीच संपला आहे. कृपया पुढील उपलब्ध स्लॉट निवडा.');
+        return;
+      }
+      if (isSlotBooked(selectedTime)) {
+        toast.error('Already Booked', 'हा स्लॉट आधीच बुक झालेला आहे. कृपया दुसरा स्लॉट निवडा.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const start24 = time12To24(selectedTime);
     const end24 = time12To24(formattedEndTime);
@@ -243,6 +430,9 @@ export default function Home() {
       endTime: end24,
       timeSlotRange: `${selectedTime} - ${formattedEndTime}`,
       totalAmount,
+      bookingMode,
+      isWalkIn: bookingMode === 'now',
+      bookingTypeLabel: bookingMode === 'now' ? '⚡ Walk-In (Play Now)' : '📅 Advance Slot',
       cafeLocation: 'Waluj, Aurangabad',
       status: 'confirmed',
       paymentStatus: 'pending',
@@ -253,7 +443,12 @@ export default function Home() {
 
     try {
       await createBooking(bookingPayload);
-      toast.success('Booking Successful!', `Your session for ${currentStation.name} has been booked.`);
+      toast.success(
+        bookingMode === 'now' ? 'Walk-In Started!' : 'Slot Booked!',
+        bookingMode === 'now'
+          ? `Console is ready for ${customerName.trim()}! Pay at counter.`
+          : `Your session for ${currentStation.name} has been reserved.`
+      );
     } catch (err) {
       console.warn('Firebase booking fallback to local:', err);
       toast.success('Booking Reserved!', `Session reserved for ${customerName.trim()}.`);
@@ -265,18 +460,20 @@ export default function Home() {
 
   const getWhatsAppBookingUrl = (booking) => {
     if (!booking) return '';
+    const modeText = booking.isWalkIn ? '⚡ Walk-In / Play Right Now' : '📅 Advance Slot Booking';
     const message = `🎮 *New Booking from TS Gaming Cafe Website*
+🕹️ Type: ${modeText}
 👤 Name: ${booking.customerName}
 📞 Phone: ${booking.customerPhone}
-🕹️ Station: ${booking.stationName} (${booking.stationFullName})
+🎮 Station: ${booking.stationName} (${booking.stationFullName})
 👥 Players: ${booking.playerCount}
 ⏱️ Duration: ${booking.durationLabel}
 📅 Date: ${booking.date}
-⏰ Time: ${booking.timeSlotRange}
+⏰ Time: ${booking.timeSlotRange} ${booking.isWalkIn ? '(Starting Immediately)' : ''}
 💰 Total: ₹${booking.totalAmount}
 📍 Location: Waluj, Aurangabad`;
 
-    return `https://wa.me/919876543210?text=${encodeURIComponent(message)}`;
+    return `https://wa.me/917972430951?text=${encodeURIComponent(message)}`;
   };
 
   return (
@@ -306,7 +503,7 @@ export default function Home() {
               <div className="hero-banner__crest-wrapper">
                 <div className="hero-banner__crest-glow" />
                 <img
-                  src="/images/ts-badge.jpg"
+                  src="/images/logo.png"
                   alt="TS Gaming Cafe Badge"
                   className="hero-banner__crest-img"
                 />
@@ -390,7 +587,7 @@ export default function Home() {
           </div>
 
           <div className="stations-grid">
-            {STATIONS.map((station) => {
+            {stations.map((station) => {
               const isSelected = selectedStationId === station.id;
               return (
                 <div
@@ -441,8 +638,55 @@ export default function Home() {
             </div>
 
             <div className="booking-layout">
-              {/* Left Column: 5 Step Selection Form */}
+              {/* Left Column: Selection Form */}
               <div className="booking-steps-col">
+
+                {/* ── Booking Mode Switcher: Play Now vs Advance Slot ── */}
+                <div className="booking-mode-selector">
+                  <label className="step-title" style={{ marginBottom: '10px' }}>
+                    Choose Booking Type
+                  </label>
+                  <div className="booking-mode-tabs">
+                    <button
+                      type="button"
+                      className={`booking-mode-tab ${bookingMode === 'now' ? 'booking-mode-tab--active-now' : ''}`}
+                      onClick={() => {
+                        setBookingMode('now');
+                        const today = new Date().toISOString().split('T')[0];
+                        setSelectedDate(today);
+                        setSelectedTime(getCurrentTime12h());
+                      }}
+                      id="mode-play-now-btn"
+                    >
+                      <span className="mode-tab-icon">⚡</span>
+                      <div className="mode-tab-text">
+                        <strong className="mode-tab-title">Play Right Now (Walk-In)</strong>
+                        <span className="mode-tab-subtitle">कॅफेमध्ये आहात? थेट चालू वेळेत लगेच खेळा</span>
+                      </div>
+                      <span className="mode-tab-badge mode-tab-badge--live">LIVE NOW</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`booking-mode-tab ${bookingMode === 'slot' ? 'booking-mode-tab--active-slot' : ''}`}
+                      onClick={() => {
+                        setBookingMode('slot');
+                        if (!TIME_SLOTS.includes(selectedTime)) {
+                          setSelectedTime('5:00 PM');
+                        }
+                      }}
+                      id="mode-advance-slot-btn"
+                    >
+                      <span className="mode-tab-icon">📅</span>
+                      <div className="mode-tab-text">
+                        <strong className="mode-tab-title">Book Advance Slot</strong>
+                        <span className="mode-tab-subtitle">आज पुढे किंवा उद्यासाठी वेळ निवडा</span>
+                      </div>
+                      <span className="mode-tab-badge mode-tab-badge--slot">SLOTS</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Step 1: Select Station */}
                 <div className="booking-step">
                   <div className="step-badge">1</div>
@@ -461,9 +705,9 @@ export default function Home() {
                           className="step-select-input"
                           id="booking-station-select"
                         >
-                          {STATIONS.map((s) => (
+                          {stations.map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.name} — {s.fullName}
+                              {s.name} {s.fullName && s.fullName !== s.name ? `— ${s.fullName}` : ''}
                             </option>
                           ))}
                         </select>
@@ -523,43 +767,110 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Step 4: Select Date */}
-                <div className="booking-step">
-                  <div className="step-badge">4</div>
-                  <div className="step-body">
-                    <label className="step-title">Select Date</label>
-                    <div className="date-input-wrap">
-                      <Calendar size={18} className="input-calendar-icon" />
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="booking-date-input"
-                        id="booking-date-input"
-                      />
+                {/* Conditional Step 4 & 5 based on Mode */}
+                {bookingMode === 'now' ? (
+                  /* ── Walk-in Live Time Box ── */
+                  <div className="walkin-instant-card">
+                    <div className="walkin-instant-card__top">
+                      <div className="walkin-instant-card__status">
+                        <span className="live-pulse-dot" />
+                        <strong>⚡ Starting Immediately (Live Time)</strong>
+                      </div>
+                      <span className="walkin-instant-card__badge">No Slot Waiting</span>
                     </div>
-                  </div>
-                </div>
 
-                {/* Step 5: Select Time */}
-                <div className="booking-step">
-                  <div className="step-badge">5</div>
-                  <div className="step-body">
-                    <label className="step-title">Select Time</label>
-                    <div className="time-slots-grid">
-                      {TIME_SLOTS.map((slot) => (
-                        <button
-                          key={slot}
-                          type="button"
-                          className={`time-slot-btn ${selectedTime === slot ? 'active' : ''}`}
-                          onClick={() => setSelectedTime(slot)}
-                        >
-                          {slot}
-                        </button>
-                      ))}
+                    <div className="walkin-instant-card__times">
+                      <div className="walkin-time-block">
+                        <span className="walkin-time-label">Start Time (Now)</span>
+                        <span className="walkin-time-val">{selectedTime}</span>
+                        <span className="walkin-time-sub">Today ({formatDisplayDate(selectedDate)})</span>
+                      </div>
+                      <div className="walkin-arrow-block">
+                        <span>➜</span>
+                        <small>{DURATIONS.find((d) => d.id === duration)?.label}</small>
+                      </div>
+                      <div className="walkin-time-block">
+                        <span className="walkin-time-label">Session Ends</span>
+                        <span className="walkin-time-val text-orange">{formattedEndTime}</span>
+                        <span className="walkin-time-sub">Automatic timer on desk</span>
+                      </div>
+                    </div>
+
+                    <div className="walkin-instant-card__note">
+                      👍 <strong>Walk-in Gamer:</strong> थेट <strong>TS Gaming Cafe (Waluj)</strong> काउंटरवर जा. नाव सांगा आणि console लगेच ॲक्टिव्हेट होईल!
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    {/* Step 4: Select Date */}
+                    <div className="booking-step">
+                      <div className="step-badge">4</div>
+                      <div className="step-body">
+                        <label className="step-title">Select Date</label>
+                        <div className="date-input-wrap">
+                          <Calendar size={18} className="input-calendar-icon" />
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            min={getTodayDateStr()}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="booking-date-input"
+                            id="booking-date-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 5: Select Time */}
+                    <div className="booking-step">
+                      <div className="step-badge">5</div>
+                      <div className="step-body">
+                        <div className="slot-header-flex">
+                          <label className="step-title" style={{ marginBottom: 0 }}>Select Time Slot</label>
+                          <div className="slot-legend-hint">
+                            <span className="legend-tag legend-tag--na">N/A = वेळ संपली</span>
+                            <span className="legend-tag legend-tag--booked">Booked = आधीच बुक</span>
+                          </div>
+                        </div>
+                        <div className="time-slots-grid">
+                          {TIME_SLOTS.map((slot) => {
+                            const isPassed = isSlotPassed(slot);
+                            const isBooked = isSlotBooked(slot);
+                            const isUnavailable = isPassed || isBooked;
+                            const isSelected = selectedTime === slot;
+
+                            let statusClass = '';
+                            if (isPassed) statusClass = 'time-slot-btn--passed';
+                            else if (isBooked) statusClass = 'time-slot-btn--booked';
+
+                            return (
+                              <button
+                                key={slot}
+                                type="button"
+                                className={`time-slot-btn ${statusClass} ${isSelected && !isUnavailable ? 'active' : ''}`}
+                                onClick={() => {
+                                  if (!isUnavailable) setSelectedTime(slot);
+                                }}
+                                disabled={isUnavailable}
+                                title={
+                                  isPassed
+                                    ? `${slot} (वेळ संपली - N/A)`
+                                    : isBooked
+                                    ? `${slot} (हा स्लॉट आधीच बुक आहे)`
+                                    : `${slot} बुक करा`
+                                }
+                              >
+                                <span className="time-slot-label">{slot}</span>
+                                {isPassed && <span className="slot-badge slot-badge--na">N/A</span>}
+                                {isBooked && !isPassed && <span className="slot-badge slot-badge--booked">Booked</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Right Column: Booking Summary Card */}
@@ -575,6 +886,21 @@ export default function Home() {
                     />
                     <div className="summary-meta">
                       <h4 className="summary-station-title">{currentStation.name}</h4>
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        background: bookingMode === 'now' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 85, 0, 0.12)',
+                        color: bookingMode === 'now' ? '#16a34a' : '#ff5500',
+                        border: bookingMode === 'now' ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 85, 0, 0.25)',
+                        marginBottom: '6px'
+                      }}>
+                        {bookingMode === 'now' ? '⚡ Walk-In (Play Now)' : '📅 Advance Slot'}
+                      </div>
                       <p className="summary-item">
                         <Users size={14} /> {playerCount} {playerCount === 1 ? 'Player' : 'Players'}
                       </p>
@@ -585,7 +911,7 @@ export default function Home() {
                         <Calendar size={14} /> {formatDisplayDate(selectedDate)}
                       </p>
                       <p className="summary-item">
-                        ⏰ {selectedTime} - {formattedEndTime}
+                        ⏰ {selectedTime} - {formattedEndTime} {bookingMode === 'now' && '(Starting Now)'}
                       </p>
                     </div>
                   </div>
@@ -628,14 +954,14 @@ export default function Home() {
           <div className="pricing-layout-grid">
             {/* Left: 5 Pricing Cards */}
             <div className="pricing-cards-grid">
-              {STATIONS.map((station) => (
+              {stations.map((station) => (
                 <div key={station.id} className="price-card">
                   <div className="price-card__header">
                     <img src={station.image} alt={station.name} className="price-card__img" />
                     <div>
                       <h3 className="price-card__title">{station.name}</h3>
-                      {station.id === 'ps2' && (
-                        <span className="price-card__sub-note">Group games only</span>
+                      {station.badge && (
+                        <span className="price-card__sub-note">{station.badge}</span>
                       )}
                     </div>
                   </div>
@@ -751,7 +1077,7 @@ export default function Home() {
                   <input
                     type="tel"
                     required
-                    placeholder="e.g. 9876543210"
+                    placeholder="e.g. 7972430951"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="modal-input"

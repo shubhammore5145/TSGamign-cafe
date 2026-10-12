@@ -157,7 +157,7 @@ function TournamentCard({ tournament: t }) {
           </div>
           {!isFull ? (
             <a
-              href={`https://wa.me/919876543210?text=${encodeURIComponent(
+              href={`https://wa.me/917972430951?text=${encodeURIComponent(
                 `Hello TS Gaming Cafe! I want to register for the "${t.title}" (${t.game}) tournament on ${t.date}. Please reserve my spot!`
               )}`}
               target="_blank"

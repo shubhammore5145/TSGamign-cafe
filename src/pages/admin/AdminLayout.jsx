@@ -34,15 +34,24 @@ export default function AdminLayout() {
 
   // Role-based Navigation Links (Available to both Admin & Staff!)
   const navLinks = [
+    ...(isAdmin
+      ? [
+          { to: '/admin/dashboard', label: 'Dashboard & All Sales', shortLabel: 'Sales', icon: LayoutDashboard },
+        ]
+      : []),
     { to: '/admin', label: 'Bookings & Slots', shortLabel: 'Slots', icon: Calendar, end: true },
     { to: '/admin/sessions', label: 'Live Sessions', shortLabel: 'Live', icon: Zap },
     { to: '/admin/timer', label: 'Big Timer', shortLabel: 'Timer', icon: Clock },
-    { to: '/admin/food', label: 'Cafe Food & Stock', shortLabel: 'Food', icon: Coffee },
+    {
+      to: '/admin/food',
+      label: isAdmin ? 'Cafe Food & Stock' : 'Cafe POS Counter',
+      shortLabel: isAdmin ? 'Food/Stock' : 'Cafe POS',
+      icon: Coffee,
+    },
     ...(isAdmin
       ? [
           { to: '/admin/setups', label: 'PlayStation Setups', shortLabel: 'Setups', icon: Gamepad2 },
           { to: '/admin/staff', label: 'Staff Management', shortLabel: 'Staff', icon: Users },
-          { to: '/admin/dashboard', label: 'Dashboard Stats', shortLabel: 'Stats', icon: LayoutDashboard },
         ]
       : []),
   ];
@@ -52,9 +61,11 @@ export default function AdminLayout() {
       {/* Sidebar */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'admin-sidebar--open' : ''}`}>
         <div className="admin-sidebar__logo">
-          <div className="admin-sidebar__logo-icon">
-            <Gamepad2 size={18} />
-          </div>
+          <img
+            src="/images/logo.png"
+            alt="TS Gaming Cafe"
+            style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: '50%', flexShrink: 0, filter: 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.4))' }}
+          />
           <div>
             <div className="admin-sidebar__logo-text">TS Gaming Café</div>
             <div className="admin-sidebar__logo-sub">

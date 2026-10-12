@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   subscribeToStaff,
   subscribeToAllBookings,
+  subscribeToFoodSales,
   addStaff,
   updateStaff,
   deleteStaff,
@@ -54,6 +55,7 @@ export default function AdminStaff() {
 
   const [staffList, setStaffList] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [foodSales, setFoodSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
@@ -86,16 +88,20 @@ export default function AdminStaff() {
     const unsubBookings = subscribeToAllBookings((bList) => {
       setBookings(bList || []);
     });
+    const unsubFood = subscribeToFoodSales((fList) => {
+      setFoodSales(fList || []);
+    });
     return () => {
       unsubStaff && unsubStaff();
       unsubBookings && unsubBookings();
+      unsubFood && unsubFood();
     };
   }, []);
 
-  // Performance calculation for all staff members
+  // Performance calculation for all staff members (includes food sales!)
   const { summary: staffSummaryList, totals: overallTotals } = useMemo(() => {
-    return calculateAllStaffSummary(staffList, bookings);
-  }, [staffList, bookings]);
+    return calculateAllStaffSummary(staffList, bookings, foodSales);
+  }, [staffList, bookings, foodSales]);
 
   const togglePinVisibility = (id) => {
     setShowPins((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -457,7 +463,7 @@ export default function AdminStaff() {
             {filteredStaff.map((staff) => {
               const isActive = staff.status === 'active';
               const isPinVisible = showPins[staff.id];
-              const stats = calculateStaffStats(staff.id, staff.name, bookings);
+              const stats = calculateStaffStats(staff.id, staff.name, bookings, foodSales);
 
               return (
                 <div

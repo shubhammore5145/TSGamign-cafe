@@ -106,6 +106,20 @@ function getBookingForSlot(slot, setupId, date, bookings) {
   }) || null;
 }
 
+// Check if a 1-hour slot has already passed for a specific date (with 15-minute grace period)
+function isSlotTimePassed(slotStart, dateStr) {
+  if (!dateStr || !slotStart) return false;
+  const today = getTodayString();
+  if (dateStr < today) return true; // Past dates are all passed
+  if (dateStr > today) return false; // Future dates are never passed
+
+  // If today: 15-minute grace period (e.g. 6:00 PM slot stays open until 6:15 PM, blocks at 6:15 PM)
+  const now = new Date();
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+  const slotMins = timeToMins(slotStart);
+  return currentMins >= slotMins + 15;
+}
+
 function formatTime12h(time24) {
   if (!time24) return '';
   const [h, m] = time24.split(':').map(Number);
@@ -227,6 +241,13 @@ export default function AdminBookings() {
   // Active Time Section for Matrix Board
   const [activeTimeRange, setActiveTimeRange] = useState('all');
 
+  // Live timer tick to re-evaluate slots as time progresses (e.g. at :15 mins past the hour)
+  const [, setLiveTimeTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setLiveTimeTick(t => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Date Navigation handlers
   const handlePrevDay = () => {
     const current = dateFilter ? new Date(dateFilter + 'T00:00:00') : new Date();
@@ -307,6 +328,11 @@ export default function AdminBookings() {
 
   // Handle clicking a 1-hour slot in Add Modal
   const handleSlotClick = (slot) => {
+    if (isSlotTimePassed(slot.start, formData.date)) {
+      toast.warning('Slot Expired (N/A)', `हा वेळ आधीच निघून गेला आहे (${slot.label}).`);
+      return;
+    }
+
     const isBooked = getBookingForSlot(slot, formData.setupId, formData.date, bookings);
     if (isBooked) {
       toast.info('Slot Unavailable', `${slot.label} is already booked by ${isBooked.userName}`);
@@ -342,6 +368,11 @@ export default function AdminBookings() {
 
   // Handle clicking a 1-hour slot in Edit Modal
   const handleEditSlotClick = (slot) => {
+    if (isSlotTimePassed(slot.start, formData.date)) {
+      toast.warning('Slot Expired (N/A)', `हा वेळ आधीच निघून गेला आहे (${slot.label}).`);
+      return;
+    }
+
     const booked = getBookingForSlot(slot, formData.setupId, formData.date, bookings);
     const isBookedByOther = booked && booked.id !== editingBooking?.id;
 
@@ -362,10 +393,16 @@ export default function AdminBookings() {
 
   // Open Add Modal directly for a specific console & slot
   const openDirectBookingForSlot = (setup, slot) => {
+    const targetDate = dateFilter || getTodayString();
+    if (isSlotTimePassed(slot.start, targetDate)) {
+      toast.warning('Slot Expired (N/A)', `हा वेळ निघून गेला आहे (${slot.label}). कृपया पुढील मोकळा स्लॉट निवडा.`);
+      return;
+    }
+
     const rate = setup.pricePerHour || 100;
     setFormData({
       ...initialForm,
-      date: dateFilter || getTodayString(),
+      date: targetDate,
       setupId: setup.id,
       setupName: setup.name,
       selectedSlots: [slot.id],
@@ -383,11 +420,17 @@ export default function AdminBookings() {
   const openAddModal = () => {
     const firstAvailable = setups.find(s => s.status === 'available') || setups[0];
     const rate = firstAvailable?.pricePerHour || 100;
-    const defaultSlot = ONE_HOUR_SLOTS[1];
+    const targetDate = dateFilter || getTodayString();
+
+    // Default to first non-passed, available slot
+    const defaultSlot =
+      ONE_HOUR_SLOTS.find(s => !isSlotTimePassed(s.start, targetDate) && !getBookingForSlot(s, firstAvailable?.id, targetDate, bookings)) ||
+      ONE_HOUR_SLOTS.find(s => !isSlotTimePassed(s.start, targetDate)) ||
+      ONE_HOUR_SLOTS[0];
 
     setFormData({
       ...initialForm,
-      date: dateFilter || getTodayString(),
+      date: targetDate,
       setupId: firstAvailable?.id || '',
       setupName: firstAvailable?.name || '',
       hourlyRate: rate,
@@ -849,10 +892,12 @@ export default function AdminBookings() {
               <Gamepad2 size={22} style={{ color: 'var(--color-primary)' }} />
               PlayStation 1-Hour Slots
             </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, fontSize: '0.75rem', color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
               <span>🟢 Free (Book)</span>
               <span>·</span>
               <span>🔴 Booked (Edit/Cancel)</span>
+              <span>·</span>
+              <span>⚪ N/A (वेळ संपली)</span>
               <span>·</span>
               <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
                 {activeBookingsCount} Playing Now
@@ -1111,26 +1156,40 @@ export default function AdminBookings() {
                   {/* 1-Hour Slots Columns */}
                   <div className="admin-matrix-slots-col">
                     {ONE_HOUR_SLOTS.map(slot => {
-                      const booked = getBookingForSlot(slot, setup.id, dateFilter || todayStr, bookings);
+                      const activeDate = dateFilter || todayStr;
+                      const booked = getBookingForSlot(slot, setup.id, activeDate, bookings);
                       const isBooked = !!booked;
+                      const isPassed = isSlotTimePassed(slot.start, activeDate);
+
+                      let cellClass = 'admin-matrix-slot-cell--free';
+                      if (isBooked) cellClass = 'admin-matrix-slot-cell--booked';
+                      else if (isPassed) cellClass = 'admin-matrix-slot-cell--passed';
 
                       return (
                         <div
                           key={slot.id}
-                          className={`admin-matrix-slot-cell ${isBooked ? 'admin-matrix-slot-cell--booked' : 'admin-matrix-slot-cell--free'}`}
+                          className={`admin-matrix-slot-cell ${cellClass}`}
                           onClick={() => {
                             if (isBooked) {
                               setSelectedSlotBooking({ booking: booked, setup, slot });
                               setShowSlotDetailsModal(true);
+                            } else if (isPassed) {
+                              toast.info('Slot Expired (N/A)', `हा वेळ निघून गेला आहे (${slot.label}).`);
                             } else {
                               openDirectBookingForSlot(setup, slot);
                             }
                           }}
-                          title={isBooked ? `Booked by: ${booked.userName} — Click to Edit or Cancel` : `Click to book ${slot.label} on ${setup.name}`}
+                          title={
+                            isBooked
+                              ? `Booked by: ${booked.userName} — Click to Edit or Cancel`
+                              : isPassed
+                              ? `Slot time has passed (N/A) — ${slot.label}`
+                              : `Click to book ${slot.label} on ${setup.name}`
+                          }
                         >
-                          <div style={{ fontSize: '0.68rem', opacity: 0.85 }}>{slot.short}</div>
+                          <div style={{ fontSize: '0.68rem', opacity: isPassed ? 0.55 : 0.85 }}>{slot.short}</div>
                           <div style={{ fontSize: '0.72rem', fontWeight: 800, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '84px', whiteSpace: 'nowrap' }}>
-                            {isBooked ? `🔴 ${booked.userName?.split(' ')[0]}` : '🟢 + Book'}
+                            {isBooked ? `🔴 ${booked.userName?.split(' ')[0]}` : isPassed ? '⚪ N/A' : '🟢 + Book'}
                           </div>
                         </div>
                       );
@@ -1657,6 +1716,7 @@ export default function AdminBookings() {
                       type="date"
                       className="form-input"
                       value={formData.date}
+                      min={getTodayString()}
                       onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
                       required
                     />
@@ -1678,10 +1738,12 @@ export default function AdminBookings() {
                     {ONE_HOUR_SLOTS.map(slot => {
                       const booked = getBookingForSlot(slot, formData.setupId, formData.date, bookings);
                       const isBooked = !!booked;
+                      const isPassed = isSlotTimePassed(slot.start, formData.date);
                       const isSelected = formData.selectedSlots.includes(slot.id);
 
                       let btnClass = 'admin-slot-btn--available';
                       if (isBooked) btnClass = 'admin-slot-btn--booked';
+                      else if (isPassed) btnClass = 'admin-slot-btn--passed';
                       else if (isSelected) btnClass = 'admin-slot-btn--selected';
 
                       return (
@@ -1690,11 +1752,12 @@ export default function AdminBookings() {
                           key={slot.id}
                           className={`admin-slot-btn ${btnClass}`}
                           onClick={() => handleSlotClick(slot)}
-                          disabled={isBooked}
+                          disabled={isBooked || isPassed}
+                          title={isPassed ? `${slot.label} (वेळ संपली - N/A)` : isBooked ? `Booked by ${booked.userName}` : `Select ${slot.label}`}
                         >
                           <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>{slot.short}</div>
                           <div style={{ fontSize: '0.65rem' }}>
-                            {isSelected ? '✓ SELECTED' : isBooked ? `🔴 ${booked.userName?.split(' ')[0]}` : '🟢 FREE'}
+                            {isSelected ? '✓ SELECTED' : isBooked ? `🔴 ${booked.userName?.split(' ')[0]}` : isPassed ? '⚪ N/A' : '🟢 FREE'}
                           </div>
                         </button>
                       );
@@ -1989,10 +2052,12 @@ export default function AdminBookings() {
                       const booked = getBookingForSlot(slot, formData.setupId, formData.date, bookings);
                       const isBookedByOther = booked && booked.id !== editingBooking?.id;
                       const isSelected = formData.selectedSlots?.includes(slot.id) || formData.startTime === slot.start;
+                      const isPassed = isSlotTimePassed(slot.start, formData.date);
 
                       let btnClass = 'admin-slot-btn--available';
                       if (isBookedByOther) btnClass = 'admin-slot-btn--booked';
                       else if (isSelected) btnClass = 'admin-slot-btn--selected';
+                      else if (isPassed) btnClass = 'admin-slot-btn--passed';
 
                       return (
                         <button
@@ -2000,11 +2065,12 @@ export default function AdminBookings() {
                           key={slot.id}
                           className={`admin-slot-btn ${btnClass}`}
                           onClick={() => handleEditSlotClick(slot)}
-                          disabled={isBookedByOther}
+                          disabled={isBookedByOther || (!isSelected && isPassed)}
+                          title={isBookedByOther ? `Booked by ${booked.userName}` : isPassed && !isSelected ? `${slot.label} (वेळ संपली - N/A)` : slot.label}
                         >
                           <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>{slot.short}</div>
                           <div style={{ fontSize: '0.65rem' }}>
-                            {isSelected ? '✓ CURRENT' : isBookedByOther ? `🔴 ${booked.userName?.split(' ')[0]}` : '🟢 FREE'}
+                            {isSelected ? '✓ CURRENT' : isBookedByOther ? `🔴 ${booked.userName?.split(' ')[0]}` : isPassed ? '⚪ N/A' : '🟢 FREE'}
                           </div>
                         </button>
                       );

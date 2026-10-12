@@ -44,11 +44,9 @@ export default function Navbar() {
       <div className="container navbar__inner">
         {/* ── Brand Logo (Matching Mockup) ── */}
         <Link to="/" className="navbar__logo" onClick={() => handleNavClick('#hero')}>
-          <div className="navbar__logo-badge">
-            <span className="logo-ts">TS</span>
-          </div>
+          <img src="/images/logo.png" alt="TS Gaming Cafe" className="navbar__logo-img" />
           <div className="navbar__logo-info">
-            <div className="navbar__logo-name">GAMING CAFE</div>
+            <div className="navbar__logo-name">TS GAMING CAFE</div>
             <div className="navbar__logo-tagline">PLAY · COMPETE · BELONG</div>
           </div>
         </Link>
@@ -102,14 +100,14 @@ export default function Navbar() {
 
           {/* Contact Phone */}
           <a
-            href="tel:+919876543210"
+            href="tel:+917972430951"
             className="navbar__contact-link"
-            title="Call TS Gaming Cafe"
+            title="Call TS Gaming Cafe (7972430951)"
           >
             <span className="navbar__contact-icon">
               <Phone size={14} />
             </span>
-            <span className="navbar__contact-num">+91 98765 43210</span>
+            <span className="navbar__contact-num">+91 79724 30951</span>
           </a>
 
           {/* Instagram Button */}
@@ -183,8 +181,8 @@ export default function Navbar() {
               <Calendar size={16} />
               <span>Book Now</span>
             </button>
-            <a href="tel:+919876543210" className="navbar__mobile-phone">
-              <Phone size={15} /> +91 98765 43210
+            <a href="tel:+917972430951" className="navbar__mobile-phone">
+              <Phone size={15} /> +91 79724 30951
             </a>
             <div className="navbar__mobile-bottom-row">
               <a

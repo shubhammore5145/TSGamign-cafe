@@ -37,9 +37,30 @@ export function isBookingHandledByStaff(booking, staffId, staffName) {
 }
 
 /**
- * Calculates collection and booking statistics for a single staff member
+ * Checks if a food sale was handled by a given staff member
  */
-export function calculateStaffStats(staffId, staffName, bookings = []) {
+export function isFoodSaleHandledByStaff(sale, staffId, staffName) {
+  if (!sale) return false;
+
+  if (staffId && (sale.staffId === staffId || sale.handledByStaffId === staffId)) {
+    return true;
+  }
+
+  if (staffName) {
+    const sName = staffName.toLowerCase().trim();
+    const sHandled = (sale.handledBy || '').toLowerCase();
+    if (sHandled.includes(sName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Calculates collection and booking/sales statistics for a single staff member
+ */
+export function calculateStaffStats(staffId, staffName, bookings = [], foodSales = []) {
   const today = getTodayString();
 
   const validBookings = bookings.filter((b) => b && b.status !== 'cancelled');
@@ -50,12 +71,12 @@ export function calculateStaffStats(staffId, staffName, bookings = []) {
 
   const todayBookings = staffBookings.filter((b) => b.date === today);
 
-  // Today calculations
-  const todayCash = todayBookings
+  // Today Gaming calculations
+  const todayGamingCash = todayBookings
     .filter((b) => b.paymentStatus === 'paid_cash')
     .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
-  const todayUpi = todayBookings
+  const todayGamingUpi = todayBookings
     .filter((b) => b.paymentStatus === 'paid_upi' || b.paymentStatus === 'paid_card')
     .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
@@ -63,29 +84,72 @@ export function calculateStaffStats(staffId, staffName, bookings = []) {
     .filter((b) => b.paymentStatus === 'pending')
     .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
+  const todayGamingCollection = todayGamingCash + todayGamingUpi;
+
+  // Food Sales handled by this staff
+  const staffFoodSales = (foodSales || []).filter((s) =>
+    isFoodSaleHandledByStaff(s, staffId, staffName)
+  );
+  const todayFoodSales = staffFoodSales.filter((s) => s.date === today);
+
+  const todayFoodCash = todayFoodSales
+    .filter((s) => s.paymentMethod === 'cash')
+    .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+
+  const todayFoodUpi = todayFoodSales
+    .filter((s) => s.paymentMethod === 'upi')
+    .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+
+  const todayFoodCollection = todayFoodCash + todayFoodUpi;
+
+  // Combined Totals for today
+  const todayCash = todayGamingCash + todayFoodCash;
+  const todayUpi = todayGamingUpi + todayFoodUpi;
   const todayCollection = todayCash + todayUpi;
-  const todayTotalAmount = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+  const todayTotalAmount = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0) +
+    todayFoodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
 
   // All time calculations
-  const allTimeCash = staffBookings
+  const allTimeGamingCash = staffBookings
     .filter((b) => b.paymentStatus === 'paid_cash')
     .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
-  const allTimeUpi = staffBookings
+  const allTimeGamingUpi = staffBookings
     .filter((b) => b.paymentStatus === 'paid_upi' || b.paymentStatus === 'paid_card')
     .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
+  const allTimeFoodCash = staffFoodSales
+    .filter((s) => s.paymentMethod === 'cash')
+    .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+
+  const allTimeFoodUpi = staffFoodSales
+    .filter((s) => s.paymentMethod === 'upi')
+    .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+
+  const allTimeCash = allTimeGamingCash + allTimeFoodCash;
+  const allTimeUpi = allTimeGamingUpi + allTimeFoodUpi;
   const allTimeCollection = allTimeCash + allTimeUpi;
-  const allTimeTotalAmount = staffBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+  const allTimeTotalAmount = staffBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0) +
+    staffFoodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
 
   return {
     todayCount: todayBookings.length,
+    todayGamingCount: todayBookings.length,
+    todayFoodCount: todayFoodSales.length,
+    todayGamingCash,
+    todayGamingUpi,
+    todayGamingCollection,
+    todayFoodCash,
+    todayFoodUpi,
+    todayFoodCollection,
     todayCash,
     todayUpi,
     todayPending,
     todayCollection,
     todayTotalAmount,
-    allTimeCount: staffBookings.length,
+    allTimeCount: staffBookings.length + staffFoodSales.length,
+    allTimeGamingCount: staffBookings.length,
+    allTimeFoodCount: staffFoodSales.length,
     allTimeCash,
     allTimeUpi,
     allTimeCollection,
@@ -96,9 +160,9 @@ export function calculateStaffStats(staffId, staffName, bookings = []) {
 /**
  * Calculates collection statistics for all staff members together
  */
-export function calculateAllStaffSummary(staffList = [], bookings = []) {
+export function calculateAllStaffSummary(staffList = [], bookings = [], foodSales = []) {
   const summary = staffList.map((staff) => {
-    const stats = calculateStaffStats(staff.id, staff.name, bookings);
+    const stats = calculateStaffStats(staff.id, staff.name, bookings, foodSales);
     return {
       staff,
       ...stats,
@@ -108,6 +172,8 @@ export function calculateAllStaffSummary(staffList = [], bookings = []) {
   const totals = summary.reduce(
     (acc, curr) => ({
       todayCount: acc.todayCount + curr.todayCount,
+      todayGamingCount: (acc.todayGamingCount || 0) + (curr.todayGamingCount || 0),
+      todayFoodCount: (acc.todayFoodCount || 0) + (curr.todayFoodCount || 0),
       todayCash: acc.todayCash + curr.todayCash,
       todayUpi: acc.todayUpi + curr.todayUpi,
       todayCollection: acc.todayCollection + curr.todayCollection,
@@ -116,6 +182,8 @@ export function calculateAllStaffSummary(staffList = [], bookings = []) {
     }),
     {
       todayCount: 0,
+      todayGamingCount: 0,
+      todayFoodCount: 0,
       todayCash: 0,
       todayUpi: 0,
       todayCollection: 0,
