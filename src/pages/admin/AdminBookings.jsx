@@ -1972,7 +1972,7 @@ export default function AdminBookings() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="e.g. Your name"
+                      placeholder="Your name"
                       value={formData.userName}
                       onChange={e => setFormData(p => ({ ...p, userName: e.target.value }))}
                       required
@@ -1985,7 +1985,7 @@ export default function AdminBookings() {
                     <input
                       type="tel"
                       className="form-input"
-                      placeholder="e.g. 9876543210"
+                      placeholder="Phone number"
                       value={formData.userPhone}
                       onChange={e => setFormData(p => ({ ...p, userPhone: e.target.value }))}
                     />
@@ -2142,7 +2142,7 @@ export default function AdminBookings() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="e.g. 2 Controllers, FIFA player"
+                      placeholder="Gaming gear or notes"
                       value={formData.notes}
                       onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
                     />
@@ -2592,7 +2592,7 @@ export default function AdminBookings() {
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Customer name"
+                    placeholder="Customer name"
                     value={onTimeForm.userName}
                     onChange={e => setOnTimeForm(p => ({ ...p, userName: e.target.value }))}
                     required
@@ -2607,7 +2607,7 @@ export default function AdminBookings() {
                   <input
                     type="tel"
                     className="form-input"
-                    placeholder="e.g. 9876543210"
+                    placeholder="Phone number"
                     value={onTimeForm.userPhone}
                     onChange={e => setOnTimeForm(p => ({ ...p, userPhone: e.target.value }))}
                   />

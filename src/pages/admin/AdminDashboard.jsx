@@ -55,7 +55,7 @@ const TIME_SLOTS = [
   { id: '19:00', start: '19:00', end: '20:00', label: '7:00 - 8:00 PM' },
 ];
 
-// ── Default Preset Stations (Matching Mockup) ──
+// ── Default station presets ──
 const PRESET_STATIONS = [
   { id: 'ps2', type: 'PS2', name: 'PS2', sub: 'Group Game Only\n(WWE, SmackDown)', image: '/images/ps2.jpg', rate: 30 },
   { id: 'ps3', type: 'PS3', name: 'PS3', sub: 'Classic HD Games', image: '/images/ps3.jpg', rate: 40 },
@@ -960,7 +960,7 @@ export default function AdminDashboard() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Your name"
+                    placeholder="Customer name"
                     value={bookingCustName}
                     onChange={(e) => setBookingCustName(e.target.value)}
                     className="ts-form-input"
@@ -972,7 +972,7 @@ export default function AdminDashboard() {
                   <label className="ts-form-label">Mobile Number</label>
                   <input
                     type="tel"
-                    placeholder="e.g. 7972430951"
+                    placeholder="Phone number"
                     value={bookingCustPhone}
                     onChange={(e) => setBookingCustPhone(e.target.value)}
                     className="ts-form-input"

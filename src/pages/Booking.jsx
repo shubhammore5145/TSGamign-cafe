@@ -656,7 +656,7 @@ export default function Booking() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Your name"
+                      placeholder="Your name"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       className="ts-form-input"
@@ -668,7 +668,7 @@ export default function Booking() {
                     <input
                       type="tel"
                       required
-                      placeholder="e.g. 7972430951"
+                      placeholder="Phone number"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       className="ts-form-input"

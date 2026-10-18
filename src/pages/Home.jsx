@@ -211,17 +211,36 @@ export default function Home() {
   // Helper: Get Live Current Time in 12h format
   const getCurrentTime12h = () => {
     const now = new Date();
-    let hours = now.getHours();
-    const minutes = now.getMinutes();
+    const roundedMinutes = now.getMinutes() <= 15 ? 0 : now.getMinutes() <= 45 ? 30 : 60;
+    const adjusted = new Date(now);
+    if (roundedMinutes === 60) {
+      adjusted.setHours(adjusted.getHours() + 1, 0, 0, 0);
+    } else {
+      adjusted.setMinutes(roundedMinutes, 0, 0);
+    }
+    let hours = adjusted.getHours();
     const modifier = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12 || 12;
-    const minutesStr = minutes < 10 ? `0${minutes}` : minutes;
-    return `${hours}:${minutesStr} ${modifier}`;
+    return `${hours}:00 ${modifier}`;
   };
 
   // Booking Form State
   const [bookingMode, setBookingMode] = useState('now'); // 'now' (Play Right Now / Walk-in) | 'slot' (Advance Slot)
   const [selectedStationId, setSelectedStationId] = useState('ps5');
+
+  const updateTimeToNearestSlot = (date = new Date()) => {
+    const roundedMinutes = date.getMinutes() <= 15 ? 0 : date.getMinutes() <= 45 ? 30 : 60;
+    const next = new Date(date);
+    if (roundedMinutes === 60) {
+      next.setHours(next.getHours() + 1, 0, 0, 0);
+    } else {
+      next.setMinutes(roundedMinutes, 0, 0);
+    }
+    const hour = next.getHours();
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:00 ${suffix}`;
+  };
   const [duration, setDuration] = useState('1h');
   const [playerCount, setPlayerCount] = useState(2);
   const getTodayDateStr = () => {
@@ -233,7 +252,18 @@ export default function Home() {
   };
 
   const [selectedDate, setSelectedDate] = useState(() => getTodayDateStr());
-  const [selectedTime, setSelectedTime] = useState(() => getCurrentTime12h());
+  const [selectedTime, setSelectedTime] = useState(() => {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const rounded = minutes <= 15 ? 0 : minutes <= 45 ? 30 : 60;
+    const adjusted = new Date(now);
+    adjusted.setMinutes(rounded === 60 ? 0 : minutes, 0);
+    if (rounded === 60) adjusted.setHours(adjusted.getHours() + 1);
+    const hour = adjusted.getHours();
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:00 ${suffix}`;
+  });
 
   // Auto-refresh current time and keep slot states updated every 30 seconds
   const [, setMinuteTick] = useState(0);
@@ -1439,7 +1469,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                         <input
                           type="text"
                           required
-                          placeholder="e.g. Your name"
+                          placeholder="Your name"
                           value={customerName}
                           onChange={(e) => setCustomerName(e.target.value)}
                           className="modal-input"
@@ -1462,7 +1492,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                         <input
                           type="tel"
                           required
-                          placeholder="e.g. 7972430951"
+                          placeholder="Phone number"
                           value={customerPhone}
                           onChange={(e) => setCustomerPhone(e.target.value)}
                           className="modal-input"
@@ -1633,7 +1663,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Your name"
+                    placeholder="Your name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="modal-input"
@@ -1646,7 +1676,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                   <input
                     type="tel"
                     required
-                    placeholder="e.g. 9000000000"
+                    placeholder="Phone number"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="modal-input"

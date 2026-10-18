@@ -189,44 +189,85 @@ export const subscribeToCafeConfig = (callback) =>
   onSnapshot(doc(db, 'cafeConfig', 'main'), (snap) => callback(snap.exists() ? snap.data() : null));
 
 // ─── STAFF MANAGEMENT ─────────────────────────────────────────
-const DEFAULT_STAFF_SEED = [];
+const STAFF_STORAGE_KEY = 'ts_staff_data';
+const STAFF_DELETED_KEY = 'ts_deleted_staff_ids';
+
+const getDeletedStaffIds = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STAFF_DELETED_KEY) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const addDeletedStaffId = (id) => {
+  try {
+    const list = getDeletedStaffIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem(STAFF_DELETED_KEY, JSON.stringify(list));
+    }
+  } catch {}
+};
+
+const removeDeletedStaffId = (id) => {
+  try {
+    const list = getDeletedStaffIds().filter(x => x !== id);
+    localStorage.setItem(STAFF_DELETED_KEY, JSON.stringify(list));
+  } catch {}
+};
 
 export const getStaffList = async () => {
+  const deletedIds = getDeletedStaffIds();
   try {
-    const snap = await getDocs(query(collection(db, 'staff'), orderBy('name', 'asc')));
-    if (!snap.empty) {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      localStorage.setItem('ts_staff_data', JSON.stringify(list));
-      return list;
-    }
+    const snap = await getDocs(collection(db, 'staff'));
+    const list = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(s => !deletedIds.includes(s.id))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(list));
+    return list;
   } catch (e) {
     console.warn('Firestore getStaffList fallback:', e.message);
   }
-  const local = localStorage.getItem('ts_staff_data');
+  const local = localStorage.getItem(STAFF_STORAGE_KEY);
   if (local) {
-    try { return JSON.parse(local); } catch (err) {}
+    try {
+      return JSON.parse(local).filter(s => !deletedIds.includes(s.id));
+    } catch (err) {}
   }
-  return DEFAULT_STAFF_SEED;
+  return [];
 };
 
 export const addStaff = async (data) => {
+  const staffPayload = {
+    name: (data.name || '').trim(),
+    phone: (data.phone || '').trim(),
+    role: data.role || 'Counter Operator',
+    pin: String(data.pin || '1234').trim(),
+    shift: data.shift || 'Flexible',
+    status: data.status || 'active',
+    notes: (data.notes || '').trim(),
+    createdAt: serverTimestamp(),
+  };
+
   try {
-    const ref = await addDoc(collection(db, 'staff'), {
-      ...data,
-      createdAt: serverTimestamp(),
-    });
-    // Sync local
-    const local = JSON.parse(localStorage.getItem('ts_staff_data') || JSON.stringify(DEFAULT_STAFF_SEED));
-    local.push({ id: ref.id, ...data, createdAt: new Date().toISOString() });
-    localStorage.setItem('ts_staff_data', JSON.stringify(local));
+    const ref = await addDoc(collection(db, 'staff'), staffPayload);
+    removeDeletedStaffId(ref.id);
+    const newStaff = { id: ref.id, ...staffPayload, createdAt: new Date().toISOString() };
+    const local = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '[]');
+    const updated = [...local.filter(s => s.id !== ref.id), newStaff];
+    localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(updated));
     return ref.id;
   } catch (e) {
     console.warn('Firestore addStaff fallback to local:', e.message);
-    const local = JSON.parse(localStorage.getItem('ts_staff_data') || JSON.stringify(DEFAULT_STAFF_SEED));
-    const newStaff = { id: 'staff-' + Date.now(), ...data, createdAt: new Date().toISOString() };
-    local.push(newStaff);
-    localStorage.setItem('ts_staff_data', JSON.stringify(local));
-    return newStaff.id;
+    const newId = 'staff-' + Date.now();
+    removeDeletedStaffId(newId);
+    const newStaff = { id: newId, ...staffPayload, createdAt: new Date().toISOString() };
+    const local = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '[]');
+    const updated = [...local.filter(s => s.id !== newId), newStaff];
+    localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(updated));
+    return newId;
   }
 };
 
@@ -236,56 +277,64 @@ export const updateStaff = async (id, data) => {
   } catch (e) {
     console.warn('Firestore updateStaff fallback to local:', e.message);
   }
-  // Sync local
-  const local = JSON.parse(localStorage.getItem('ts_staff_data') || JSON.stringify(DEFAULT_STAFF_SEED));
-  const idx = local.findIndex(s => s.id === id);
-  if (idx !== -1) {
-    local[idx] = { ...local[idx], ...data };
-    localStorage.setItem('ts_staff_data', JSON.stringify(local));
-  }
+  try {
+    const local = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '[]');
+    const idx = local.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      local[idx] = { ...local[idx], ...data };
+      localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(local));
+    }
+  } catch {}
 };
 
 export const deleteStaff = async (id) => {
+  // Mark as deleted in local blacklist so it NEVER resurfaces
+  addDeletedStaffId(id);
+
+  // Attempt delete in Firestore
   try {
     await deleteDoc(doc(db, 'staff', id));
   } catch (e) {
-    console.warn('Firestore deleteStaff fallback to local:', e.message);
+    console.warn('Firestore deleteStaff error:', e.message);
   }
-  // Sync local
-  const local = JSON.parse(localStorage.getItem('ts_staff_data') || JSON.stringify(DEFAULT_STAFF_SEED));
-  const filtered = local.filter(s => s.id !== id);
-  localStorage.setItem('ts_staff_data', JSON.stringify(filtered));
+
+  // Always sync local storage
+  try {
+    const local = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '[]');
+    const filtered = local.filter(s => s.id !== id);
+    localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(filtered));
+  } catch (e) {
+    console.warn('localStorage deleteStaff error:', e);
+  }
 };
 
 export const subscribeToStaff = (callback, onError) => {
   try {
     return onSnapshot(
-      query(collection(db, 'staff'), orderBy('name', 'asc')),
+      collection(db, 'staff'),
       (snap) => {
-        if (!snap.empty) {
-          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          localStorage.setItem('ts_staff_data', JSON.stringify(list));
-          callback(list);
-        } else {
-          const local = localStorage.getItem('ts_staff_data');
-          if (local) {
-            callback(JSON.parse(local));
-          } else {
-            localStorage.setItem('ts_staff_data', JSON.stringify(DEFAULT_STAFF_SEED));
-            callback(DEFAULT_STAFF_SEED);
-          }
-        }
+        const deletedIds = getDeletedStaffIds();
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(s => !deletedIds.includes(s.id))
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(list));
+        callback(list);
       },
       (err) => {
         console.warn('subscribeToStaff fallback to local:', err?.message);
-        const local = localStorage.getItem('ts_staff_data');
-        callback(local ? JSON.parse(local) : DEFAULT_STAFF_SEED);
+        const deletedIds = getDeletedStaffIds();
+        const local = localStorage.getItem(STAFF_STORAGE_KEY);
+        const parsed = local ? JSON.parse(local).filter(s => !deletedIds.includes(s.id)) : [];
+        callback(parsed);
         if (onError) onError(err);
       }
     );
   } catch (err) {
-    const local = localStorage.getItem('ts_staff_data');
-    callback(local ? JSON.parse(local) : DEFAULT_STAFF_SEED);
+    const deletedIds = getDeletedStaffIds();
+    const local = localStorage.getItem(STAFF_STORAGE_KEY);
+    const parsed = local ? JSON.parse(local).filter(s => !deletedIds.includes(s.id)) : [];
+    callback(parsed);
     return () => {};
   }
 };

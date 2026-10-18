@@ -282,7 +282,7 @@ export default function AdminSetups() {
               className="btn btn-secondary"
               onClick={handleSeedPlayStations}
               disabled={seeding}
-              title="Add PS2, PS3, PS4, PS5 sample setups"
+              title="Add PS2, PS3, PS4, PS5 consoles"
             >
               <Sparkles size={16} /> {seeding ? 'Adding...' : '⚡ Quick Add PS2, PS3, PS4, PS5'}
             </button>

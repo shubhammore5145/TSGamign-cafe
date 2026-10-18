@@ -148,7 +148,7 @@ export default function AdminStaff() {
 
     try {
       if (editingStaff) {
-        await updateStaff(editingStaff.id, {
+        const updateData = {
           name: formData.name.trim(),
           phone: formData.phone.trim(),
           role: formData.role,
@@ -156,11 +156,16 @@ export default function AdminStaff() {
           shift: formData.shift,
           status: formData.status,
           notes: formData.notes.trim(),
-        });
+        };
+        // Optimistic UI update
+        setStaffList((prev) =>
+          prev.map((s) => (s.id === editingStaff.id ? { ...s, ...updateData } : s))
+        );
+        await updateStaff(editingStaff.id, updateData);
         toast.success('Staff Updated', `${formData.name} updated successfully!`);
         setEditingStaff(null);
       } else {
-        await addStaff({
+        const newStaffData = {
           name: formData.name.trim(),
           phone: formData.phone.trim(),
           role: formData.role,
@@ -168,7 +173,13 @@ export default function AdminStaff() {
           shift: formData.shift,
           status: formData.status,
           notes: formData.notes.trim(),
-        });
+        };
+        const newId = await addStaff(newStaffData);
+        // Optimistic UI update
+        setStaffList((prev) => [
+          ...prev.filter((s) => s.id !== newId),
+          { id: newId, ...newStaffData },
+        ]);
         toast.success('Staff Added', `🎉 ${formData.name} has been added as ${formData.role}!`);
         setShowAddModal(false);
       }
@@ -179,6 +190,10 @@ export default function AdminStaff() {
 
   const handleToggleStatus = async (staff) => {
     const newStatus = staff.status === 'active' ? 'inactive' : 'active';
+    // Optimistic UI update
+    setStaffList((prev) =>
+      prev.map((s) => (s.id === staff.id ? { ...s, status: newStatus } : s))
+    );
     try {
       await updateStaff(staff.id, { status: newStatus });
       toast.info(
@@ -192,10 +207,15 @@ export default function AdminStaff() {
 
   const handleDeleteStaff = async () => {
     if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+
+    // Optimistic instant UI removal
+    setStaffList((prev) => prev.filter((s) => s.id !== target.id));
+
     try {
-      await deleteStaff(deleteTarget.id);
-      toast.success('Staff Deleted', `${deleteTarget.name} has been removed.`);
-      setDeleteTarget(null);
+      await deleteStaff(target.id);
+      toast.success('Staff Deleted', `${target.name} has been removed.`);
     } catch (err) {
       toast.error('Error', err.message);
     }
@@ -911,7 +931,7 @@ export default function AdminStaff() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Staff name"
+                  placeholder="Staff name"
                   className="form-input"
                   required
                   autoFocus
@@ -925,7 +945,7 @@ export default function AdminStaff() {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="e.g. 9876543210"
+                    placeholder="Phone number"
                     className="form-input"
                   />
                 </div>
@@ -945,8 +965,7 @@ export default function AdminStaff() {
                     type="text"
                     value={formData.pin}
                     onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
-                    placeholder="e.g. 1234"
-                    className="form-input"
+                    placeholder="PIN"                    className="form-input"
                     style={{ fontWeight: 700, letterSpacing: '0.15em' }}
                     required
                   />
@@ -1011,7 +1030,7 @@ export default function AdminStaff() {
                   type="text"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="e.g. Counter handling, morning batch"
+                  placeholder="Shift notes or duties"
                   className="form-input"
                 />
               </div>

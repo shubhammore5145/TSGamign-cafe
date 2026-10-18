@@ -205,7 +205,7 @@ export default function AdminSessions() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Player name"
+                  placeholder="Player name"
                   value={newSessionData.name}
                   onChange={e => setNewSessionData(d => ({ ...d, name: e.target.value }))}
                   autoFocus

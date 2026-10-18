@@ -976,7 +976,7 @@ ${itemLines}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Staff name"
+                    placeholder="Staff name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="admin-form-input"
@@ -989,7 +989,7 @@ ${itemLines}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. PS5 #2 / Counter"
+                    placeholder="Station name"
                     value={tableOrStation}
                     onChange={(e) => setTableOrStation(e.target.value)}
                     className="admin-form-input"
@@ -1234,7 +1234,7 @@ ${itemLines}
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Peri Peri Fries, Cold Coffee, Veg Burger"
+                    placeholder="Item name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="admin-form-input"
@@ -1264,7 +1264,7 @@ ${itemLines}
                       type="number"
                       required
                       min="1"
-                      placeholder="e.g. 79"
+                      placeholder="Price"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                       className="admin-form-input"
@@ -1278,7 +1278,7 @@ ${itemLines}
                     <input
                       type="number"
                       min="0"
-                      placeholder="e.g. 30"
+                      placeholder="Stock"
                       value={formData.stock}
                       onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                       className="admin-form-input"
@@ -1289,7 +1289,7 @@ ${itemLines}
                     <label className="admin-form-label">Unit Type</label>
                     <input
                       type="text"
-                      placeholder="e.g. pcs, plates, cans, bottles"
+                      placeholder="Unit"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                       className="admin-form-input"
@@ -1301,7 +1301,7 @@ ${itemLines}
                   <label className="admin-form-label">Description / Ingredients</label>
                   <textarea
                     rows={2}
-                    placeholder="e.g. Crispy veg patty with peri peri dip..."
+                    placeholder="Description"
                     value={formData.desc}
                     onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
                     className="admin-form-input"
