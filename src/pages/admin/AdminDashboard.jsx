@@ -7,7 +7,6 @@ import {
   subscribeToStaff,
   subscribeToFoodItems,
   subscribeToFoodSales,
-  createBooking,
 } from '../../firebase/firestore';
 import {
   Gamepad2,
@@ -30,45 +29,27 @@ import {
   TrendingUp,
   Package,
   Layers,
+  Sparkles,
+  Target,
+  QrCode,
+  FileText,
 } from 'lucide-react';
 import { isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
 import { calculateAllStaffSummary, getTodayString } from '../../utils/staffStats';
 import { useToast } from '../../context/ToastContext';
+import UpiQrModal from '../../components/UpiQrModal';
+import DailyReportModal from '../../components/DailyReportModal';
 import './AdminDashboard.css';
-
-// ── Standard 1-Hour Gaming Slots (5:00 AM to 10:00 PM) ──
-const TIME_SLOTS = [
-  { id: '05:00', start: '05:00', end: '06:00', label: '5:00 - 6:00 AM' },
-  { id: '06:00', start: '06:00', end: '07:00', label: '6:00 - 7:00 AM' },
-  { id: '07:00', start: '07:00', end: '08:00', label: '7:00 - 8:00 AM' },
-  { id: '08:00', start: '08:00', end: '09:00', label: '8:00 - 9:00 AM' },
-  { id: '09:00', start: '09:00', end: '10:00', label: '9:00 - 10:00 AM' },
-  { id: '10:00', start: '10:00', end: '11:00', label: '10:00 - 11:00 AM' },
-  { id: '11:00', start: '11:00', end: '12:00', label: '11:00 - 12:00 PM' },
-  { id: '12:00', start: '12:00', end: '13:00', label: '12:00 - 1:00 PM' },
-  { id: '13:00', start: '13:00', end: '14:00', label: '1:00 - 2:00 PM' },
-  { id: '14:00', start: '14:00', end: '15:00', label: '2:00 - 3:00 PM' },
-  { id: '15:00', start: '15:00', end: '16:00', label: '3:00 - 4:00 PM' },
-  { id: '16:00', start: '16:00', end: '17:00', label: '4:00 - 5:00 PM' },
-  { id: '17:00', start: '17:00', end: '18:00', label: '5:00 - 6:00 PM' },
-  { id: '18:00', start: '18:00', end: '19:00', label: '6:00 - 7:00 PM' },
-  { id: '19:00', start: '19:00', end: '20:00', label: '7:00 - 8:00 PM' },
-];
-
-// ── Default station presets ──
-const PRESET_STATIONS = [
-  { id: 'ps2', type: 'PS2', name: 'PS2', sub: 'Group Game Only\n(WWE, SmackDown)', image: '/images/ps2.jpg', rate: 30 },
-  { id: 'ps3', type: 'PS3', name: 'PS3', sub: 'Classic HD Games', image: '/images/ps3.jpg', rate: 40 },
-  { id: 'ps4', type: 'PS4', name: 'PS4', sub: 'Pro HDR Gaming', image: '/images/ps4.jpg', rate: 60 },
-  { id: 'ps5', type: 'PS5', name: 'PS5', sub: '4K 120Hz Next-Gen', image: '/images/ps5.jpg', rate: 100 },
-  { id: 'sim', type: 'Sim Racing', name: 'Sim Racing', sub: 'G29 Wheel & Rig', image: '/images/sim-racing.jpg', rate: 150 },
-];
 
 export default function AdminDashboard() {
   const toast = useToast();
   const isAdmin = isAdminLoggedIn();
   const isStaff = isStaffLoggedIn();
   const staffUser = getStaffUser();
+
+  // Counter UPI QR & Daily Closing Report Modals
+  const [showUpiQr, setShowUpiQr] = useState(false);
+  const [showDailyReport, setShowDailyReport] = useState(false);
 
   // Firestore Subscriptions
   const [activeSessions, setActiveSessions] = useState([]);
@@ -86,20 +67,6 @@ export default function AdminDashboard() {
   }, []);
 
   const todayStr = useMemo(() => getTodayString(), []);
-
-  // Wizard State
-  const [selectedStation, setSelectedStation] = useState('PS5');
-  const [selectedDuration, setSelectedDuration] = useState('1 Hour');
-  const [selectedPlayers, setSelectedPlayers] = useState(1);
-  const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [selectedSlot, setSelectedSlot] = useState(TIME_SLOTS[8]); // Default 1:00 - 2:00 PM (Selected like screenshot)
-
-  // Booking Modal State
-  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
-  const [bookingCustName, setBookingCustName] = useState('');
-  const [bookingCustPhone, setBookingCustPhone] = useState('');
-  const [bookingPaymentMode, setBookingPaymentMode] = useState('cash');
-  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
 
   // Food Sale category filter (NO POS, only Food Sale records)
   const [foodCategoryFilter, setFoodCategoryFilter] = useState('All');
@@ -176,79 +143,13 @@ export default function AdminDashboard() {
     };
   }, [todayBookings, todayFoodSales]);
 
-  // Check if slot is booked for selected station & date
-  const isSlotBooked = (slot) => {
-    return bookings.some((b) => {
-      if (b.status === 'cancelled') return false;
-      if (b.date !== selectedDate) return false;
-      const bSetup = (b.setupName || '').toUpperCase();
-      const sType = selectedStation.toUpperCase();
-      if (!bSetup.includes(sType)) return false;
-      return b.startTime === slot.start || b.time === slot.start;
-    });
-  };
-
-  // Station rate finder
-  const currentStationRate = useMemo(() => {
-    const found = PRESET_STATIONS.find((s) => s.type === selectedStation);
-    return found ? found.rate : 100;
-  }, [selectedStation]);
-
-  // Handle Quick Booking Save
-  const handleQuickBook = async (e) => {
-    e.preventDefault();
-    if (!bookingCustName.trim()) {
-      toast.show('Please enter customer name', 'error');
-      return;
-    }
-    setIsSubmittingBooking(true);
-
-    try {
-      const activeSetup = setups.find((s) => (s.type || '').toUpperCase() === selectedStation.toUpperCase()) || {
-        id: 'station-' + selectedStation.toLowerCase(),
-        name: selectedStation + ' — Station',
-      };
-
-      const durationMultiplier = selectedDuration === '30 Min' ? 0.5 : selectedDuration === '2 Hours' ? 2 : selectedDuration === 'Group' ? 3 : 1;
-      const amount = Math.round(currentStationRate * durationMultiplier * (selectedPlayers > 2 ? 1.4 : 1));
-
-      const newBookingData = {
-        userName: bookingCustName.trim(),
-        userPhone: bookingCustPhone.trim() || '7972430951',
-        setupId: activeSetup.id || 'station-1',
-        setupName: `${selectedStation} Station`,
-        date: selectedDate,
-        startTime: selectedSlot.start,
-        endTime: selectedSlot.end,
-        duration: durationMultiplier,
-        players: selectedPlayers,
-        totalAmount: amount,
-        paymentStatus: bookingPaymentMode === 'cash' ? 'paid_cash' : 'paid_upi',
-        paymentMode: bookingPaymentMode,
-        status: 'confirmed',
-        handledBy: isAdmin ? 'Admin' : (staffUser?.name || 'Staff'),
-      };
-
-      await createBooking(newBookingData);
-      toast.show(`Booking confirmed for ${bookingCustName} at ${selectedSlot.label}!`, 'success');
-      setIsBookModalOpen(false);
-      setBookingCustName('');
-      setBookingCustPhone('');
-    } catch (err) {
-      console.error('Quick book error:', err);
-      toast.show('Failed to book: ' + err.message, 'error');
-    } finally {
-      setIsSubmittingBooking(false);
-    }
-  };
-
   const displayBookings = useMemo(() => {
     if (todayBookings.length > 0) {
       return todayBookings.slice(0, 10).map((b, idx) => ({
         id: b.id,
         index: idx + 1,
         time: `${b.startTime || b.time || '5:00 PM'} - ${b.endTime || '6:00 PM'}`,
-        station: b.setupName ? b.setupName.replace(/ — Station #\d+/, '').replace('PlayStation ', 'PS') : 'PS5',
+        station: b.setupName ? b.setupName.replace(/ — Station #\d+/, '').replace('PlayStation ', 'PS') : 'Station',
         players: b.players || 1,
         customer: b.userName || 'Customer',
         bookedBy: (b.handledBy || (b.userId ? 'Website' : 'Staff')).replace(/\s*\(Staff\)/gi, ''),
@@ -381,6 +282,18 @@ export default function AdminDashboard() {
           <Link to="/admin/bookings" className="ts-dash-nav-btn">
             <Calendar size={14} /> New Booking
           </Link>
+          <Link
+            to="/admin/bookings?mode=custom"
+            className="ts-dash-nav-btn"
+            style={{
+              background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.25))',
+              border: '1px solid rgba(236, 72, 153, 0.45)',
+              color: '#f472b6',
+              fontWeight: 800,
+            }}
+          >
+            <Sparkles size={14} /> 🎯 Custom Booking
+          </Link>
           {/* NOTICE: As user requested, this is Food Sale, not Food POS! */}
           <Link to="/admin/food" className="ts-dash-nav-btn">
             <Coffee size={14} /> Food Sale
@@ -388,9 +301,34 @@ export default function AdminDashboard() {
           <Link to="/admin/food" className="ts-dash-nav-btn">
             <Package size={14} /> Stock
           </Link>
-          <Link to="/admin/dashboard" className="ts-dash-nav-btn">
-            <TrendingUp size={14} /> Today's Report
-          </Link>
+          <button
+            type="button"
+            className="ts-dash-nav-btn"
+            onClick={() => setShowDailyReport(true)}
+            style={{
+              background: 'rgba(34, 197, 94, 0.15)',
+              border: '1px solid rgba(34, 197, 94, 0.35)',
+              color: '#4ade80',
+              fontWeight: 700,
+            }}
+            title="Today's Cash Settlement & WhatsApp Summary"
+          >
+            <TrendingUp size={14} /> 📊 Day Closing (हिशोब)
+          </button>
+          <button
+            type="button"
+            className="ts-dash-nav-btn"
+            onClick={() => setShowUpiQr(true)}
+            style={{
+              background: 'rgba(168, 85, 247, 0.18)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              color: '#c084fc',
+              fontWeight: 700,
+            }}
+            title="Instant UPI Payment QR Code"
+          >
+            <QrCode size={14} /> 📱 Counter UPI QR
+          </button>
         </nav>
 
         {/* Right Info: Clock, Notifications, Profile */}
@@ -487,202 +425,222 @@ export default function AdminDashboard() {
       <div className="ts-dash-main-grid">
         {/* ══ LEFT COLUMN (New Booking + Today's Bookings) ══ */}
         <div className="ts-dash-col-left">
-          {/* Card 1: New Booking Wizard */}
+          {/* Card 1: Live Gaming Stations (Real Setups from Firestore) */}
           <div className="ts-dash-card">
             <div className="ts-dash-card__header">
               <div className="ts-dash-card__title">
-                <Plus size={16} style={{ color: '#ff5500' }} />
-                <span>New Booking</span>
+                <Gamepad2 size={18} style={{ color: '#ff5500' }} />
+                <span>Live Consoles & Stations</span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  background: 'rgba(255, 85, 0, 0.15)',
+                  color: '#ff5500',
+                  border: '1px solid rgba(255, 85, 0, 0.3)',
+                }}>
+                  {setups.length} Setups
+                </span>
               </div>
-              <Link to="/admin/bookings" className="ts-dash-card__link">
-                View All Bookings
-              </Link>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Link
+                  to="/admin/bookings"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    fontSize: '0.78rem',
+                    background: 'linear-gradient(135deg, #ff5500, #ff7700)',
+                    borderRadius: 8,
+                    color: '#fff',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    boxShadow: '0 2px 10px rgba(255, 85, 0, 0.3)',
+                  }}
+                >
+                  <Plus size={14} /> New Booking
+                </Link>
+                <Link
+                  to="/admin/setups"
+                  className="ts-dash-card__link"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  Manage Setups →
+                </Link>
+              </div>
             </div>
 
             <div className="ts-dash-card__body">
-              {/* Stepper Bar */}
-              <div className="ts-dash-stepper">
-                <div className="ts-dash-step-item ts-dash-step-item--active">
-                  <span className="ts-dash-step-num">1</span>
-                  <span>Select Station</span>
-                </div>
-                <ChevronRight size={12} color="#475569" />
-                <div className="ts-dash-step-item">
-                  <span className="ts-dash-step-num">2</span>
-                  <span>Duration</span>
-                </div>
-                <ChevronRight size={12} color="#475569" />
-                <div className="ts-dash-step-item">
-                  <span className="ts-dash-step-num">3</span>
-                  <span>Players</span>
-                </div>
-                <ChevronRight size={12} color="#475569" />
-                <div className="ts-dash-step-item">
-                  <span className="ts-dash-step-num">4</span>
-                  <span>Date & Time</span>
-                </div>
-                <ChevronRight size={12} color="#475569" />
-                <div className="ts-dash-step-item">
-                  <span className="ts-dash-step-num">5</span>
-                  <span>Confirm</span>
-                </div>
-              </div>
-
-              {/* Station Selection Row */}
-              <div className="ts-dash-stations-row">
-                {PRESET_STATIONS.map((station) => {
-                  const isActive = selectedStation === station.type;
-                  return (
-                    <button
-                      key={station.id}
-                      type="button"
-                      className={`ts-dash-station-btn ${isActive ? 'ts-dash-station-btn--active' : ''}`}
-                      onClick={() => setSelectedStation(station.type)}
-                    >
-                      <div className="ts-dash-station-img-wrap">
-                        <img
-                          src={station.image}
-                          alt={station.name}
-                          className="ts-dash-station-img"
-                        />
-                      </div>
-                      <span className="ts-dash-station-title">{station.name}</span>
-                      {station.sub && (
-                        <span className="ts-dash-station-note">{station.sub}</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Controls Row: Date, Duration, Players */}
-              <div className="ts-dash-controls-row">
-                {/* Select Date */}
-                <div className="ts-dash-control-group">
-                  <label className="ts-dash-control-label">Select Date</label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="ts-dash-date-select"
-                  />
-                </div>
-
-                {/* Select Duration */}
-                <div className="ts-dash-control-group">
-                  <label className="ts-dash-control-label">Select Duration</label>
-                  <div className="ts-dash-pill-group">
-                    {['30 Min', '1 Hour', '2 Hours', 'Group'].map((dur) => (
-                      <button
-                        key={dur}
-                        type="button"
-                        className={`ts-dash-pill ${selectedDuration === dur ? 'ts-dash-pill--active' : ''}`}
-                        onClick={() => setSelectedDuration(dur)}
-                      >
-                        {dur}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* No. of Players */}
-                <div className="ts-dash-control-group">
-                  <label className="ts-dash-control-label">No. of Players</label>
-                  <div className="ts-dash-pill-group">
-                    {[1, 2, 3, 4].map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        className={`ts-dash-pill ${selectedPlayers === p ? 'ts-dash-pill--active' : ''}`}
-                        onClick={() => setSelectedPlayers(p)}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={`ts-dash-pill ${selectedPlayers > 4 ? 'ts-dash-pill--active' : ''}`}
-                      onClick={() => setSelectedPlayers(5)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Available Time Slots Section */}
-              <div className="ts-dash-slots-header">
-                <div className="ts-dash-slots-title">
-                  <Clock size={15} style={{ color: '#ff5500' }} />
-                  <span>Available Time Slots ({selectedStation})</span>
-                </div>
-                <div className="ts-dash-slots-legend">
-                  <span>
-                    <span className="ts-dash-legend-dot ts-dash-legend-dot--green"></span> Available
-                  </span>
-                  <span>
-                    <span className="ts-dash-legend-dot ts-dash-legend-dot--red"></span> Booked
-                  </span>
-                  <span>
-                    <span className="ts-dash-legend-dot ts-dash-legend-dot--orange"></span> Selected
-                  </span>
-                </div>
-              </div>
-
-              {/* Slots Grid */}
-              <div className="ts-dash-slots-grid">
-                {TIME_SLOTS.map((slot) => {
-                  const isBooked = isSlotBooked(slot);
-                  const isSelected = selectedSlot && selectedSlot.id === slot.id;
-
-                  let slotClass = 'ts-dash-slot-badge--available';
-                  let statusText = 'Available';
-                  let dotClass = 'ts-dash-legend-dot--green';
-
-                  if (isBooked) {
-                    slotClass = 'ts-dash-slot-badge--booked';
-                    statusText = 'Booked';
-                    dotClass = 'ts-dash-legend-dot--red';
-                  } else if (isSelected) {
-                    slotClass = 'ts-dash-slot-badge--selected';
-                    statusText = 'Selected';
-                    dotClass = 'ts-dash-legend-dot--orange';
-                  }
-
-                  return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      disabled={isBooked}
-                      className={`ts-dash-slot-badge ${slotClass}`}
-                      onClick={() => !isBooked && setSelectedSlot(slot)}
-                    >
-                      <span className={`ts-dash-legend-dot ${dotClass}`}></span>
-                      <span>{slot.label}</span>
-                      <span style={{ fontSize: '0.65rem', opacity: 0.85, marginLeft: 'auto' }}>
-                        {statusText}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Quick Book Action Bar */}
-              {selectedSlot && (
-                <div className="ts-dash-book-action-bar">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CheckCircle size={16} color="#ff5500" />
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f8fafc' }}>
-                      Selected: <strong>{selectedStation}</strong> for <strong>{selectedSlot.label}</strong> ({selectedDuration}, {selectedPlayers} Player{selectedPlayers > 1 ? 's' : ''})
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="ts-dash-book-action-btn"
-                    onClick={() => setIsBookModalOpen(true)}
+              {setups.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#94a3b8' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>No gaming setups found in your system.</p>
+                  <Link
+                    to="/admin/setups"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 16px',
+                      background: '#ff5500',
+                      color: '#fff',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                    }}
                   >
-                    Confirm Booking →
-                  </button>
+                    + Add Your First Console Setup
+                  </Link>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                  gap: '12px',
+                }}>
+                  {setups.map((s) => {
+                    const activeSession = activeSessions.find(
+                      (sess) => sess.setupId === s.id || (sess.setupName && s.name && sess.setupName.toLowerCase() === s.name.toLowerCase())
+                    );
+                    const isOccupied = !!activeSession;
+                    const setupType = (s.type || 'PS4').toUpperCase();
+                    const fallbackImg = setupType === 'PS5' ? '/images/ps5.jpg'
+                      : setupType === 'PS4' ? '/images/ps4.jpg'
+                      : setupType === 'PS3' ? '/images/ps3.jpg'
+                      : setupType === 'PS2' ? '/images/ps2.jpg'
+                      : setupType === 'RACING' ? '/images/sim-racing.jpg'
+                      : '/images/gallery/gaming-pc.jpg';
+
+                    return (
+                      <div
+                        key={s.id}
+                        style={{
+                          background: isOccupied ? 'rgba(239, 68, 68, 0.07)' : 'rgba(255, 255, 255, 0.03)',
+                          border: isOccupied ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '12px',
+                          padding: '12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          position: 'relative',
+                        }}
+                      >
+                        {/* Type & Status Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: setupType === 'PS5' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 85, 0, 0.15)',
+                            color: setupType === 'PS5' ? '#38bdf8' : '#ff5500',
+                            border: `1px solid ${setupType === 'PS5' ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 85, 0, 0.3)'}`,
+                          }}>
+                            {setupType}
+                          </span>
+
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            color: isOccupied ? '#f87171' : '#4ade80',
+                          }}>
+                            <span style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: '50%',
+                              background: isOccupied ? '#ef4444' : '#22c55e',
+                              boxShadow: isOccupied ? '0 0 8px #ef4444' : '0 0 8px #22c55e',
+                            }} />
+                            {isOccupied ? 'In Use' : 'Available'}
+                          </span>
+                        </div>
+
+                        {/* Setup Name & Thumbnail */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                          <div style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            background: '#070a12',
+                            flexShrink: 0,
+                            border: '1px solid rgba(255, 255, 255, 0.06)',
+                          }}>
+                            <img
+                              src={s.image || fallbackImg}
+                              alt={s.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = fallbackImg; }}
+                            />
+                          </div>
+                          <div style={{ overflow: 'hidden' }}>
+                            <div style={{
+                              fontSize: '0.88rem',
+                              fontWeight: 700,
+                              color: '#f8fafc',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}>
+                              {s.name}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: 2 }}>
+                              ₹{s.pricePerHour || 50}/hr {s.pricePer30Min ? `• ₹${s.pricePer30Min}/30m` : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Info or Action */}
+                        {isOccupied ? (
+                          <div style={{
+                            marginTop: 4,
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            fontSize: '0.72rem',
+                            color: '#fca5a5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+                              👤 {activeSession.customerName || activeSession.userName || 'Player'}
+                            </span>
+                            <Link
+                              to="/admin/sessions"
+                              style={{ color: '#38bdf8', fontWeight: 700, textDecoration: 'none' }}
+                            >
+                              View Session →
+                            </Link>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                            <Link
+                              to={`/admin/bookings?setup=${encodeURIComponent(s.id)}`}
+                              style={{
+                                flex: 1,
+                                textAlign: 'center',
+                                padding: '5px 8px',
+                                borderRadius: 6,
+                                background: 'rgba(255, 85, 0, 0.12)',
+                                border: '1px solid rgba(255, 85, 0, 0.3)',
+                                color: '#ff5500',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                              }}
+                            >
+                              ⚡ Start / Book
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -922,111 +880,21 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ── Quick Booking Modal ── */}
-      {isBookModalOpen && (
-        <div className="ts-modal-overlay" onClick={() => setIsBookModalOpen(false)}>
-          <div className="ts-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="ts-modal-header">
-              <div className="ts-modal-title">
-                <Gamepad2 size={20} color="#ff5500" />
-                <span>New Booking Confirmation</span>
-              </div>
-              <button
-                type="button"
-                className="ts-modal-close-btn"
-                onClick={() => setIsBookModalOpen(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {/* ── Counter UPI QR Modal ── */}
+      <UpiQrModal
+        isOpen={showUpiQr}
+        onClose={() => setShowUpiQr(false)}
+        purpose="TS Gaming Cafe Counter Payment"
+      />
 
-            <form onSubmit={handleQuickBook}>
-              <div className="ts-modal-body">
-                <div style={{
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  background: 'rgba(255, 85, 0, 0.08)',
-                  border: '1px solid rgba(255, 85, 0, 0.25)',
-                  fontSize: '0.8rem',
-                  color: '#e2e8f0',
-                  lineHeight: 1.5,
-                }}>
-                  🎮 Console: <strong>{selectedStation}</strong> | ⏰ Slot: <strong>{selectedSlot.label}</strong> ({selectedDate})<br />
-                  ⏳ Duration: <strong>{selectedDuration}</strong> | 👥 Players: <strong>{selectedPlayers}</strong>
-                </div>
-
-                <div className="ts-form-field">
-                  <label className="ts-form-label">Customer Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Customer name"
-                    value={bookingCustName}
-                    onChange={(e) => setBookingCustName(e.target.value)}
-                    className="ts-form-input"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="ts-form-field">
-                  <label className="ts-form-label">Mobile Number</label>
-                  <input
-                    type="tel"
-                    placeholder="Phone number"
-                    value={bookingCustPhone}
-                    onChange={(e) => setBookingCustPhone(e.target.value)}
-                    className="ts-form-input"
-                  />
-                </div>
-
-                <div className="ts-form-field">
-                  <label className="ts-form-label">Payment Mode</label>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.82rem' }}>
-                      <input
-                        type="radio"
-                        name="payMode"
-                        value="cash"
-                        checked={bookingPaymentMode === 'cash'}
-                        onChange={() => setBookingPaymentMode('cash')}
-                      />
-                      💵 Cash
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.82rem' }}>
-                      <input
-                        type="radio"
-                        name="payMode"
-                        value="upi"
-                        checked={bookingPaymentMode === 'upi'}
-                        onChange={() => setBookingPaymentMode('upi')}
-                      />
-                      📱 Online UPI
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="ts-modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setIsBookModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingBooking}
-                  className="btn btn-primary btn-sm"
-                  style={{ background: '#ff5500', borderColor: '#ff5500' }}
-                >
-                  {isSubmittingBooking ? 'Saving...' : 'Confirm & Save Booking'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ── Daily Settlement / Cash Closing Report Modal ── */}
+      <DailyReportModal
+        isOpen={showDailyReport}
+        onClose={() => setShowDailyReport(false)}
+        stats={stats}
+        staffSales={displayStaffSales}
+        todayDateStr={todayStr}
+      />
     </div>
   );
 }

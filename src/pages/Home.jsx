@@ -36,49 +36,22 @@ import './admin/AdminDashboard.css';
 /* ── DEFAULT FALLBACK STATIONS ── */
 const DEFAULT_STATIONS = [
   {
-    id: 'ps2',
-    name: 'PS2',
-    fullName: 'PlayStation 2',
-    image: '/images/ps2.jpg',
-    badge: 'Retro Classic',
-    shortInfo: 'Group games only (WWE, SmackDown etc.)',
-    pricing: { '30m': 15, '1h': 30, '2h': 60, 'group': 20 },
-  },
-  {
-    id: 'ps3',
-    name: 'PS3',
-    fullName: 'PlayStation 3',
-    image: '/images/ps3.jpg',
-    badge: 'Co-op Favorite',
-    shortInfo: 'HD Multiplayer & legendary classic titles',
-    pricing: { '30m': 20, '1h': 40, '2h': 80, 'group': 30 },
-  },
-  {
     id: 'ps4',
     name: 'PS4',
     fullName: 'PlayStation 4',
     image: '/images/ps4.jpg',
     badge: 'Pro 4K HDR',
     shortInfo: 'High-end gaming library & competitive sports',
-    pricing: { '30m': 30, '1h': 50, '2h': 100, 'group': 40 },
+    pricing: { '30m': 40, '1h': 50, '2h': 100, group: 40 },
   },
   {
-    id: 'ps5',
-    name: 'PS5',
-    fullName: 'PlayStation 5',
-    image: '/images/ps5.jpg',
-    badge: 'Next-Gen 120Hz',
-    shortInfo: 'Ultra-fast SSD, 120 FPS & DualSense Haptics',
-    pricing: { '30m': 50, '1h': 80, '2h': 160, 'group': 70 },
-  },
-  {
-    id: 'sim_racing',
-    name: 'SIM RACING',
-    fullName: 'Racing Simulator Cockpit',
-    image: '/images/sim-racing.jpg',
-    badge: 'Force Feedback',
-    shortInfo: 'Pro racing wheel, metal pedals & cockpit seat',
-    pricing: { '30m': 80, '1h': 150, '2h': 300, 'group': 80 },
+    id: 'ps2',
+    name: 'PS2',
+    fullName: 'PlayStation 2',
+    image: '/images/ps2.jpg',
+    badge: 'Retro Classic',
+    shortInfo: 'Group games only (WWE, SmackDown etc.)',
+    pricing: { '30m': 15, '1h': 20, '2h': 40, group: 20 },
   },
 ];
 
@@ -228,7 +201,7 @@ export default function Home() {
 
   // Booking Form State
   const [bookingMode, setBookingMode] = useState('now'); // 'now' (Play Right Now / Walk-in) | 'slot' (Advance Slot)
-  const [selectedStationId, setSelectedStationId] = useState('ps5');
+  const [selectedStationId, setSelectedStationId] = useState('ps4');
 
   const updateTimeToNearestSlot = (date = new Date()) => {
     const roundedMinutes = date.getMinutes() <= 15 ? 0 : date.getMinutes() <= 45 ? 30 : 60;

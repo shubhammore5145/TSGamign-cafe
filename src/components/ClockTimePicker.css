@@ -1,0 +1,322 @@
+/* ═════════════════════════════════════════════════════════════
+   MATERIAL CIRCULAR ANALOG CLOCK TIME PICKER
+   Exact match to user's reference screenshot:
+   - Outline input with floating label "With Time Clock"
+   - Gray circular dial with radial numbers
+   - Blue center dot, line hand & selected circle knob
+   - Navigation chevrons < >
+   - AM / PM circular buttons & OK text button
+   ═════════════════════════════════════════════════════════════ */
+
+.material-clock-picker-wrap {
+  position: relative;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+
+/* ── Outline Input Box Matching Screenshot ── */
+.material-clock-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 10px 14px;
+  background: #ffffff;
+  border: 2px solid #1976d2;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 52px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.material-clock-input:hover {
+  border-color: #1565c0;
+}
+
+.material-clock-input--active {
+  border-color: #1976d2 !important;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
+}
+
+/* Floating Label Cutout at Top Left */
+.material-clock-label-cutout {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: #ffffff;
+  padding: 0 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1976d2;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+/* Text Display: 11:00 AM */
+.material-clock-display-text {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: #1a202c;
+  letter-spacing: 0.02em;
+}
+
+/* Right Clock Icon */
+.material-clock-icon-wrap {
+  display: flex;
+  align-items: center;
+  color: #5f6368;
+  margin-left: 8px;
+}
+
+/* ── Popover Dialog Card ── */
+.material-clock-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 99999;
+  width: 310px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  padding: 16px 14px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: matClockFade 0.16s ease-out;
+}
+
+@keyframes matClockFade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Top Navigation Bar: Time mode tabs & Chevrons */
+.material-clock-top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+}
+
+.material-clock-mode-label {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.mode-tab {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #718096;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.12s;
+  font-family: monospace;
+}
+
+.mode-tab:hover {
+  color: #1a202c;
+  background: #edf2f7;
+}
+
+.mode-tab.active {
+  color: #1976d2;
+  font-weight: 800;
+  background: #e3f2fd;
+}
+
+.mode-sep {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #a0aec0;
+}
+
+.mode-desc {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #718096;
+  margin-left: 4px;
+}
+
+/* Chevrons < > */
+.material-clock-nav-chevrons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chevron-btn {
+  background: none;
+  border: none;
+  color: #5f6368;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chevron-btn:hover:not(.disabled) {
+  background: #f1f3f4;
+  color: #1976d2;
+}
+
+.chevron-btn.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── Dial Container & Circular Face ── */
+.material-clock-dial-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.material-clock-dial-face {
+  position: relative;
+  background: #ebebeb;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.material-clock-hand-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* Blue circular knob centered on the selected number */
+.material-clock-selection-knob {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1976d2;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.45);
+  transition: left 0.12s ease-out, top 0.12s ease-out;
+}
+
+/* Dial Radial Numbers */
+.material-clock-number {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #202124;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.1s;
+}
+
+.material-clock-number:hover {
+  font-weight: 700;
+}
+
+.material-clock-number.selected {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* ── Bottom Bar Matching Screenshot ── */
+.material-clock-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+}
+
+.material-clock-ampm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Circular AM / PM buttons */
+.ampm-circle-pill {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #5f6368;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.ampm-circle-pill:hover {
+  background: #f1f3f4;
+}
+
+.ampm-circle-pill.active {
+  background: #1976d2;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(25, 118, 210, 0.35);
+}
+
+/* Material Flat Actions */
+.material-clock-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.material-action-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.12s;
+}
+
+.material-action-btn.cancel {
+  color: #5f6368;
+}
+
+.material-action-btn.cancel:hover {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.material-action-btn.ok {
+  color: #1976d2;
+}
+
+.material-action-btn.ok:hover {
+  background: #e3f2fd;
+}

@@ -92,7 +92,7 @@ export default function Contact() {
             </div>
 
             {/* CTA buttons */}
-            <div className="contact-ctas">
+            <div className="contact-ctas" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <a
                 href="https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad"
                 target="_blank"
@@ -102,7 +102,25 @@ export default function Contact() {
               >
                 <Navigation size={16} /> Get Directions
               </a>
-              <Link to="/#booking" className="btn btn-primary" id="contact-book-btn">
+              <a
+                href="https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn"
+                style={{
+                  background: 'rgba(234, 179, 8, 0.15)',
+                  border: '1px solid rgba(234, 179, 8, 0.35)',
+                  color: '#fbbf24',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                id="contact-review-btn"
+              >
+                <span>⭐ Review Us on Google</span>
+              </a>
+              <Link to="/booking" className="btn btn-primary" id="contact-book-btn">
                 🎮 Book Now
               </Link>
             </div>

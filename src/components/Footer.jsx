@@ -29,11 +29,11 @@ export default function Footer() {
               </div>
             </Link>
             <p className="footer__desc">
-              Aurangabad's ultimate gaming destination featuring PlayStation 2, 3, 4, 5, Sim Racing cockpit, and cafe bites.
+              Waluj, Sambhajinagar's premier gaming destination featuring PlayStation consoles (PS4 Pro & PS2 Classic) and fresh cafe bites.
             </p>
             <div className="footer__chips">
-              <span className="footer__chip">🎮 Next-Gen Consoles</span>
-              <span className="footer__chip">🏎️ Sim Cockpit</span>
+              <span className="footer__chip">🎮 PlayStation Gaming</span>
+              <span className="footer__chip">👥 Group Co-op</span>
               <span className="footer__chip">🍕 Food & Drinks</span>
             </div>
           </div>
@@ -76,7 +76,7 @@ export default function Footer() {
                   <MapPin size={15} />
                 </div>
                 <div>
-                  <span>Waluj, Aurangabad, Maharashtra</span>
+                  <span>Waluj, Sambhajinagar (Aurangabad), MH</span>
                 </div>
               </li>
               <li>
@@ -93,7 +93,7 @@ export default function Footer() {
 
           {/* ── Follow Us & Map Column ── */}
           <div className="footer__col footer__map-col">
-            <h4 className="footer__col-title">Follow Us</h4>
+            <h4 className="footer__col-title">Visit & Review</h4>
             <a
               href="https://www.instagram.com/ts_gaming_cafe_waluj"
               target="_blank"
@@ -114,18 +114,30 @@ export default function Footer() {
                 </div>
                 <div className="footer__map-details">
                   <span className="map-title">TS GAMING CAFE</span>
-                  <span className="map-sub">Waluj, Aurangabad</span>
+                  <span className="map-sub">Waluj, Sambhajinagar</span>
                 </div>
               </div>
-              <a
-                href="https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="footer__directions-btn"
-              >
-                <span>Get Directions</span>
-                <ExternalLink size={14} />
-              </a>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <a
+                  href="https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="footer__directions-btn"
+                  style={{ flex: 1 }}
+                >
+                  <span>Directions</span>
+                  <ExternalLink size={13} />
+                </a>
+                <a
+                  href="https://maps.google.com/?q=TS+Gaming+Cafe+Waluj+Aurangabad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="footer__directions-btn"
+                  style={{ flex: 1, background: 'rgba(234, 179, 8, 0.15)', borderColor: 'rgba(234, 179, 8, 0.3)', color: '#fbbf24' }}
+                >
+                  <span>⭐ Review</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>

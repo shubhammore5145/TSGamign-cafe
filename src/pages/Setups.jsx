@@ -4,81 +4,75 @@ import { Link } from 'react-router-dom';
 import { useSetups } from '../hooks/useSetups';
 import './Setups.css';
 
-const CATEGORIES = ['All', 'PC', 'PS5', 'VR', 'Racing'];
-
 const TYPE_ICONS = {
-  PC:     Monitor,
-  PS5:    Gamepad2,
-  VR:     Glasses,
+  PS4: Gamepad2,
+  PS2: Gamepad2,
+  PS5: Gamepad2,
+  PC: Monitor,
   Racing: Car,
+  VR: Glasses,
 };
 
 const FALLBACK_SETUPS = [
   {
-    id: 'setup-ps5-1',
+    id: 'setup-ps2-1',
     setupNumber: 1,
-    name: 'PlayStation 5 Arena #01',
-    type: 'PS5',
+    name: 'PS 2 — Station #01',
+    type: 'PS2',
     status: 'available',
-    pricePerHour: 80,
-    specs: ['Sony 4K HDR 120Hz Display', 'DualSense Haptic Controllers', 'Pulse 3D Audio Headset', 'Ultra-fast NVMe SSD'],
-    games: ['EA Sports FC 25', 'Spider-Man 2', 'God of War Ragnarok', 'Tekken 8', 'Mortal Kombat 1'],
-    image: '/images/ps5.jpg',
+    pricePerHour: 20,
+    pricePer30Min: 15,
+    specs: ['2x DualShock 2 Controllers', 'Memory Card 64MB', 'CRT / Gaming Display'],
+    games: ['GTA San Andreas', 'GTA Vice City', 'WWE SmackDown Here Comes The Pain', 'God of War II', 'Tekken 5'],
+    image: '/images/ps2.jpg',
   },
   {
-    id: 'setup-ps5-2',
+    id: 'setup-ps4-2',
     setupNumber: 2,
-    name: 'PlayStation 5 Arena #02',
-    type: 'PS5',
-    status: 'available',
-    pricePerHour: 80,
-    specs: ['Sony 4K HDR 120Hz Display', 'DualSense Haptic Controllers', 'Surround Sound Audio'],
-    games: ['Call of Duty: Modern Warfare III', 'GTA V', 'Gran Turismo 7', 'NBA 2K25'],
-    image: '/images/ps5.jpg',
-  },
-  {
-    id: 'setup-sim-1',
-    setupNumber: 3,
-    name: 'Sim Racing Pro Cockpit',
-    type: 'Racing',
-    status: 'available',
-    pricePerHour: 150,
-    specs: ['Logitech G29 Force Feedback Wheel', 'Sequential 6-Speed Shifter', 'Cockpit Racing Bucket Seat', 'Surround Sound Audio'],
-    games: ['Forza Horizon 5', 'Gran Turismo 7', 'F1 24', 'Assetto Corsa', 'Need for Speed Unbound'],
-    image: '/images/sim-racing.jpg',
-  },
-  {
-    id: 'setup-ps4-1',
-    setupNumber: 4,
-    name: 'PlayStation 4 Pro Arena',
-    type: 'PS5',
+    name: 'PS4 — Station #02',
+    type: 'PS4',
     status: 'available',
     pricePerHour: 50,
-    specs: ['55" 4K HDR Screen', 'DualShock 4 Wireless Controllers', 'Full Sports & Action Library'],
-    games: ['WWE 2K24', 'FIFA 23', 'Cricket 24', 'Uncharted 4', 'Red Dead Redemption 2'],
+    pricePer30Min: 40,
+    specs: ['2x DualShock 4 Wireless Controllers', '43-inch 4K HDR TV', 'Low Input Lag Gaming Mode'],
+    games: ['FIFA 23', 'GTA V', 'WWE 2K22', 'God of War', 'Spider-Man', 'Mortal Kombat 11'],
     image: '/images/ps4.jpg',
   },
   {
-    id: 'setup-ps3-1',
-    setupNumber: 5,
-    name: 'PlayStation 3 Co-Op Station',
-    type: 'PC',
+    id: 'setup-ps4-3',
+    setupNumber: 3,
+    name: 'PS4 — Station #03',
+    type: 'PS4',
     status: 'available',
-    pricePerHour: 40,
-    specs: ['HD Gaming Display', '4-Player Co-Op Multiplayer', 'Classic Golden Era Titles'],
-    games: ['WWE SmackDown vs Raw', 'Blur', 'Tekken 6', 'NFS Most Wanted', 'Call of Duty Black Ops II'],
-    image: '/images/ps3.jpg',
+    pricePerHour: 50,
+    pricePer30Min: 40,
+    specs: ['2x DualShock 4 Wireless Controllers', '43-inch 4K HDR TV', 'Surround Sound Audio'],
+    games: ['FIFA 23', 'GTA V', 'WWE 2K22', 'God of War', 'Spider-Man', 'Mortal Kombat 11'],
+    image: '/images/ps4.jpg',
   },
   {
-    id: 'setup-ps2-1',
-    setupNumber: 6,
-    name: 'PlayStation 2 Retro Lounge',
-    type: 'PC',
+    id: 'setup-ps4-4',
+    setupNumber: 4,
+    name: 'PS 4 — Station #04',
+    type: 'PS4',
     status: 'available',
-    pricePerHour: 30,
-    specs: ['Retro Arcade Setup', 'Group Multiplayer Action', 'Nostalgic Classics'],
-    games: ['WWE SmackDown Here Comes The Pain', 'GTA San Andreas', 'Dragon Ball Z Budokai Tenkaichi 3'],
-    image: '/images/ps2.jpg',
+    pricePerHour: 50,
+    pricePer30Min: 40,
+    specs: ['2x DualShock 4 Wireless Controllers', '43-inch 4K HDR TV'],
+    games: ['FIFA 23', 'GTA V', 'WWE 2K22', 'God of War', 'Spider-Man', 'Mortal Kombat 11'],
+    image: '/images/ps4.jpg',
+  },
+  {
+    id: 'setup-ps4-5',
+    setupNumber: 5,
+    name: 'PS 4 — Station #05',
+    type: 'PS4',
+    status: 'available',
+    pricePerHour: 50,
+    pricePer30Min: 40,
+    specs: ['2x DualShock 4 Wireless Controllers', '43-inch 4K HDR TV'],
+    games: ['FIFA 23', 'GTA V', 'WWE 2K22', 'God of War', 'Spider-Man', 'Mortal Kombat 11'],
+    image: '/images/ps4.jpg',
   },
 ];
 
@@ -87,6 +81,11 @@ export default function Setups() {
   const [activeCategory, setActiveCategory] = useState('All');
 
   const setups = (liveSetups && liveSetups.length > 0) ? liveSetups : FALLBACK_SETUPS;
+
+  const categories = React.useMemo(() => {
+    const types = new Set(setups.map(s => s.type).filter(Boolean));
+    return ['All', ...Array.from(types)];
+  }, [setups]);
 
   const filtered = activeCategory === 'All'
     ? setups
@@ -100,14 +99,14 @@ export default function Setups() {
           <div className="section-tag"><Monitor size={12} /> Gaming Arsenal</div>
           <h1 className="section-title">Our <span>Gaming Setups</span></h1>
           <p className="section-desc">
-            Choose your weapon. From PS5 next-gen consoles to Sim Racing Cockpit, PS4, PS3 and PS2 — we've got the gear to match your game.
+            Choose your battle station. Premium PlayStation setups (PS4 Pro & PS2 Classic) in Waluj, Sambhajinagar — ready for solo and multiplayer battles.
           </p>
         </div>
 
         {/* Category Filter */}
         <div className="setups-filter">
           <Filter size={16} className="text-muted" />
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}

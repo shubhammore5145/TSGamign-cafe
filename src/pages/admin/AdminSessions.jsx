@@ -3,6 +3,7 @@ import {
   subscribeToAllActiveSessions,
   subscribeToSetups,
   createSession,
+  createBooking,
   updateSession,
   updateSetup,
   addNotification,
@@ -122,6 +123,17 @@ export default function AdminSessions() {
       const currentStaff = getStaffUser();
       const staffName = isStaff ? (currentStaff?.name || 'Staff') : 'Super Admin';
 
+      const rateHour = Number(setup.pricePerHour) || 50;
+      const rate30 = Number(setup.pricePer30Min) || 40;
+      const durationHours = newSessionData.duration / 60;
+      const amount = newSessionData.duration <= 30 ? rate30 : Math.round(rateHour * durationHours);
+
+      const d = new Date();
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const startFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const endFormatted = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+
+      // 1. Create active real-time session
       await createSession({
         userId: 'walk-in',
         userName: newSessionData.name.trim(),
@@ -132,6 +144,25 @@ export default function AdminSessions() {
         sessionEndTime: toFirestoreTimestamp(end),
         duration: Math.round(newSessionData.duration / 60),
         handledBy: staffName,
+      });
+
+      // 2. Also record in bookings collection so dashboard revenue & staff sales sync immediately
+      await createBooking({
+        userName: newSessionData.name.trim(),
+        customerName: newSessionData.name.trim(),
+        setupId: setup.id,
+        setupName: setup.name,
+        date: dateStr,
+        startTime: startFormatted,
+        endTime: endFormatted,
+        duration: durationHours,
+        players: 1,
+        totalAmount: amount,
+        status: 'active',
+        paymentStatus: 'paid_cash',
+        paymentMode: 'cash',
+        handledBy: staffName,
+        source: 'admin_sessions',
       });
 
       await updateSetup(setup.id, { status: 'occupied' });
