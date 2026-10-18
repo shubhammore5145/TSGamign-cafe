@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
 import LoadingAnimation from './components/LoadingAnimation';
 
 // Public Layout
@@ -86,9 +87,11 @@ function AppContent() {
 export default function App() {
   return (
     <Router>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </AuthProvider>
     </Router>
   );
 }

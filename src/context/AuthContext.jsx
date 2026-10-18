@@ -7,19 +7,9 @@ import {
   signOut as firebaseSignOut,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const AuthContext = createContext(null);
-
-// ═══════════════════════════════════════════════════════
-// ADMIN EMAILS — Add your admin email(s) here
-// Anyone who registers or logs in with these emails
-// will automatically become an admin.
-// ═══════════════════════════════════════════════════════
-const ADMIN_EMAILS = [
-  'shubhamvmore12@gmail.com',
-  // Add more admin emails here if needed
-];
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -28,30 +18,18 @@ export function AuthProvider({ children }) {
 
   const isAdmin = userDoc?.role === 'admin';
 
-  const fetchUserDoc = useCallback(async (uid, email) => {
+  const fetchUserDoc = useCallback(async (uid) => {
     try {
       const ref = doc(db, 'users', uid);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        const data = snap.data();
-
-        // Auto-promote admin emails
-        if (ADMIN_EMAILS.includes(email?.toLowerCase()) && data.role !== 'admin') {
-          await updateDoc(ref, { role: 'admin' });
-          data.role = 'admin';
-          console.log('✅ Auto-promoted to admin:', email);
-        }
-
-        setUserDoc(data);
-      }
-    } catch (err) {
-      console.warn('Could not fetch user doc (check Firestore rules):', err.message);
-      // If we can't read Firestore but it's an admin email, set a local admin doc
-      if (ADMIN_EMAILS.includes(email?.toLowerCase())) {
-        setUserDoc({ role: 'admin', name: email.split('@')[0], email });
+        setUserDoc(snap.data());
       } else {
         setUserDoc(null);
       }
+    } catch (err) {
+      console.warn('Could not fetch user doc (check Firestore rules):', err.message);
+      setUserDoc(null);
     }
   }, []);
 
@@ -59,7 +37,7 @@ export function AuthProvider({ children }) {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        await fetchUserDoc(firebaseUser.uid, firebaseUser.email);
+        await fetchUserDoc(firebaseUser.uid);
       } else {
         setUserDoc(null);
       }
@@ -70,7 +48,7 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email, password) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
-    await fetchUserDoc(result.user.uid, result.user.email);
+    await fetchUserDoc(result.user.uid);
     return result;
   };
 
@@ -78,16 +56,13 @@ export function AuthProvider({ children }) {
     const result = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(result.user, { displayName: name, photoURL: photoURL || null });
 
-    // Auto-assign admin role if email is in ADMIN_EMAILS
-    const role = ADMIN_EMAILS.includes(email?.toLowerCase()) ? 'admin' : 'user';
-
     const newUserDoc = {
       uid: result.user.uid,
       name,
       email,
       phone: phone || '',
       photoURL: photoURL || '',
-      role,
+      role: 'user',
       membershipId: null,
       createdAt: serverTimestamp(),
     };
@@ -107,7 +82,7 @@ export function AuthProvider({ children }) {
   };
 
   const refreshUserDoc = () => {
-    if (user) fetchUserDoc(user.uid, user.email);
+    if (user) fetchUserDoc(user.uid);
   };
 
   return (

@@ -1215,9 +1215,6 @@ ${itemLines}
       {/* ============================================================
           MODAL: ADD / EDIT PRODUCT (ADMIN ONLY)
           ============================================================ */}
-      {/* ============================================================
-          MODAL: ADD / EDIT PRODUCT (ADMIN ONLY)
-          ============================================================ */}
       {isModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="admin-modal-card" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>

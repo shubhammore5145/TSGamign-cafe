@@ -17,6 +17,8 @@ import {
   subscribeToSetups,
 } from '../firebase/firestore';
 import UpiQrModal from '../components/UpiQrModal';
+import CustomerAuthModal from '../components/CustomerAuthModal';
+import { useAuth } from '../context/AuthContext';
 import './Home.css';
 import './admin/AdminDashboard.css';
 
@@ -43,6 +45,7 @@ const TIME_SLOTS = [
 
 export default function Booking() {
   const toast = useToast();
+  const { user, userDoc, loading: authLoading } = useAuth();
 
   const getTodayDateStr = () => {
     const d = new Date();
@@ -66,6 +69,13 @@ export default function Booking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(null);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    setCustomerName((current) => current || userDoc?.name || user.displayName || '');
+    setCustomerPhone((current) => current || userDoc?.phone || '');
+  }, [user, userDoc]);
 
   useEffect(() => {
     const unsubBookings = subscribeToAllBookings((b) => {
@@ -164,6 +174,14 @@ export default function Booking() {
   // Handle Form Submit
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
+    if (authLoading) {
+      toast.show('Checking your sign-in status. Please try again in a moment.', 'info');
+      return;
+    }
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (!customerName.trim()) {
       toast.show('Please enter your name', 'error');
       return;
@@ -181,6 +199,7 @@ export default function Booking() {
     setIsSubmitting(true);
     try {
       const payload = {
+        userId: user.uid,
         userName: customerName.trim(),
         customerName: customerName.trim(),
         userPhone: cleanPhone.slice(-10),
@@ -484,7 +503,7 @@ export default function Booking() {
                   </label>
                   <input
                     type="text"
-                    required
+                    required={Boolean(user)}
                     placeholder="e.g. Rohan Patil"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
@@ -507,7 +526,7 @@ export default function Booking() {
                   </label>
                   <input
                     type="tel"
-                    required
+                    required={Boolean(user)}
                     placeholder="e.g. 9876543210"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
@@ -660,6 +679,8 @@ export default function Booking() {
           purpose={`Gaming Session: ${bookingSuccess.setupName}`}
         />
       )}
+
+      {showAuthModal && <CustomerAuthModal onClose={() => setShowAuthModal(false)} />}
     </div>
   );
 }

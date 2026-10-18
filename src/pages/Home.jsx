@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import {
   createBooking,
   subscribeToFoodItems,
@@ -30,6 +31,7 @@ import {
   subscribeToAllBookings,
   DEFAULT_FOOD_ITEMS,
 } from '../firebase/firestore';
+import CustomerAuthModal from '../components/CustomerAuthModal';
 import './Home.css';
 import './admin/AdminDashboard.css';
 
@@ -99,6 +101,7 @@ function time12To24(time12Str) {
 
 export default function Home() {
   const toast = useToast();
+  const { user, userDoc, loading: authLoading } = useAuth();
 
   // Live Stations from Admin (Firestore gamingSetups)
   const [stations, setStations] = useState(DEFAULT_STATIONS);
@@ -261,6 +264,13 @@ export default function Home() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [showCustomerAuth, setShowCustomerAuth] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    setCustomerName((current) => current || userDoc?.name || user.displayName || '');
+    setCustomerPhone((current) => current || userDoc?.phone || '');
+  }, [user, userDoc]);
 
   // Snacks Add-On State
   const [snackCategory, setSnackCategory] = useState('All');
@@ -444,6 +454,14 @@ export default function Home() {
   // Handle Booking Confirmation
   const handleConfirmBookingSubmit = async (e) => {
     e.preventDefault();
+    if (authLoading) {
+      toast.info('Please wait', 'Checking your sign-in status.');
+      return;
+    }
+    if (!user) {
+      setShowCustomerAuth(true);
+      return;
+    }
     if (!customerName.trim() || !customerPhone.trim()) {
       toast.warning('Details Required', 'Please enter your name and phone number.');
       return;
@@ -466,6 +484,7 @@ export default function Home() {
     const end24 = time12To24(formattedEndTime);
 
     const bookingPayload = {
+      userId: user.uid,
       customerName: customerName.trim(),
       userName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -506,12 +525,12 @@ export default function Home() {
           ? `Console is ready for ${customerName.trim()}! Pay at counter.`
           : `Your session for ${currentStation.name} has been reserved.`
       );
+      setConfirmedBooking(bookingPayload);
     } catch (err) {
-      console.warn('Firebase booking fallback to local:', err);
-      toast.success('Booking Reserved!', `Session reserved for ${customerName.trim()}.`);
+      console.error('Booking failed:', err);
+      toast.error('Booking failed', err.message || 'Unable to save your booking. Please try again.');
     } finally {
       setIsSubmitting(false);
-      setConfirmedBooking(bookingPayload);
     }
   };
 
@@ -1443,7 +1462,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                         </label>
                         <input
                           type="text"
-                          required
+                          required={Boolean(user)}
                           placeholder="Your name"
                           value={customerName}
                           onChange={(e) => setCustomerName(e.target.value)}
@@ -1466,7 +1485,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                         </label>
                         <input
                           type="tel"
-                          required
+                          required={Boolean(user)}
                           placeholder="Phone number"
                           value={customerPhone}
                           onChange={(e) => setCustomerPhone(e.target.value)}
@@ -1637,7 +1656,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                   <label>Full Name *</label>
                   <input
                     type="text"
-                    required
+                    required={Boolean(user)}
                     placeholder="Your name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
@@ -1650,7 +1669,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
                   <label>Mobile Number *</label>
                   <input
                     type="tel"
-                    required
+                    required={Boolean(user)}
                     placeholder="Phone number"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
@@ -1723,6 +1742,7 @@ ${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}�
           </div>
         </div>
       )}
+      {showCustomerAuth && <CustomerAuthModal onClose={() => setShowCustomerAuth(false)} />}
     </div>
   );
 }
