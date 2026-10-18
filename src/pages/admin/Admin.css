@@ -925,15 +925,18 @@
   }
 
   /* Form and Modals on phone */
-  .modal-overlay {
+  .modal-overlay,
+  .modal-backdrop {
     padding: 0 !important;
     align-items: flex-end !important;
-    background: rgba(0, 0, 0, 0.75) !important;
-    backdrop-filter: blur(8px) !important;
+    background: rgba(0, 0, 0, 0.78) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
   }
 
-  .modal-card {
-    padding: 16px 14px !important;
+  .modal-card,
+  .modal-box {
+    padding: 18px 16px 32px !important;
     max-height: 88vh !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
@@ -942,6 +945,12 @@
     max-width: 100% !important;
     margin: 0 !important;
     border-bottom: none !important;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px !important;
+    font-size: 0.8rem !important;
   }
 
   .admin-slot-grid {

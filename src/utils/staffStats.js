@@ -194,3 +194,43 @@ export function calculateAllStaffSummary(staffList = [], bookings = [], foodSale
 
   return { summary, totals };
 }
+
+/**
+ * Formats Rupee amounts with Indian commas: e.g. 1500 -> ₹1,500
+ */
+export function formatINR(amount) {
+  const num = Number(amount) || 0;
+  return '₹' + num.toLocaleString('en-IN');
+}
+
+/**
+ * Formats phone numbers cleanly for Indian mobile displays:
+ * e.g. "9579897652" -> "+91 95798 97652"
+ * e.g. "09579897652" -> "+91 95798 97652"
+ */
+export function formatPhoneNumber(phone) {
+  if (!phone) return '—';
+  // Strip hidden LTR/RTL unicode marks and non-digits
+  const clean = String(phone).replace(/\D/g, '');
+  if (clean.length === 10) {
+    return `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`;
+  }
+  if (clean.length === 11 && clean.startsWith('0')) {
+    const ten = clean.slice(1);
+    return `+91 ${ten.slice(0, 5)} ${ten.slice(5)}`;
+  }
+  if (clean.length === 12 && clean.startsWith('91')) {
+    const ten = clean.slice(2);
+    return `+91 ${ten.slice(0, 5)} ${ten.slice(5)}`;
+  }
+  return String(phone).trim();
+}
+
+/**
+ * Extracts 10 clean digits for tel: and https://wa.me/91... links
+ */
+export function getClean10Phone(phone) {
+  if (!phone) return '';
+  const clean = String(phone).replace(/\D/g, '');
+  return clean.slice(-10);
+}

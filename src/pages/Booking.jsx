@@ -30,11 +30,11 @@ import './admin/AdminDashboard.css';
 
 // Preset Stations matching screenshot
 const STATIONS = [
-  { id: 'ps2', type: 'PS2', name: 'PS2', sub: 'Group Game Only (WWE, SmackDown)', image: '/images/ps2.jpg', rate: 30 },
-  { id: 'ps3', type: 'PS3', name: 'PS3', sub: 'Classic HD Multiplayer', image: '/images/ps3.jpg', rate: 40 },
-  { id: 'ps4', type: 'PS4', name: 'PS4', sub: 'Pro 4K HDR Gaming', image: '/images/ps4.jpg', rate: 60 },
-  { id: 'ps5', type: 'PS5', name: 'PS5', sub: 'Next-Gen 120Hz & DualSense', image: '/images/ps5.jpg', rate: 100 },
-  { id: 'sim', type: 'Sim Racing', name: 'Sim Racing', sub: 'G29 Wheel & Rig', image: '/images/sim-racing.jpg', rate: 150 },
+  { id: 'ps2', type: 'PS2', name: 'PS2', sub: 'Group Game Only (WWE, SmackDown)', image: '/images/ps2.jpg', rate: 30, rate30: 20 },
+  { id: 'ps3', type: 'PS3', name: 'PS3', sub: 'Classic HD Multiplayer', image: '/images/ps3.jpg', rate: 40, rate30: 25 },
+  { id: 'ps4', type: 'PS4', name: 'PS4', sub: 'Pro 4K HDR Gaming', image: '/images/ps4.jpg', rate: 60, rate30: 40 },
+  { id: 'ps5', type: 'PS5', name: 'PS5', sub: 'Next-Gen 120Hz & DualSense', image: '/images/ps5.jpg', rate: 100, rate30: 60 },
+  { id: 'sim', type: 'Sim Racing', name: 'Sim Racing', sub: 'G29 Wheel & Rig', image: '/images/sim-racing.jpg', rate: 150, rate30: 90 },
 ];
 
 // Available Time Slots (5:00 AM to 10:00 PM)
@@ -132,8 +132,12 @@ export default function Booking() {
   // Gaming Cost Calculation
   const gamingAmount = useMemo(() => {
     const rate = currentStationObj.rate || 100;
-    const durMult = selectedDuration === '30 Min' ? 0.5 : selectedDuration === '2 Hours' ? 2 : selectedDuration === 'Group' ? 3 : 1;
+    const rate30 = currentStationObj.rate30 || Math.round(rate * 0.6);
     const playerMult = selectedPlayers > 2 ? 1.4 : 1;
+    if (selectedDuration === '30 Min') {
+      return Math.round(rate30 * playerMult);
+    }
+    const durMult = selectedDuration === '2 Hours' ? 2 : selectedDuration === 'Group' ? 3 : 1;
     return Math.round(rate * durMult * playerMult);
   }, [currentStationObj, selectedDuration, selectedPlayers]);
 

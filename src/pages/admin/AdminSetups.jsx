@@ -17,6 +17,7 @@ const DEFAULT_FORM = {
   type: 'PS5',
   setupNumber: 1,
   pricePerHour: 100,
+  pricePer30Min: 60,
   status: 'available',
   specs: '2x DualSense Wireless Controllers\n4K HDR Gaming TV\nUltra High-Speed SSD',
   games: 'EA Sports FC 24 / FIFA 24\nGTA V\nWWE 2K24\nGod of War Ragnarök\nSpider-Man 2\nTekken 8\nMortal Kombat 1',
@@ -29,6 +30,7 @@ const DEFAULT_PS_SEED = [
     type: 'PS5',
     setupNumber: 1,
     pricePerHour: 100,
+    pricePer30Min: 60,
     status: 'available',
     specs: ['2x DualSense Controllers', '55-inch 4K 120Hz TV', 'High-Speed SSD'],
     games: ['EA FC 24', 'GTA V', 'WWE 2K24', 'God of War Ragnarök', 'Spider-Man 2', 'Tekken 8', 'Mortal Kombat 1'],
@@ -39,6 +41,7 @@ const DEFAULT_PS_SEED = [
     type: 'PS5',
     setupNumber: 2,
     pricePerHour: 100,
+    pricePer30Min: 60,
     status: 'available',
     specs: ['2x DualSense Controllers', '55-inch 4K 120Hz TV', 'High-Speed SSD'],
     games: ['EA FC 24', 'GTA V', 'WWE 2K24', 'God of War Ragnarök', 'Spider-Man 2', 'Cricket 24'],
@@ -49,6 +52,7 @@ const DEFAULT_PS_SEED = [
     type: 'PS4',
     setupNumber: 3,
     pricePerHour: 60,
+    pricePer30Min: 40,
     status: 'available',
     specs: ['2x DualShock 4 Controllers', '43-inch 4K HDR TV', '1TB Storage'],
     games: ['FIFA 23', 'GTA V', 'WWE 2K22', 'God of War', 'Spider-Man', 'Uncharted 4'],
@@ -59,6 +63,7 @@ const DEFAULT_PS_SEED = [
     type: 'PS4',
     setupNumber: 4,
     pricePerHour: 60,
+    pricePer30Min: 40,
     status: 'available',
     specs: ['2x DualShock 4 Controllers', '43-inch Full HD TV'],
     games: ['FIFA 22', 'GTA V', 'WWE 2K20', 'Mortal Kombat 11', 'Need for Speed Heat'],
@@ -69,6 +74,7 @@ const DEFAULT_PS_SEED = [
     type: 'PS3',
     setupNumber: 5,
     pricePerHour: 40,
+    pricePer30Min: 25,
     status: 'available',
     specs: ['2x DualShock 3 Wireless Controllers', '32-inch HD TV'],
     games: ['GTA IV', 'FIFA 18', 'WWE 2K14', 'God of War III', 'Tekken 6', 'Blur Racing'],
@@ -79,6 +85,7 @@ const DEFAULT_PS_SEED = [
     type: 'PS2',
     setupNumber: 6,
     pricePerHour: 30,
+    pricePer30Min: 20,
     status: 'available',
     specs: ['2x DualShock 2 Wired Controllers', 'Memory Card 64MB', 'CRT / Gaming Display'],
     games: ['GTA San Andreas', 'GTA Vice City', 'WWE SmackDown Here Comes The Pain', 'God of War II', 'Tekken 5', 'Need for Speed Most Wanted'],
@@ -89,6 +96,7 @@ const DEFAULT_PS_SEED = [
     type: 'PC',
     setupNumber: 7,
     pricePerHour: 70,
+    pricePer30Min: 45,
     status: 'available',
     specs: ['RTX 4060 GPU / Intel i7 13th Gen', '240Hz Gaming Monitor', 'Mechanical RGB Keyboard & Mouse'],
     games: ['Valorant', 'CS:GO 2', 'GTA V', 'Call of Duty Warzone', 'Fortnite', 'Apex Legends'],
@@ -99,6 +107,7 @@ const DEFAULT_PS_SEED = [
     type: 'Racing',
     setupNumber: 8,
     pricePerHour: 150,
+    pricePer30Min: 90,
     status: 'available',
     specs: ['Logitech G29 Force Feedback Wheel', 'Metal Pedals & 6-Speed Shifter', 'Racing Bucket Seat'],
     games: ['Forza Horizon 5', 'F1 23', 'Assetto Corsa', 'Need for Speed Heat', 'Dirt Rally 2.0'],
@@ -125,6 +134,8 @@ export default function AdminSetups() {
       ...DEFAULT_FORM,
       name: `PlayStation 5 — Station #${String(nextNum).padStart(2, '0')}`,
       setupNumber: nextNum,
+      pricePerHour: 100,
+      pricePer30Min: 60,
     });
     setEditingId(null);
     setImageFile(null);
@@ -132,11 +143,13 @@ export default function AdminSetups() {
   };
 
   const openEdit = (setup) => {
+    const hr = setup.pricePerHour || 100;
     setForm({
       name: setup.name,
       type: setup.type || 'PS5',
       setupNumber: setup.setupNumber || 1,
-      pricePerHour: setup.pricePerHour || 100,
+      pricePerHour: hr,
+      pricePer30Min: setup.pricePer30Min || Math.round(hr * 0.6),
       status: setup.status || 'available',
       specs: Array.isArray(setup.specs) ? setup.specs.join('\n') : (setup.specs || ''),
       games: Array.isArray(setup.games) ? setup.games.join('\n') : (setup.games || ''),
@@ -149,31 +162,38 @@ export default function AdminSetups() {
 
   const handleTypeSelectInForm = (type) => {
     let rate = 100;
+    let rate30 = 60;
     let specs = '';
     let games = '';
 
     if (type === 'PS5') {
       rate = 100;
+      rate30 = 60;
       specs = '2x DualSense Wireless Controllers\n55-inch 4K 120Hz TV\nUltra High-Speed SSD';
       games = 'EA Sports FC 24\nGTA V\nWWE 2K24\nGod of War Ragnarök\nSpider-Man 2\nTekken 8';
     } else if (type === 'PS4') {
       rate = 60;
+      rate30 = 40;
       specs = '2x DualShock 4 Wireless Controllers\n43-inch 4K HDR TV';
       games = 'FIFA 23\nGTA V\nWWE 2K22\nGod of War\nSpider-Man\nMortal Kombat 11';
     } else if (type === 'PS3') {
       rate = 40;
+      rate30 = 25;
       specs = '2x DualShock 3 Wireless Controllers\n32-inch HD TV';
       games = 'GTA IV\nFIFA 18\nWWE 2K14\nGod of War III\nTekken 6\nBlur Racing';
     } else if (type === 'PS2') {
       rate = 30;
+      rate30 = 20;
       specs = '2x DualShock 2 Controllers\nMemory Card 64MB';
       games = 'GTA San Andreas\nGTA Vice City\nWWE SmackDown Here Comes The Pain\nGod of War II\nTekken 5';
     } else if (type === 'PC') {
       rate = 70;
+      rate30 = 45;
       specs = 'RTX 4060 GPU / Intel i7 13th Gen\n240Hz High Refresh Monitor\nMechanical RGB Keyboard & Gaming Mouse';
       games = 'Valorant\nCS:GO 2\nGTA V\nCall of Duty Warzone\nFortnite\nApex Legends';
     } else if (type === 'Racing') {
       rate = 150;
+      rate30 = 90;
       specs = 'Logitech G29 Force Feedback Wheel\nMetal Pedals & 6-Speed Shifter\nRacing Cockpit Bucket Seat';
       games = 'Forza Horizon 5\nF1 23\nAssetto Corsa\nNeed for Speed Heat\nDirt Rally 2.0';
     }
@@ -182,6 +202,7 @@ export default function AdminSetups() {
       ...prev,
       type,
       pricePerHour: rate,
+      pricePer30Min: rate30,
       specs,
       games,
     }));
@@ -194,11 +215,13 @@ export default function AdminSetups() {
     }
     setSaving(true);
     try {
+      const hrRate = Number(form.pricePerHour) || 100;
       const data = {
         name: form.name.trim(),
         type: form.type,
         setupNumber: Number(form.setupNumber),
-        pricePerHour: Number(form.pricePerHour),
+        pricePerHour: hrRate,
+        pricePer30Min: Number(form.pricePer30Min) || Math.round(hrRate * 0.6),
         status: form.status,
         specs: form.specs.split('\n').map(s => s.trim()).filter(Boolean),
         games: form.games.split('\n').map(g => g.trim()).filter(Boolean),
@@ -354,8 +377,21 @@ export default function AdminSetups() {
               <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1rem', marginTop: 2 }}>
                 {setup.name}
               </div>
-              <div style={{ color: 'var(--color-primary)', fontWeight: 800, fontSize: '1.1rem', margin: '4px 0' }}>
-                ₹{setup.pricePerHour}/hr
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0', flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--color-primary-light)', fontWeight: 800, fontSize: '1.05rem' }}>
+                  ₹{setup.pricePerHour}<span style={{ fontSize: '0.75rem', fontWeight: 600 }}>/hr</span>
+                </span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: 'var(--color-accent)',
+                  background: 'rgba(6, 182, 212, 0.12)',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                }}>
+                  ⏱️ 30m: ₹{setup.pricePer30Min || Math.round((setup.pricePerHour || 100) * 0.6)}
+                </span>
               </div>
 
               {/* Specs & Games snippet */}
@@ -484,7 +520,7 @@ export default function AdminSetups() {
                 </div>
               </div>
 
-              <div className="grid-2">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">Price / Hour (₹)</label>
                   <input
@@ -492,8 +528,32 @@ export default function AdminSetups() {
                     className="form-input"
                     value={form.pricePerHour}
                     min={1}
-                    onChange={e => setForm(p => ({ ...p, pricePerHour: e.target.value }))}
+                    onChange={e => {
+                      const hr = Number(e.target.value) || 0;
+                      setForm(p => ({
+                        ...p,
+                        pricePerHour: e.target.value,
+                        pricePer30Min: p.pricePer30Min ? p.pricePer30Min : Math.round(hr * 0.6),
+                      }));
+                    }}
                     id="setup-price-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ color: 'var(--color-accent)' }}>
+                    ⏱️ Price for 30 Min (₹)
+                  </label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={form.pricePer30Min}
+                    min={1}
+                    onChange={e => setForm(p => ({ ...p, pricePer30Min: e.target.value }))}
+                    id="setup-price-30m-input"
+                    placeholder="e.g. 60"
+                    required
                   />
                 </div>
 

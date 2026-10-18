@@ -9,7 +9,13 @@ import {
   deleteStaff,
 } from '../../firebase/firestore';
 import { isAdminLoggedIn } from '../../utils/adminAuth';
-import { calculateStaffStats, calculateAllStaffSummary } from '../../utils/staffStats';
+import {
+  calculateStaffStats,
+  calculateAllStaffSummary,
+  formatINR,
+  formatPhoneNumber,
+  getClean10Phone,
+} from '../../utils/staffStats';
 import { useToast } from '../../context/ToastContext';
 import {
   Users,
@@ -31,6 +37,7 @@ import {
   Receipt,
   LayoutGrid,
   Table,
+  MessageSquare,
 } from 'lucide-react';
 import './Admin.css';
 import './AdminStaff.css';
@@ -374,7 +381,7 @@ export default function AdminStaff() {
           </div>
           <div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>
-              ₹{overallTotals.todayCollection}
+              {formatINR(overallTotals.todayCollection)}
             </div>
             <div className="staff-summary-label">
               Collected today
@@ -398,10 +405,10 @@ export default function AdminStaff() {
           </div>
           <div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b' }}>
-              ₹{overallTotals.todayCash}
+              {formatINR(overallTotals.todayCash)}
             </div>
             <div className="staff-summary-label">Cash received today</div>
-            <div className="staff-summary-note">UPI received: ₹{overallTotals.todayUpi}</div>
+            <div className="staff-summary-note">UPI received: {formatINR(overallTotals.todayUpi)}</div>
           </div>
         </div>
 
@@ -420,7 +427,7 @@ export default function AdminStaff() {
           </div>
           <div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--color-accent)' }}>
-              ₹{overallTotals.allTimeCollection}
+              {formatINR(overallTotals.allTimeCollection)}
             </div>
             <div className="staff-summary-label">Collected all time</div>
             <div className="staff-summary-note">Across {overallTotals.allTimeCount} bookings</div>
@@ -584,17 +591,37 @@ export default function AdminStaff() {
                       padding: '10px 12px',
                       borderRadius: 'var(--radius-md)',
                     }}>
-                      {/* Phone */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      {/* Phone with 1-Tap Mobile Call & WhatsApp */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Phone size={13} style={{ color: 'var(--color-primary)' }} /> Phone
                         </span>
                         {staff.phone ? (
-                        <a href={`tel:${staff.phone}`} style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
-                          {staff.phone}
-                        </a>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.82rem' }}>
+                              {formatPhoneNumber(staff.phone)}
+                            </span>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <a
+                                href={`tel:+91${getClean10Phone(staff.phone)}`}
+                                className="staff-phone-action-btn staff-phone-call"
+                                title={`Call ${staff.name}`}
+                              >
+                                <Phone size={12} />
+                              </a>
+                              <a
+                                href={`https://wa.me/91${getClean10Phone(staff.phone)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="staff-phone-action-btn staff-phone-wa"
+                                title={`WhatsApp message to ${staff.name}`}
+                              >
+                                <MessageSquare size={12} />
+                              </a>
+                            </div>
+                          </div>
                         ) : (
-                        <span>Not provided</span>
+                          <span style={{ color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: '0.75rem' }}>Not provided</span>
                         )}
                       </div>
 
@@ -652,13 +679,13 @@ export default function AdminStaff() {
                             Today
                           </span>
                           <span style={{ color: '#fff', fontWeight: 800 }}>
-                            {stats.todayCount} bookings · <span style={{ color: '#10b981' }}>₹{stats.todayCollection}</span>
+                            {stats.todayCount} bookings · <span style={{ color: '#10b981' }}>{formatINR(stats.todayCollection)}</span>
                           </span>
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--color-text-dim)' }}>
-                          <span>Cash: <strong style={{ color: '#f59e0b' }}>₹{stats.todayCash}</strong></span>
-                          <span>UPI: <strong style={{ color: 'var(--color-accent)' }}>₹{stats.todayUpi}</strong></span>
+                          <span>Cash: <strong style={{ color: '#f59e0b' }}>{formatINR(stats.todayCash)}</strong></span>
+                          <span>UPI: <strong style={{ color: 'var(--color-accent)' }}>{formatINR(stats.todayUpi)}</strong></span>
                         </div>
 
                         <div style={{
@@ -670,7 +697,7 @@ export default function AdminStaff() {
                         }}>
                           <span style={{ color: 'var(--color-text-dim)' }}>All-time total</span>
                           <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
-                            {stats.allTimeCount} bookings · ₹{stats.allTimeCollection}
+                            {stats.allTimeCount} bookings · {formatINR(stats.allTimeCollection)}
                           </span>
                         </div>
                       </div>
@@ -746,6 +773,10 @@ export default function AdminStaff() {
             </div>
           </div>
 
+          <div className="staff-table-scroll-hint">
+            👈 Swipe horizontally to view full table details 👉
+          </div>
+
           <table className="admin-table">
             <thead>
               <tr>
@@ -800,11 +831,11 @@ export default function AdminStaff() {
                   </td>
 
                   <td>
-                    <span style={{ color: '#f59e0b', fontWeight: 700 }}>₹{todayCash}</span>
+                    <span style={{ color: '#f59e0b', fontWeight: 700 }}>{formatINR(todayCash)}</span>
                   </td>
 
                   <td>
-                    <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>₹{todayUpi}</span>
+                    <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>{formatINR(todayUpi)}</span>
                   </td>
 
                   <td>
@@ -816,7 +847,7 @@ export default function AdminStaff() {
                       borderRadius: 6,
                       background: todayCollection > 0 ? 'rgba(16,185,129,0.12)' : 'transparent',
                     }}>
-                      ₹{todayCollection}
+                      {formatINR(todayCollection)}
                     </span>
                   </td>
 
@@ -825,7 +856,7 @@ export default function AdminStaff() {
                   </td>
 
                   <td>
-                    <strong style={{ color: '#fff' }}>₹{allTimeCollection}</strong>
+                    <strong style={{ color: '#fff' }}>{formatINR(allTimeCollection)}</strong>
                   </td>
                 </tr>
               ))}
@@ -857,19 +888,19 @@ export default function AdminStaff() {
                   {overallTotals.todayCount}
                 </td>
                 <td style={{ color: '#f59e0b', fontSize: '0.95rem' }}>
-                  ₹{overallTotals.todayCash}
+                  {formatINR(overallTotals.todayCash)}
                 </td>
                 <td style={{ color: 'var(--color-accent)', fontSize: '0.95rem' }}>
-                  ₹{overallTotals.todayUpi}
+                  {formatINR(overallTotals.todayUpi)}
                 </td>
                 <td style={{ color: '#10b981', fontSize: '1.05rem' }}>
-                  ₹{overallTotals.todayCollection}
+                  {formatINR(overallTotals.todayCollection)}
                 </td>
                 <td style={{ color: '#fff' }}>
                   {overallTotals.allTimeCount}
                 </td>
                 <td style={{ color: 'var(--color-primary-light)', fontSize: '1rem' }}>
-                  ₹{overallTotals.allTimeCollection}
+                  {formatINR(overallTotals.allTimeCollection)}
                 </td>
               </tr>
             </tbody>
@@ -909,7 +940,7 @@ export default function AdminStaff() {
           <div
             className="modal-box glass-strong"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 500, width: '92%' }}
+            style={{ maxWidth: 500, width: '100%' }}
           >
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -938,7 +969,7 @@ export default function AdminStaff() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                 <div className="form-group">
                   <label className="form-label">Phone number</label>
                   <input

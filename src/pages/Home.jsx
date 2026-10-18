@@ -162,6 +162,7 @@ export default function Home() {
                   : '/images/ps2.jpg';
 
               const p1h = Number(s.pricePerHour) || 80;
+              const p30m = Number(s.pricePer30Min) || Math.round(p1h * 0.6);
               return {
                 id: s.id,
                 name: s.name || `${s.type} #${s.setupNumber || ''}`,
@@ -170,6 +171,7 @@ export default function Home() {
                 badge: s.type || 'Gaming',
                 shortInfo: Array.isArray(s.specs) ? s.specs.join(' • ') : (s.specs || 'HD Gaming Setup'),
                 pricing: {
+                  '30m': p30m,
                   '1h': p1h,
                   '2h': p1h * 2,
                   group: Math.round(p1h * 0.8),

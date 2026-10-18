@@ -14,7 +14,12 @@ import {
 } from '../../firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 import { getStaffUser, isAdminLoggedIn, isStaffLoggedIn } from '../../utils/adminAuth';
-import { calculateStaffStats, isBookingHandledByStaff } from '../../utils/staffStats';
+import {
+  calculateStaffStats,
+  isBookingHandledByStaff,
+  formatPhoneNumber,
+  getClean10Phone,
+} from '../../utils/staffStats';
 import {
   Search,
   Plus,
@@ -89,6 +94,21 @@ function timeToMins(t) {
   if (!t) return 0;
   let [h, m] = t.split(':').map(Number);
   return h * 60 + (m || 0);
+}
+
+// Calculate price supporting separate 30-min price and hourly rates
+function getDurationPrice(hours, hourlyRate, pricePer30Min) {
+  const h = Number(hours) || 1;
+  const hr = Number(hourlyRate) || 100;
+  const p30 = Number(pricePer30Min) > 0 ? Number(pricePer30Min) : Math.round(hr * 0.6);
+
+  if (h === 0.5) return p30;
+  if (h === 1) return hr;
+  if (h === 1.5) return hr + p30;
+  if (h === 2) return hr * 2;
+  const fullHours = Math.floor(h);
+  const remainderHalf = (h - fullHours) >= 0.5 ? 1 : 0;
+  return (fullHours * hr) + (remainderHalf * p30);
 }
 
 // Check if a slot is booked for a specific console and date
@@ -193,6 +213,7 @@ export default function AdminBookings() {
     setupName: '',
     durationHours: 1,
     hourlyRate: 100,
+    pricePer30Min: 60,
     totalAmount: 100,
     paymentStatus: 'paid_cash',
     playersCount: 1,
@@ -483,6 +504,7 @@ export default function AdminBookings() {
     }) || setups.find(s => s.status === 'available') || setups[0];
 
     const rate = availableSetup?.pricePerHour || 100;
+    const rate30 = availableSetup?.pricePer30Min || Math.round(rate * 0.6);
 
     setOnTimeForm({
       userName: '',
@@ -491,6 +513,7 @@ export default function AdminBookings() {
       setupName: availableSetup?.name || '',
       durationHours: 1,
       hourlyRate: rate,
+      pricePer30Min: rate30,
       totalAmount: rate,
       paymentStatus: 'paid_cash',
       playersCount: 1,
@@ -1501,11 +1524,14 @@ export default function AdminBookings() {
                         {b.userPhone && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                             <Phone size={11} style={{ color: 'var(--color-primary)' }} />
-                            <a href={`tel:${b.userPhone}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                              {b.userPhone}
+                            <a
+                              href={`tel:+91${getClean10Phone(b.userPhone)}`}
+                              style={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}
+                            >
+                              {formatPhoneNumber(b.userPhone)}
                             </a>
                             <a
-                              href={`https://wa.me/91${b.userPhone.replace(/\D/g, '')}`}
+                              href={`https://wa.me/91${getClean10Phone(b.userPhone)}`}
                               target="_blank"
                               rel="noreferrer"
                               style={{ color: '#25D366', marginLeft: 4 }}
@@ -1730,19 +1756,19 @@ export default function AdminBookings() {
                 </div>
 
                 {selectedSlotBooking.booking.userPhone && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                      📞 {selectedSlotBooking.booking.userPhone}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 600 }}>
+                      📞 {formatPhoneNumber(selectedSlotBooking.booking.userPhone)}
                     </span>
                     <a
-                      href={`tel:${selectedSlotBooking.booking.userPhone}`}
+                      href={`tel:+91${getClean10Phone(selectedSlotBooking.booking.userPhone)}`}
                       className="btn btn-sm btn-ghost"
                       style={{ padding: '3px 8px', fontSize: '0.75rem' }}
                     >
                       Call
                     </a>
                     <a
-                      href={`https://wa.me/91${selectedSlotBooking.booking.userPhone.replace(/\D/g, '')}`}
+                      href={`https://wa.me/91${getClean10Phone(selectedSlotBooking.booking.userPhone)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="btn btn-sm btn-ghost"
@@ -2472,7 +2498,7 @@ export default function AdminBookings() {
           <div
             className="modal-box glass-strong"
             onClick={e => e.stopPropagation()}
-            style={{ maxWidth: 540, width: '94%', maxHeight: '92vh', overflowY: 'auto', padding: '22px' }}
+            style={{ maxWidth: 540, width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '20px 16px' }}
           >
             <div className="modal-header" style={{ marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 12 }}>
               <div>
@@ -2529,11 +2555,12 @@ export default function AdminBookings() {
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
                   <Gamepad2 size={13} style={{ color: 'var(--color-primary)' }} /> Select PlayStation Console <span style={{ color: 'var(--color-danger)' }}>*</span>
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
                   {setups.map(s => {
                     const isSelected = onTimeForm.setupId === s.id;
                     const isBusy = activeSessions.some(ses => ses.setupId === s.id && ses.status !== 'completed');
                     const rate = s.pricePerHour || 100;
+                    const p30 = s.pricePer30Min || Math.round(rate * 0.6);
 
                     return (
                       <button
@@ -2545,7 +2572,8 @@ export default function AdminBookings() {
                             setupId: s.id,
                             setupName: s.name,
                             hourlyRate: rate,
-                            totalAmount: Math.round(rate * Number(p.durationHours)),
+                            pricePer30Min: p30,
+                            totalAmount: getDurationPrice(p.durationHours, rate, p30),
                           }));
                         }}
                         style={{
@@ -2568,7 +2596,9 @@ export default function AdminBookings() {
                           {s.name}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.7rem' }}>
-                          <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>₹{rate}/hr</span>
+                          <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
+                            ₹{rate}/hr <span style={{ color: 'var(--color-primary-light)', fontSize: '0.65rem' }}>· 30m: ₹{p30}</span>
+                          </span>
                           <span style={{
                             color: isBusy ? '#ef4444' : '#10b981',
                             fontWeight: 700,
@@ -2584,7 +2614,7 @@ export default function AdminBookings() {
               </div>
 
               {/* 2. Customer Name & Phone */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ marginBottom: 4 }}>
                     Customer Name <span style={{ color: 'var(--color-danger)' }}>*</span>
@@ -2633,7 +2663,7 @@ export default function AdminBookings() {
                     { label: '2 Hours', hours: 2 },
                   ].map(opt => {
                     const isSelected = onTimeForm.durationHours === opt.hours;
-                    const calculatedPrice = Math.round((onTimeForm.hourlyRate || 100) * opt.hours);
+                    const calculatedPrice = getDurationPrice(opt.hours, onTimeForm.hourlyRate, onTimeForm.pricePer30Min);
                     return (
                       <button
                         type="button"
@@ -2642,7 +2672,7 @@ export default function AdminBookings() {
                           setOnTimeForm(p => ({
                             ...p,
                             durationHours: opt.hours,
-                            totalAmount: Math.round(p.hourlyRate * opt.hours),
+                            totalAmount: getDurationPrice(opt.hours, p.hourlyRate, p.pricePer30Min),
                           }));
                         }}
                         style={{
@@ -2669,8 +2699,48 @@ export default function AdminBookings() {
                 </div>
               </div>
 
+              {/* Total Amount (Editable) */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--color-text-muted)' }}>
+                    SESSION CHARGE
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-text-dim)' }}>
+                    {onTimeForm.durationHours === 0.5 ? '⚡ 30-Minute Blitz Rate' : `${onTimeForm.durationHours} Hr Gaming Rate`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#10b981', fontWeight: 800, fontSize: '1rem' }}>₹</span>
+                  <input
+                    type="number"
+                    value={onTimeForm.totalAmount}
+                    onChange={e => setOnTimeForm(p => ({ ...p, totalAmount: Number(e.target.value) || 0 }))}
+                    style={{
+                      width: 85,
+                      background: 'rgba(0,0,0,0.5)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      borderRadius: 6,
+                      color: '#10b981',
+                      fontWeight: 800,
+                      fontSize: '1.05rem',
+                      textAlign: 'center',
+                      padding: '4px 6px',
+                    }}
+                    title="You can edit the price if custom discount or offer applies"
+                  />
+                </div>
+              </div>
+
               {/* 4. Payment Method & Handled By Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
                 {/* Payment Option */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ marginBottom: 4 }}>

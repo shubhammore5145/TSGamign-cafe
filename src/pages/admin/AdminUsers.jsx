@@ -3,7 +3,8 @@ import { getDocs, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { updateUser } from '../../firebase/firestore';
 import { useToast } from '../../context/ToastContext';
-import { Users, Shield, User } from 'lucide-react';
+import { Users, Shield, User, Phone } from 'lucide-react';
+import { formatPhoneNumber, getClean10Phone } from '../../utils/staffStats';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -63,7 +64,19 @@ export default function AdminUsers() {
                   </div>
                 </td>
                 <td style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{u.email}</td>
-                <td style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{u.phone || '—'}</td>
+                <td style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                  {u.phone ? (
+                    <a
+                      href={`tel:+91${getClean10Phone(u.phone)}`}
+                      style={{ color: '#fff', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <Phone size={11} style={{ color: 'var(--color-primary)' }} />
+                      {formatPhoneNumber(u.phone)}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td>
                   <span className={`badge ${u.role === 'admin' ? 'badge-active' : 'badge-pending'}`} style={{ fontSize: '0.65rem' }}>
                     {u.role === 'admin' ? <><Shield size={9} /> ADMIN</> : <><User size={9} /> USER</>}
