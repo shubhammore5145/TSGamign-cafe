@@ -528,10 +528,94 @@
   text-overflow: ellipsis;
 }
 
-/* Modal */
+/* ── Admin Modals & Form Styles ── */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fade-in 0.2s ease-out;
+}
+
 .admin-modal-card {
   width: 100%;
-  max-width: 500px;
+  max-width: 540px;
+  background: #0d121f;
+  background: linear-gradient(180deg, #131b2e 0%, #0d121f 100%);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 85, 0, 0.12);
+  border-radius: 16px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-sizing: border-box;
+  animation: slide-up 0.25s ease-out;
+}
+
+.admin-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.admin-form-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.admin-form-input {
+  width: 100%;
+  display: block;
+  padding: 10px 14px;
+  background: #141c2e;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #f8fafc;
+  font-size: 0.88rem;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+
+.admin-form-input:focus {
+  border-color: #ff5500;
+  box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.2), 0 0 14px rgba(255, 85, 0, 0.25);
+  background: #172033;
+}
+
+.admin-form-input::placeholder {
+  color: #64748b;
+}
+
+select.admin-form-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ff5500' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+textarea.admin-form-input {
+  resize: vertical;
+  min-height: 64px;
 }
 
 /* Extend Time buttons */
@@ -926,7 +1010,8 @@
 
   /* Form and Modals on phone */
   .modal-overlay,
-  .modal-backdrop {
+  .modal-backdrop,
+  .admin-modal-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
     background: rgba(0, 0, 0, 0.78) !important;
@@ -935,7 +1020,8 @@
   }
 
   .modal-card,
-  .modal-box {
+  .modal-box,
+  .admin-modal-card {
     padding: 18px 16px 32px !important;
     max-height: 88vh !important;
     overflow-y: auto !important;

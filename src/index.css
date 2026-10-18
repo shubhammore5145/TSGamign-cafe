@@ -674,3 +674,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   .btn-lg { padding: 0.875rem 1.5rem; font-size: 1rem; }
   .container { padding: 0 var(--space-sm); }
 }
+
+@media (max-width: 600px) {
+  html { font-size: 15px; }
+  body { line-height: 1.5; }
+  .container { padding-right: 12px; padding-left: 12px; }
+  .section { padding: 2.5rem 0; }
+  .btn { padding: 0.6rem 1rem; font-size: 0.85rem; }
+  .modal-overlay { padding: 12px; }
+  .modal-card { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  input, select, textarea { max-width: 100%; }
+}

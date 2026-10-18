@@ -345,5 +345,15 @@
 
 @media (max-width: 480px) {
   .booking-slots { grid-template-columns: repeat(2, 1fr); }
-  .booking-progress__line { width: 40px; }
+  .booking-page { padding-top: calc(var(--navbar-h) + 1.25rem); padding-bottom: 2.5rem; }
+  .booking-header { margin-bottom: 1.25rem; }
+  .booking-progress { margin-bottom: 1.25rem; }
+  .booking-progress__line { width: 28px; }
+  .booking-progress__step { font-size: 0.62rem; letter-spacing: 0.04em; }
+  .booking-progress__dot { width: 28px; height: 28px; }
+  .booking-form { padding: 1rem; gap: 1rem; }
+  .booking-setup__image { height: 150px; }
+  .booking-setup__body { padding: 1rem; }
+  .booking-durations { gap: 6px; }
+  .booking-duration { width: 50px; height: 42px; font-size: 0.82rem; }
 }

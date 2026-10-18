@@ -350,14 +350,29 @@
 }
 
 @media (max-width: 768px) {
+  .navbar { height: 60px; }
+  .navbar__mobile-drawer { top: 60px; }
+  .navbar__inner { gap: 0.5rem; }
+  .navbar__logo { gap: 7px; }
+  .navbar__logo-img,
+  .navbar__logo-badge { width: 34px; height: 34px; }
+  .navbar__logo-name { font-size: 0.9rem; letter-spacing: 0.04em; }
+  .navbar__logo-tagline { font-size: 0.48rem; letter-spacing: 0.1em; }
   .navbar__contact-link {
     display: none;
   }
   .navbar__book-btn {
-    padding: 0.45rem 0.9rem;
-    font-size: 0.85rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.78rem;
   }
-  .navbar__logo-name {
-    font-size: 1rem;
-  }
+  .navbar__right { gap: 0.45rem; }
+  .navbar__hamburger svg { width: 22px; height: 22px; }
+}
+
+@media (max-width: 360px) {
+  .navbar__logo-tagline { display: none; }
+  .navbar__book-btn { padding: 0.38rem 0.55rem; font-size: 0.72rem; }
+  .navbar__logo-name { font-size: 0.82rem; }
+  .navbar__social-btn,
+  .navbar__admin-icon { display: none; }
 }

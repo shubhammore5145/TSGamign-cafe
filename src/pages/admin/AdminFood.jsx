@@ -1215,26 +1215,79 @@ ${itemLines}
       {/* ============================================================
           MODAL: ADD / EDIT PRODUCT (ADMIN ONLY)
           ============================================================ */}
+      {/* ============================================================
+          MODAL: ADD / EDIT PRODUCT (ADMIN ONLY)
+          ============================================================ */}
       {isModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="admin-modal-card" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-                {editingItem ? 'Edit Food Product' : 'Add New Food Product'}
-              </h2>
-              <button className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>
+          <div className="admin-modal-card" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: '18px',
+              paddingBottom: '14px',
+              borderBottom: '1px solid rgba(255,255,255,0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 85, 0, 0.12)',
+                  border: '1px solid rgba(255, 85, 0, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ff5500',
+                  flexShrink: 0
+                }}>
+                  <Coffee size={22} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                    {editingItem ? 'Edit Food Product' : 'Add New Food Product'}
+                  </h2>
+                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '3px 0 0 0' }}>
+                    {editingItem ? 'Update pricing, inventory, and details for this item' : 'Add a snack, beverage or meal to your gaming cafe menu'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#94a3b8',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+              >
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleSaveProduct}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label className="admin-form-label">Product Name *</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Product Name */}
+                <div className="admin-form-group">
+                  <label className="admin-form-label">
+                    <span>Product Name <strong style={{ color: '#ff5500' }}>*</strong></span>
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="Item name"
+                    placeholder="e.g. Cheese Burst Pizza, Monster Energy, Peri Peri Fries"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="admin-form-input"
@@ -1242,54 +1295,79 @@ ${itemLines}
                   />
                 </div>
 
+                {/* Category & Price */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label className="admin-form-label">Category</label>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">
+                      <span>Category</span>
+                    </label>
                     <select
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="admin-form-input"
                     >
-                      <option value="Snacks">Snacks</option>
-                      <option value="Beverages">Beverages</option>
-                      <option value="Desserts">Desserts</option>
-                      <option value="Fast Food">Fast Food</option>
-                      <option value="Others">Others</option>
+                      <option value="Snacks">🍿 Snacks</option>
+                      <option value="Beverages">🥤 Beverages</option>
+                      <option value="Desserts">🍨 Desserts</option>
+                      <option value="Fast Food">🍔 Fast Food</option>
+                      <option value="Others">📦 Others</option>
                     </select>
                   </div>
 
-                  <div>
-                    <label className="admin-form-label">Price (₹) *</label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      placeholder="Price"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="admin-form-input"
-                    />
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">
+                      <span>Price (₹) <strong style={{ color: '#ff5500' }}>*</strong></span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#ff5500',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        pointerEvents: 'none'
+                      }}>
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="80"
+                        value={formData.price}
+                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                        className="admin-form-input"
+                        style={{ paddingLeft: '30px' }}
+                      />
+                    </div>
                   </div>
                 </div>
 
+                {/* Stock & Unit */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label className="admin-form-label">Initial Stock</label>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">
+                      <span>Initial Stock Quantity</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
-                      placeholder="Stock"
+                      placeholder="e.g. 20"
                       value={formData.stock}
                       onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                       className="admin-form-input"
                     />
                   </div>
 
-                  <div>
-                    <label className="admin-form-label">Unit Type</label>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">
+                      <span>Unit Type</span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="Unit"
+                      placeholder="e.g. pcs, bottle, plate, pack"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                       className="admin-form-input"
@@ -1297,57 +1375,171 @@ ${itemLines}
                   </div>
                 </div>
 
-                <div>
-                  <label className="admin-form-label">Description / Ingredients</label>
+                {/* Description / Ingredients */}
+                <div className="admin-form-group">
+                  <label className="admin-form-label">
+                    <span>Description / Ingredients</span>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 400 }}>Optional</span>
+                  </label>
                   <textarea
                     rows={2}
-                    placeholder="Description"
+                    placeholder="Short description, taste notes, or ingredients..."
                     value={formData.desc}
                     onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
                     className="admin-form-input"
+                    style={{ minHeight: '60px' }}
                   />
                 </div>
 
                 {/* Image Selection Presets */}
-                <div>
-                  <label className="admin-form-label">Choose Preset Image or Enter URL</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '8px' }}>
-                    {PRESET_IMAGES.map((preset) => (
-                      <div
-                        key={preset.label}
-                        onClick={() => setFormData({ ...formData, image: preset.url })}
-                        style={{
-                          border: `1.5px solid ${formData.image === preset.url ? '#ff5500' : 'rgba(255,255,255,0.1)'}`,
-                          borderRadius: '6px',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                          background: '#000',
-                          textAlign: 'center',
-                        }}
-                      >
-                        <img src={preset.url} alt={preset.label} style={{ width: '100%', height: '40px', objectFit: 'cover' }} />
-                        <span style={{ fontSize: '0.65rem', color: '#cbd5e1', display: 'block', padding: '2px' }}>{preset.label}</span>
-                      </div>
-                    ))}
+                <div className="admin-form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label className="admin-form-label" style={{ margin: 0 }}>Product Photo</label>
+                    <span style={{ fontSize: '0.72rem', color: '#ff7700', fontWeight: 600 }}>Click preset or enter URL</span>
                   </div>
 
-                  <input
-                    type="text"
-                    placeholder="Custom image path e.g. /images/pizza.jpg"
-                    value={formData.image}
-                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                    className="admin-form-input"
-                    style={{ fontSize: '0.8rem' }}
-                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '4px' }}>
+                    {PRESET_IMAGES.map((preset) => {
+                      const isSelected = formData.image === preset.url;
+                      return (
+                        <div
+                          key={preset.label}
+                          onClick={() => setFormData({ ...formData, image: preset.url })}
+                          style={{
+                            border: `2px solid ${isSelected ? '#ff5500' : 'rgba(255,255,255,0.1)'}`,
+                            borderRadius: '10px',
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            background: '#070a13',
+                            textAlign: 'center',
+                            position: 'relative',
+                            transition: 'all 0.15s ease',
+                            transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                            boxShadow: isSelected ? '0 0 12px rgba(255, 85, 0, 0.4)' : 'none',
+                          }}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.label}
+                            style={{ width: '100%', height: '46px', objectFit: 'cover', display: 'block' }}
+                          />
+                          {isSelected && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '4px',
+                              right: '4px',
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              background: '#ff5500',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 0 6px rgba(0,0,0,0.8)'
+                            }}>
+                              <Check size={10} color="#fff" strokeWidth={3} />
+                            </div>
+                          )}
+                          <div style={{
+                            fontSize: '0.68rem',
+                            fontWeight: isSelected ? 700 : 500,
+                            color: isSelected ? '#ff7700' : '#cbd5e1',
+                            padding: '4px 2px',
+                            background: isSelected ? 'rgba(255,85,0,0.1)' : 'rgba(0,0,0,0.6)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}>
+                            {preset.label}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom URL Input with Live Preview */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '8px',
+                      border: '1.5px solid rgba(255, 85, 0, 0.35)',
+                      overflow: 'hidden',
+                      background: '#070a13',
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {formData.image ? (
+                        <img
+                          src={formData.image}
+                          alt="Preview"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <Coffee size={16} color="#64748b" />
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Custom image path or URL e.g. /images/pizza.jpg"
+                      value={formData.image}
+                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      className="admin-form-input"
+                      style={{ flex: 1, fontSize: '0.82rem', padding: '9px 12px' }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '1.25rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                  {editingItem ? 'Save Changes' : 'Add to Catalog'}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  style={{
+                    flex: '0 0 110px',
+                    padding: '11px 16px',
+                    borderRadius: '10px',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#cbd5e1',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#fff'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#cbd5e1'; }}
+                >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '11px 20px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #ff5500 0%, #ff7700 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: '0.92rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 16px rgba(255, 85, 0, 0.4)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 85, 0, 0.6)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255, 85, 0, 0.4)'; }}
+                >
+                  {editingItem ? <Check size={18} /> : <Plus size={18} />}
+                  {editingItem ? 'Save Changes' : 'Add to Catalog'}
                 </button>
               </div>
             </form>
@@ -1360,19 +1552,63 @@ ${itemLines}
           ============================================================ */}
       {stockModalItem && (
         <div className="admin-modal-overlay" onClick={() => setStockModalItem(null)}>
-          <div className="admin-modal-card" style={{ maxWidth: '380px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-                Adjust Stock: {stockModalItem.name}
-              </h3>
-              <button className="btn btn-ghost" onClick={() => setStockModalItem(null)}>
+          <div className="admin-modal-card" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '18px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid rgba(255,255,255,0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 85, 0, 0.12)',
+                  border: '1px solid rgba(255, 85, 0, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ff5500'
+                }}>
+                  <Package size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                    Adjust Stock
+                  </h3>
+                  <p style={{ fontSize: '0.78rem', color: '#ff7700', fontWeight: 600, margin: '2px 0 0 0' }}>
+                    {stockModalItem.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStockModalItem(null)}
+                style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#94a3b8',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
                 <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleSaveStockAdjustment}>
-              <div style={{ marginBottom: '14px' }}>
-                <label className="admin-form-label">Total Stock Quantity ({stockModalItem.unit || 'units'})</label>
+              <div className="admin-form-group" style={{ marginBottom: '16px' }}>
+                <label className="admin-form-label">
+                  <span>Total Available Stock ({stockModalItem.unit || 'units'})</span>
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1380,32 +1616,80 @@ ${itemLines}
                   value={stockAdjustment}
                   onChange={(e) => setStockAdjustment(e.target.value)}
                   className="admin-form-input"
-                  style={{ fontSize: '1.2rem', fontWeight: 800, textAlign: 'center' }}
+                  style={{ fontSize: '1.3rem', fontWeight: 800, textAlign: 'center', padding: '12px', color: '#ff7700' }}
                   autoFocus
                 />
               </div>
 
               {/* Quick Increment Buttons */}
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-                {[10, 25, 50, 100].map((addAmt) => (
-                  <button
-                    key={addAmt}
-                    type="button"
-                    className="btn btn-ghost"
-                    style={{ flex: 1, padding: '4px', fontSize: '0.78rem' }}
-                    onClick={() => setStockAdjustment(String((Number(stockAdjustment) || 0) + addAmt))}
-                  >
-                    +{addAmt}
-                  </button>
-                ))}
+              <div style={{ marginBottom: '20px' }}>
+                <span style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+                  Quick Add to Current:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[10, 25, 50, 100].map((addAmt) => (
+                    <button
+                      key={addAmt}
+                      type="button"
+                      style={{
+                        padding: '8px 4px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '8px',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,85,0,0.15)'; e.currentTarget.style.borderColor = '#ff5500'; e.currentTarget.style.color = '#fff'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#cbd5e1'; }}
+                      onClick={() => setStockAdjustment(String((Number(stockAdjustment) || 0) + addAmt))}
+                    >
+                      +{addAmt}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                  Update Stock
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setStockModalItem(null)}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setStockModalItem(null)}
+                  style={{
+                    flex: '0 0 100px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#cbd5e1',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #ff5500 0%, #ff7700 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: '0.88rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(255, 85, 0, 0.4)'
+                  }}
+                >
+                  <Check size={16} /> Update Stock
                 </button>
               </div>
             </form>
