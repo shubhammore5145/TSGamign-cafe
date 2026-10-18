@@ -133,7 +133,7 @@ export default function Contact() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rahul Sharma"
+                    placeholder="e.g. Your name"
                     className="form-input"
                     id="contact-name-input"
                     value={formData.name}

@@ -4,40 +4,9 @@ import { getTournaments } from '../firebase/firestore';
 import { Trophy, Calendar, Users, Clock, Award, ChevronRight } from 'lucide-react';
 import './Tournaments.css';
 
-const FALLBACK = [
-  {
-    id: 't1', title: 'Valorant Championship', game: 'Valorant', banner: null,
-    date: '2026-09-28', time: '4:00 PM', entryFee: 100, prizePool: '₹5,000',
-    maxPlayers: 20, registeredPlayers: 14, status: 'registration_open',
-    description: 'The ultimate Valorant showdown. 5v5 format. Best of 3 matches.',
-    winners: [],
-  },
-  {
-    id: 't2', title: 'CS2 Masters Cup', game: 'Counter-Strike 2', banner: null,
-    date: '2026-10-05', time: '6:00 PM', entryFee: 150, prizePool: '₹10,000',
-    maxPlayers: 16, registeredPlayers: 8, status: 'registration_open',
-    description: 'Prove your CS2 skills. Team of 5. Swiss format.',
-    winners: [],
-  },
-  {
-    id: 't3', title: 'FIFA Sunday League', game: 'EA Sports FC 25', banner: null,
-    date: '2026-10-12', time: '2:00 PM', entryFee: 50, prizePool: '₹2,000',
-    maxPlayers: 16, registeredPlayers: 16, status: 'full',
-    description: 'Weekly FIFA tournament. 1v1 format, knockout rounds.',
-    winners: [],
-  },
-  {
-    id: 't4', title: 'Forza Racing Grand Prix', game: 'Forza Horizon 5', banner: null,
-    date: '2026-09-14', time: '3:00 PM', entryFee: 100, prizePool: '₹3,000',
-    maxPlayers: 8, registeredPlayers: 8, status: 'completed',
-    description: 'Racing simulator championships on the full track.',
-    winners: ['Aryan K.', 'Rohit S.', 'Priya M.'],
-  },
-];
-
 export default function Tournaments() {
   const toast = useToast();
-  const [tournaments, setTournaments] = useState(FALLBACK);
+  const [tournaments, setTournaments] = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming');
 
   useEffect(() => {

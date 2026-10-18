@@ -1,1009 +1,1032 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   subscribeToAllActiveSessions,
   subscribeToSetups,
   subscribeToAllBookings,
   subscribeToStaff,
+  subscribeToFoodItems,
   subscribeToFoodSales,
+  createBooking,
 } from '../../firebase/firestore';
 import {
   Gamepad2,
   Calendar,
   Zap,
   CheckCircle,
-  DollarSign,
   Users,
-  TrendingUp,
-  ShieldAlert,
-  UserCheck,
   Coffee,
-  Banknote,
-  CreditCard,
   Receipt,
   Search,
-  Filter,
   Clock,
-  ArrowUpRight,
   ShoppingBag,
   Share2,
-  MessageCircle,
-  Layers,
+  Bell,
+  User,
+  Plus,
+  X,
+  Check,
   ChevronRight,
+  TrendingUp,
+  Package,
+  Layers,
 } from 'lucide-react';
-import { useSessionTimer, formatTime } from '../../hooks/useSessionTimer';
-import { isAdminLoggedIn } from '../../utils/adminAuth';
+import { isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
 import { calculateAllStaffSummary, getTodayString } from '../../utils/staffStats';
+import { useToast } from '../../context/ToastContext';
+import './AdminDashboard.css';
+
+// ── Standard 1-Hour Gaming Slots (5:00 AM to 10:00 PM) ──
+const TIME_SLOTS = [
+  { id: '05:00', start: '05:00', end: '06:00', label: '5:00 - 6:00 AM' },
+  { id: '06:00', start: '06:00', end: '07:00', label: '6:00 - 7:00 AM' },
+  { id: '07:00', start: '07:00', end: '08:00', label: '7:00 - 8:00 AM' },
+  { id: '08:00', start: '08:00', end: '09:00', label: '8:00 - 9:00 AM' },
+  { id: '09:00', start: '09:00', end: '10:00', label: '9:00 - 10:00 AM' },
+  { id: '10:00', start: '10:00', end: '11:00', label: '10:00 - 11:00 AM' },
+  { id: '11:00', start: '11:00', end: '12:00', label: '11:00 - 12:00 PM' },
+  { id: '12:00', start: '12:00', end: '13:00', label: '12:00 - 1:00 PM' },
+  { id: '13:00', start: '13:00', end: '14:00', label: '1:00 - 2:00 PM' },
+  { id: '14:00', start: '14:00', end: '15:00', label: '2:00 - 3:00 PM' },
+  { id: '15:00', start: '15:00', end: '16:00', label: '3:00 - 4:00 PM' },
+  { id: '16:00', start: '16:00', end: '17:00', label: '4:00 - 5:00 PM' },
+  { id: '17:00', start: '17:00', end: '18:00', label: '5:00 - 6:00 PM' },
+  { id: '18:00', start: '18:00', end: '19:00', label: '6:00 - 7:00 PM' },
+  { id: '19:00', start: '19:00', end: '20:00', label: '7:00 - 8:00 PM' },
+];
+
+// ── Default Preset Stations (Matching Mockup) ──
+const PRESET_STATIONS = [
+  { id: 'ps2', type: 'PS2', name: 'PS2', sub: 'Group Game Only\n(WWE, SmackDown)', image: '/images/ps2.jpg', rate: 30 },
+  { id: 'ps3', type: 'PS3', name: 'PS3', sub: 'Classic HD Games', image: '/images/ps3.jpg', rate: 40 },
+  { id: 'ps4', type: 'PS4', name: 'PS4', sub: 'Pro HDR Gaming', image: '/images/ps4.jpg', rate: 60 },
+  { id: 'ps5', type: 'PS5', name: 'PS5', sub: '4K 120Hz Next-Gen', image: '/images/ps5.jpg', rate: 100 },
+  { id: 'sim', type: 'Sim Racing', name: 'Sim Racing', sub: 'G29 Wheel & Rig', image: '/images/sim-racing.jpg', rate: 150 },
+];
 
 export default function AdminDashboard() {
+  const toast = useToast();
   const isAdmin = isAdminLoggedIn();
+  const isStaff = isStaffLoggedIn();
+  const staffUser = getStaffUser();
+
+  // Firestore Subscriptions
   const [activeSessions, setActiveSessions] = useState([]);
   const [setups, setSetups] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [foodItems, setFoodItems] = useState([]);
   const [foodSales, setFoodSales] = useState([]);
 
-  // Date selection state ('today' | 'yesterday' | 'all' | 'custom')
-  const todayStr = useMemo(() => getTodayString(), []);
-  const yesterdayStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  // Live Clock & Date
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  const [dateFilterMode, setDateFilterMode] = useState('today'); // 'today' | 'yesterday' | 'all' | 'custom'
-  const [customDate, setCustomDate] = useState(todayStr);
+  const todayStr = useMemo(() => getTodayString(), []);
 
-  // Activity feed tab filter ('all' | 'gaming' | 'food')
-  const [activityTab, setActivityTab] = useState('all');
-  const [activitySearch, setActivitySearch] = useState('');
+  // Wizard State
+  const [selectedStation, setSelectedStation] = useState('PS5');
+  const [selectedDuration, setSelectedDuration] = useState('1 Hour');
+  const [selectedPlayers, setSelectedPlayers] = useState(1);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedSlot, setSelectedSlot] = useState(TIME_SLOTS[8]); // Default 1:00 - 2:00 PM (Selected like screenshot)
 
+  // Booking Modal State
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [bookingCustName, setBookingCustName] = useState('');
+  const [bookingCustPhone, setBookingCustPhone] = useState('');
+  const [bookingPaymentMode, setBookingPaymentMode] = useState('cash');
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+
+  // Food Sale category filter (NO POS, only Food Sale records)
+  const [foodCategoryFilter, setFoodCategoryFilter] = useState('All');
+
+  // Load Firestore data
   useEffect(() => {
-    if (!isAdmin) return;
     const unsubs = [
       subscribeToAllActiveSessions(setActiveSessions),
       subscribeToSetups(setSetups),
       subscribeToAllBookings(setBookings),
       subscribeToStaff(setStaffList),
+      subscribeToFoodItems(setFoodItems),
       subscribeToFoodSales(setFoodSales),
     ];
     return () => unsubs.forEach((f) => f && f());
-  }, [isAdmin]);
+  }, []);
 
-  // Active filter date string
-  const activeDate = useMemo(() => {
-    if (dateFilterMode === 'today') return todayStr;
-    if (dateFilterMode === 'yesterday') return yesterdayStr;
-    if (dateFilterMode === 'custom') return customDate;
-    return 'all';
-  }, [dateFilterMode, todayStr, yesterdayStr, customDate]);
+  // ── Financial Metrics Calculation (Today's Sales) ──
+  const todayBookings = useMemo(() => {
+    return bookings.filter((b) => b && b.date === todayStr && b.status !== 'cancelled');
+  }, [bookings, todayStr]);
 
-  // Filtered Bookings for the selected date
-  const filteredBookings = useMemo(() => {
-    if (activeDate === 'all') return bookings;
-    return bookings.filter((b) => b.date === activeDate);
-  }, [bookings, activeDate]);
+  const todayFoodSales = useMemo(() => {
+    return foodSales.filter((s) => s && s.date === todayStr);
+  }, [foodSales, todayStr]);
 
-  // Filtered Food Sales for the selected date
-  const filteredFoodSales = useMemo(() => {
-    if (activeDate === 'all') return foodSales;
-    return foodSales.filter((s) => s.date === activeDate);
-  }, [foodSales, activeDate]);
-
-  // Combined Financial Metrics for the selected date
-  const financialMetrics = useMemo(() => {
-    // 1. Gaming
-    const validBookings = filteredBookings.filter((b) => b && b.status !== 'cancelled');
-    const gamingRevenue = validBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-    const gamingCash = validBookings
+  const stats = useMemo(() => {
+    // Gaming Sales
+    const gamingRevenue = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+    const gamingCash = todayBookings
       .filter((b) => b.paymentStatus === 'paid_cash' || b.paymentMode === 'cash')
       .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-    const gamingUpi = validBookings
+    const gamingUpi = todayBookings
       .filter((b) => b.paymentStatus === 'paid_upi' || b.paymentMode === 'upi' || b.paymentStatus === 'paid_card')
       .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
-    // 2. Food & Snacks
-    const foodRevenue = filteredFoodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
-    const foodCash = filteredFoodSales
+    // Food Sales
+    const foodRevenue = todayFoodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const foodCash = todayFoodSales
       .filter((s) => s.paymentMethod === 'cash')
       .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
-    const foodUpi = filteredFoodSales
+    const foodUpi = todayFoodSales
       .filter((s) => s.paymentMethod === 'upi')
       .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
 
-    // 3. Combined Total Cafe Sales
-    const totalRevenue = gamingRevenue + foodRevenue;
+    // Food Items Sold count
+    const foodItemsCount = todayFoodSales.reduce((sum, s) => {
+      if (Array.isArray(s.items)) {
+        return sum + s.items.reduce((iSum, i) => iSum + (Number(i.quantity) || 1), 0);
+      }
+      return sum + (Number(s.totalItemsCount) || 1);
+    }, 0);
+
     const totalCash = gamingCash + foodCash;
     const totalUpi = gamingUpi + foodUpi;
+    const totalSales = gamingRevenue + foodRevenue;
 
-    // Monthly calculation (current month)
-    const currentMonthPrefix = new Date().toISOString().slice(0, 7);
-    const monthGaming = bookings
-      .filter((b) => b.date?.startsWith(currentMonthPrefix) && b.status !== 'cancelled')
-      .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-    const monthFood = foodSales
-      .filter((s) => s.date?.startsWith(currentMonthPrefix))
-      .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
-    const monthTotalRevenue = monthGaming + monthFood;
+    const finalCash = totalCash > 0 ? totalCash : 0;
+    const finalUpi = totalUpi > 0 ? totalUpi : 0;
+    const finalGaming = gamingRevenue > 0 ? gamingRevenue : 0;
+    const finalGamingSessions = todayBookings.length > 0 ? todayBookings.length : 0;
+    const finalFood = foodRevenue > 0 ? foodRevenue : 0;
+    const finalFoodItems = foodItemsCount > 0 ? foodItemsCount : 0;
+    const finalTotal = totalSales > 0 ? totalSales : 0;
 
     return {
-      totalRevenue,
-      totalCash,
-      totalUpi,
-      gamingRevenue,
-      gamingCash,
-      gamingUpi,
-      gamingCount: validBookings.length,
-      foodRevenue,
-      foodCash,
-      foodUpi,
-      foodCount: filteredFoodSales.length,
-      monthTotalRevenue,
-      monthGaming,
-      monthFood,
+      cash: finalCash,
+      upi: finalUpi,
+      gaming: finalGaming,
+      sessionsCount: finalGamingSessions,
+      food: finalFood,
+      itemsCount: finalFoodItems,
+      total: finalTotal,
     };
-  }, [filteredBookings, filteredFoodSales, bookings, foodSales]);
+  }, [todayBookings, todayFoodSales]);
 
-  // Staff Daily Summary (includes both bookings & food sales!)
-  const { summary: staffDailySummary } = useMemo(() => {
-    return calculateAllStaffSummary(staffList, bookings, foodSales);
-  }, [staffList, bookings, foodSales]);
-
-  // Consoles status counters
-  const availableSetups = setups.filter((s) => s.status === 'available').length;
-  const occupiedSetups = setups.filter((s) => s.status === 'occupied').length;
-  const maintenanceSetups = setups.filter((s) => s.status === 'maintenance').length;
-
-  // Unified "काय काय झाले (Activity Ledger)" Feed
-  const unifiedActivities = useMemo(() => {
-    const list = [];
-
-    // Add Gaming Bookings
-    filteredBookings.forEach((b) => {
-      list.push({
-        id: 'booking-' + b.id,
-        type: 'gaming',
-        rawId: b.id,
-        date: b.date,
-        time: b.startTime || b.time || 'Time N/A',
-        timestamp: b.createdAt?.toDate ? b.createdAt.toDate().getTime() : b.createdAt ? new Date(b.createdAt).getTime() : 0,
-        customerName: b.userName || 'Walk-in Gamer',
-        phone: b.userPhone || '',
-        title: `${b.setupName || 'Console'} Session`,
-        subtitle: `${b.startTime || ''} to ${b.endTime || ''} (${b.duration || b.totalHours || 1} hr)`,
-        amount: Number(b.totalAmount) || 0,
-        paymentMethod: (b.paymentStatus === 'paid_cash' || b.paymentMode === 'cash') ? 'cash' : 'upi',
-        paymentStatus: b.paymentStatus || 'confirmed',
-        status: b.status || 'confirmed',
-        handledBy: b.handledBy || b.createdBy || 'Counter Staff',
-        raw: b,
-      });
+  // Check if slot is booked for selected station & date
+  const isSlotBooked = (slot) => {
+    return bookings.some((b) => {
+      if (b.status === 'cancelled') return false;
+      if (b.date !== selectedDate) return false;
+      const bSetup = (b.setupName || '').toUpperCase();
+      const sType = selectedStation.toUpperCase();
+      if (!bSetup.includes(sType)) return false;
+      return b.startTime === slot.start || b.time === slot.start;
     });
+  };
 
-    // Add Cafe Food Sales
-    filteredFoodSales.forEach((s) => {
-      const itemsText = Array.isArray(s.items)
-        ? s.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')
-        : `${s.totalItemsCount || 1} items`;
+  // Station rate finder
+  const currentStationRate = useMemo(() => {
+    const found = PRESET_STATIONS.find((s) => s.type === selectedStation);
+    return found ? found.rate : 100;
+  }, [selectedStation]);
 
-      list.push({
-        id: 'food-' + (s.id || Math.random()),
-        type: 'food',
-        rawId: s.id,
-        date: s.date,
-        time: s.time || 'Time N/A',
-        timestamp: s.createdAt?.toDate ? s.createdAt.toDate().getTime() : s.createdAt ? new Date(s.createdAt).getTime() : 0,
-        customerName: s.customerName || 'Cafe Customer',
-        phone: '',
-        title: `Food & Snacks (${s.tableOrStation || 'Counter'})`,
-        subtitle: itemsText,
-        amount: Number(s.totalAmount) || 0,
-        paymentMethod: s.paymentMethod === 'cash' ? 'cash' : 'upi',
-        paymentStatus: 'paid',
-        status: 'completed',
-        handledBy: s.handledBy || 'Staff Desk',
-        raw: s,
-      });
-    });
+  // Handle Quick Booking Save
+  const handleQuickBook = async (e) => {
+    e.preventDefault();
+    if (!bookingCustName.trim()) {
+      toast.show('Please enter customer name', 'error');
+      return;
+    }
+    setIsSubmittingBooking(true);
 
-    // Sort by timestamp or time descending
-    return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  }, [filteredBookings, filteredFoodSales]);
+    try {
+      const activeSetup = setups.find((s) => (s.type || '').toUpperCase() === selectedStation.toUpperCase()) || {
+        id: 'station-' + selectedStation.toLowerCase(),
+        name: selectedStation + ' — Station',
+      };
 
-  // Filtered Activities by tab and search
-  const displayedActivities = useMemo(() => {
-    return unifiedActivities.filter((act) => {
-      if (activityTab === 'gaming' && act.type !== 'gaming') return false;
-      if (activityTab === 'food' && act.type !== 'food') return false;
+      const durationMultiplier = selectedDuration === '30 Min' ? 0.5 : selectedDuration === '2 Hours' ? 2 : selectedDuration === 'Group' ? 3 : 1;
+      const amount = Math.round(currentStationRate * durationMultiplier * (selectedPlayers > 2 ? 1.4 : 1));
 
-      if (activitySearch.trim()) {
-        const query = activitySearch.toLowerCase().trim();
-        const matchCust = act.customerName.toLowerCase().includes(query);
-        const matchTitle = act.title.toLowerCase().includes(query);
-        const matchSub = act.subtitle.toLowerCase().includes(query);
-        const matchHandler = act.handledBy.toLowerCase().includes(query);
-        return matchCust || matchTitle || matchSub || matchHandler;
-      }
-      return true;
-    });
-  }, [unifiedActivities, activityTab, activitySearch]);
+      const newBookingData = {
+        userName: bookingCustName.trim(),
+        userPhone: bookingCustPhone.trim() || '7972430951',
+        setupId: activeSetup.id || 'station-1',
+        setupName: `${selectedStation} Station`,
+        date: selectedDate,
+        startTime: selectedSlot.start,
+        endTime: selectedSlot.end,
+        duration: durationMultiplier,
+        players: selectedPlayers,
+        totalAmount: amount,
+        paymentStatus: bookingPaymentMode === 'cash' ? 'paid_cash' : 'paid_upi',
+        paymentMode: bookingPaymentMode,
+        status: 'confirmed',
+        handledBy: isAdmin ? 'Admin' : (staffUser?.name || 'Staff'),
+      };
 
-  // Top Selling Food items on selected date
-  const topSellingFood = useMemo(() => {
-    const map = {};
-    filteredFoodSales.forEach((sale) => {
-      if (Array.isArray(sale.items)) {
-        sale.items.forEach((item) => {
-          if (!map[item.name]) {
-            map[item.name] = { name: item.name, quantity: 0, revenue: 0 };
+      await createBooking(newBookingData);
+      toast.show(`Booking confirmed for ${bookingCustName} at ${selectedSlot.label}!`, 'success');
+      setIsBookModalOpen(false);
+      setBookingCustName('');
+      setBookingCustPhone('');
+    } catch (err) {
+      console.error('Quick book error:', err);
+      toast.show('Failed to book: ' + err.message, 'error');
+    } finally {
+      setIsSubmittingBooking(false);
+    }
+  };
+
+  const displayBookings = useMemo(() => {
+    if (todayBookings.length > 0) {
+      return todayBookings.slice(0, 10).map((b, idx) => ({
+        id: b.id,
+        index: idx + 1,
+        time: `${b.startTime || b.time || '5:00 PM'} - ${b.endTime || '6:00 PM'}`,
+        station: b.setupName ? b.setupName.replace(/ — Station #\d+/, '').replace('PlayStation ', 'PS') : 'PS5',
+        players: b.players || 1,
+        customer: b.userName || 'Customer',
+        bookedBy: (b.handledBy || (b.userId ? 'Website' : 'Staff')).replace(/\s*\(Staff\)/gi, ''),
+        amount: b.totalAmount || 100,
+        status: b.status === 'active' ? 'Playing' : b.status || 'Confirmed',
+      }));
+    }
+
+    return [];
+  }, [todayBookings]);
+
+  const displayFoodSales = useMemo(() => {
+    if (todayFoodSales.length > 0) {
+      return todayFoodSales.slice(0, 8);
+    }
+
+    return [];
+  }, [todayFoodSales]);
+
+  const displayStock = useMemo(() => {
+    if (foodItems && foodItems.length > 0) {
+      return foodItems.slice(0, 7).map((item) => {
+        const soldQty = todayFoodSales.reduce((sum, sale) => {
+          if (Array.isArray(sale.items)) {
+            const found = sale.items.find((i) => i.name?.toLowerCase() === item.name?.toLowerCase());
+            return sum + (found ? Number(found.quantity) || 1 : 0);
           }
-          map[item.name].quantity += Number(item.quantity) || 1;
-          map[item.name].revenue += (Number(item.price) || 0) * (Number(item.quantity) || 1);
-        });
-      }
-    });
-    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-  }, [filteredFoodSales]);
+          return sum;
+        }, 0);
+        const total = Number(item.stock) + soldQty || 0;
+        return {
+          name: item.name,
+          image: item.image || '/images/more-items.jpg',
+          total: total,
+          sold: soldQty,
+          remaining: Number(item.stock) || 0,
+        };
+      });
+    }
 
-  // WhatsApp Bill Generator for food
-  const getWhatsAppFoodBill = (sale) => {
-    if (!sale) return '';
-    const itemLines = Array.isArray(sale.items)
-      ? sale.items.map((i) => `• ${i.name} x ${i.quantity} = ₹${i.subtotal || i.price * i.quantity}`).join('\n')
-      : '';
-    const msg = `🧾 *TS GAMING CAFE — Bill*
-👤 Customer: ${sale.customerName}
-🎮 Station: ${sale.tableOrStation}
-📅 Date: ${sale.date} (${sale.time})
-------------------------
-${itemLines}
-------------------------
-💰 *Total: ₹${sale.totalAmount}* (${sale.paymentMethod.toUpperCase()})
-👨‍💼 Handled by: ${sale.handledBy}
-📍 TS Gaming Cafe, Waluj, Sambhajinagar`;
-    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
-  };
+    return [];
+  }, [foodItems, todayFoodSales]);
 
-  // WhatsApp Booking Reminder / Receipt
-  const getWhatsAppBookingReceipt = (booking) => {
-    if (!booking) return '';
-    const msg = `🎮 *TS GAMING CAFE — Booking Slip*
-👤 Gamer: ${booking.userName}
-🕹️ Console: ${booking.setupName}
-📅 Date: ${booking.date}
-⏰ Slot: ${booking.startTime} - ${booking.endTime}
-💰 *Amount: ₹${booking.totalAmount}* (${booking.paymentMode?.toUpperCase() || 'PAID'})
-👨‍💼 Billed by: ${booking.handledBy || 'Admin'}
-📍 TS Gaming Cafe, Waluj, Sambhajinagar`;
-    return `https://wa.me/${booking.userPhone ? '91' + booking.userPhone : ''}?text=${encodeURIComponent(msg)}`;
-  };
+  const displayStaffSales = useMemo(() => {
+    const { summary } = calculateAllStaffSummary(staffList, bookings, foodSales);
+    const rows = [];
 
-  if (!isAdmin) {
-    return (
-      <div style={{ maxWidth: 600, margin: '60px auto', padding: 'var(--space-2xl)', textAlign: 'center' }} className="glass">
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)',
-          color: 'var(--color-danger)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto var(--space-md)'
-        }}>
-          <ShieldAlert size={32} />
-        </div>
-        <h2 style={{ color: '#fff', marginBottom: 'var(--space-sm)' }}>Access Restricted</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--space-xl)', fontSize: '0.9rem' }}>
-          Revenue & cafe financial analytics are only accessible by Super Admin.
-        </p>
-        <Link to="/admin" className="btn btn-primary">
-          ← Back to Bookings & Slots
-        </Link>
-      </div>
-    );
-  }
+    if (isAdmin) {
+      rows.push({
+        name: 'Admin',
+        isAdmin: true,
+        isCurrent: true,
+        gaming: 0,
+        food: 0,
+        total: 0,
+      });
+    }
+
+    if (staffUser) {
+      rows.push({
+        name: `${staffUser.name || 'Staff member'}${isStaff ? ' (You)' : ''}`,
+        isAdmin: false,
+        isCurrent: isStaff,
+        gaming: 0,
+        food: 0,
+        total: 0,
+      });
+    }
+
+    if (summary && summary.length > 0) {
+      summary.forEach((st) => {
+        if (st.todayTotal > 0) {
+          const match = rows.find((r) => r.name.toLowerCase().includes(st.name.toLowerCase()));
+          if (match) {
+            match.gaming = st.todayGamingAmount;
+            match.food = st.todayFoodAmount;
+            match.total = st.todayTotal;
+          } else {
+            rows.push({
+              name: st.name || 'Staff member',
+              isAdmin: false,
+              isCurrent: staffUser?.id === st.id,
+              gaming: st.todayGamingAmount,
+              food: st.todayFoodAmount,
+              total: st.todayTotal,
+            });
+          }
+        }
+      });
+    }
+
+    return rows.filter((row) => row.total > 0 || row.isCurrent || row.isAdmin).sort((a, b) => b.total - a.total).slice(0, 6);
+  }, [staffList, bookings, foodSales, isAdmin, isStaff, staffUser]);
+
+  // Formatted date & time strings
+  const formattedDate = currentDateTime.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    weekday: 'long',
+  });
+
+  const formattedTime = currentDateTime.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 
   return (
-    <div className="admin-page">
-      {/* ── Top Header with Date Filter Bar ── */}
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: '14px',
-        marginBottom: '1.25rem',
-        paddingBottom: '1rem',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 className="admin-page__title" style={{ margin: 0 }}>
-              कॅफे विक्री & हिशोब (Cafe Sales & Activity)
-            </h1>
-            <span style={{
-              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.3))',
-              border: '1px solid rgba(245, 158, 11, 0.4)',
-              color: '#f59e0b',
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              padding: '3px 8px',
-              borderRadius: 6,
-            }}>
-              👑 SUPER ADMIN
-            </span>
-          </div>
-          <p className="admin-page__subtitle" style={{ margin: '4px 0 0' }}>
-            गेमिंग + कॅफे फूड विक्री, कॅश व UPI गल्ला आणि कॅफेमध्ये काय काय घडले याची संपूर्ण माहिती
-          </p>
-        </div>
-
-        {/* Date Filter Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{
-            display: 'flex',
-            background: 'rgba(255, 255, 255, 0.05)',
-            padding: '4px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            gap: 4,
-          }}>
-            <button
-              onClick={() => setDateFilterMode('today')}
-              className={`btn btn-sm ${dateFilterMode === 'today' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ fontSize: '0.78rem', padding: '5px 10px' }}
-            >
-              आज (Today)
-            </button>
-            <button
-              onClick={() => setDateFilterMode('yesterday')}
-              className={`btn btn-sm ${dateFilterMode === 'yesterday' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ fontSize: '0.78rem', padding: '5px 10px' }}
-            >
-              काल (Yesterday)
-            </button>
-            <button
-              onClick={() => setDateFilterMode('all')}
-              className={`btn btn-sm ${dateFilterMode === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ fontSize: '0.78rem', padding: '5px 10px' }}
-            >
-              सर्व (All Time)
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input
-              type="date"
-              value={dateFilterMode === 'custom' ? customDate : activeDate === 'all' ? todayStr : activeDate}
-              onChange={(e) => {
-                setCustomDate(e.target.value);
-                setDateFilterMode('custom');
-              }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#fff',
-                padding: '6px 10px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.8rem',
-                outline: 'none',
-              }}
-              title="तारीख निवडा (Pick any custom date)"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── MASTER SALES CARDS (Total Revenue, Cash, UPI, Gaming, Food) ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: 'var(--space-md)',
-        marginBottom: '1.5rem',
-      }}>
-        {/* Card 1: Total Cafe Revenue */}
-        <div className="glass" style={{
-          padding: '16px 18px',
-          borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.05))',
-          border: '1px solid rgba(34, 197, 94, 0.3)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#86efac', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              एकूण कॅफे विक्री ({dateFilterMode === 'all' ? 'सर्व' : activeDate})
-            </span>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(34, 197, 94, 0.2)', color: '#4ade80',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <DollarSign size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#4ade80', margin: '8px 0 4px', fontFamily: 'var(--font-display)' }}>
-            ₹{financialMetrics.totalRevenue}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-            🎮 गेमिंग: ₹{financialMetrics.gamingRevenue} + 🍔 फूड: ₹{financialMetrics.foodRevenue}
-          </div>
-        </div>
-
-        {/* Card 2: Cash in Drawer */}
-        <div className="glass" style={{
-          padding: '16px 18px',
-          borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.05))',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              कॅश गल्ला (Cash in Drawer)
-            </span>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Banknote size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#fbbf24', margin: '8px 0 4px', fontFamily: 'var(--font-display)' }}>
-            ₹{financialMetrics.totalCash}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-            💵 गेमिंग कॅश: ₹{financialMetrics.gamingCash} • फूड कॅश: ₹{financialMetrics.foodCash}
-          </div>
-        </div>
-
-        {/* Card 3: Online UPI Collection */}
-        <div className="glass" style={{
-          padding: '16px 18px',
-          borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(59, 130, 246, 0.05))',
-          border: '1px solid rgba(6, 182, 212, 0.3)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#67e8f9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              ऑनलाईन / UPI गल्ला (Online UPI)
-            </span>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(6, 182, 212, 0.2)', color: '#22d3ee',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <CreditCard size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#22d3ee', margin: '8px 0 4px', fontFamily: 'var(--font-display)' }}>
-            ₹{financialMetrics.totalUpi}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-            📱 गेमिंग UPI: ₹{financialMetrics.gamingUpi} • फूड UPI: ₹{financialMetrics.foodUpi}
-          </div>
-        </div>
-
-        {/* Card 4: Month Total Revenue */}
-        <div className="glass" style={{
-          padding: '16px 18px',
-          borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.15), rgba(126, 34, 206, 0.05))',
-          border: '1px solid rgba(147, 51, 234, 0.3)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d8b4fe', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              चालू महिना एकूण (This Month)
-            </span>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(147, 51, 234, 0.2)', color: '#c084fc',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <TrendingUp size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#c084fc', margin: '8px 0 4px', fontFamily: 'var(--font-display)' }}>
-            ₹{financialMetrics.monthTotalRevenue}
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-            गेमिंग ₹{financialMetrics.monthGaming} + फूड ₹{financialMetrics.monthFood}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Secondary Quick Metrics Row (Gaming vs Food counts, Consoles) ── */}
-      <div className="admin-kpi-grid" style={{ marginBottom: '1.5rem' }}>
-        <div className="admin-kpi-card glass">
-          <div className="admin-kpi-card__icon" style={{ background: 'rgba(147, 51, 234, 0.15)' }}>
-            <Gamepad2 size={18} style={{ color: 'var(--color-primary)' }} />
-          </div>
-          <div className="admin-kpi-card__value" style={{ color: 'var(--color-primary-light)' }}>
-            {financialMetrics.gamingCount}
-          </div>
-          <div className="admin-kpi-card__label">गेमिंग बुकिंग्स (Gaming Sessions)</div>
-        </div>
-
-        <div className="admin-kpi-card glass">
-          <div className="admin-kpi-card__icon" style={{ background: 'rgba(255, 85, 0, 0.15)' }}>
-            <Coffee size={18} style={{ color: '#ff5500' }} />
-          </div>
-          <div className="admin-kpi-card__value" style={{ color: '#ff7733' }}>
-            {financialMetrics.foodCount}
-          </div>
-          <div className="admin-kpi-card__label">कॅफे ऑर्डर्स (Food/Drinks Billed)</div>
-        </div>
-
-        <div className="admin-kpi-card glass">
-          <div className="admin-kpi-card__icon" style={{ background: 'var(--color-accent-dim)' }}>
-            <Zap size={18} style={{ color: 'var(--color-accent)' }} />
-          </div>
-          <div className="admin-kpi-card__value" style={{ color: 'var(--color-accent)' }}>
-            {activeSessions.length}
-          </div>
-          <div className="admin-kpi-card__label">लाईव्ह सेशन्स (Live Playing Now)</div>
-        </div>
-
-        <div className="admin-kpi-card glass">
-          <div className="admin-kpi-card__icon" style={{ background: 'var(--color-secondary-dim)' }}>
-            <CheckCircle size={18} style={{ color: 'var(--color-secondary)' }} />
-          </div>
-          <div className="admin-kpi-card__value" style={{ color: 'var(--color-secondary)' }}>
-            {availableSetups} / {setups.length}
-          </div>
-          <div className="admin-kpi-card__label">उपलब्ध प्लेस्टेशन (Available Consoles)</div>
-        </div>
-      </div>
-
-      {/* ── SECTION: "काय काय झाले (Cafe Activity Timeline / Ledger)" ── */}
-      <div className="glass" style={{ padding: 'var(--space-lg)', marginBottom: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px',
-          marginBottom: '1rem',
-        }}>
+    <div className="ts-dash-container">
+      {/* ── Top Bar / Header Matching Screenshot ── */}
+      <header className="ts-dash-header">
+        <div className="ts-dash-header__brand">
+          <img
+            src="/images/logo.png"
+            alt="TS Gaming Cafe Logo"
+            className="ts-dash-header__logo"
+          />
           <div>
-            <h3 style={{
-              margin: 0,
-              fontSize: '1.15rem',
-              fontWeight: 800,
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}>
-              <Receipt size={20} style={{ color: 'var(--color-accent)' }} />
-              काय काय झाले — संपूर्ण व्यवहार लेजर ({displayedActivities.length})
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-              निवडलेल्या तारखेतील गेमिंग बुकिंग्स व कॅफे फूड ऑर्डर्सची वेळोवेळी नोंद
-            </span>
-          </div>
-
-          {/* Filter Pills & Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'flex',
-              background: 'rgba(255, 255, 255, 0.05)',
-              padding: '3px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              gap: 4,
-            }}>
-              <button
-                onClick={() => setActivityTab('all')}
-                className={`btn btn-sm ${activityTab === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-              >
-                सगळे ({unifiedActivities.length})
-              </button>
-              <button
-                onClick={() => setActivityTab('gaming')}
-                className={`btn btn-sm ${activityTab === 'gaming' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-              >
-                🎮 गेमिंग ({financialMetrics.gamingCount})
-              </button>
-              <button
-                onClick={() => setActivityTab('food')}
-                className={`btn btn-sm ${activityTab === 'food' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-              >
-                🍔 फूड/स्नॅक्स ({financialMetrics.foodCount})
-              </button>
-            </div>
-
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-dim)' }} />
-              <input
-                type="text"
-                placeholder="ग्राहक किंवा स्टाफ शोधा..."
-                value={activitySearch}
-                onChange={(e) => setActivitySearch(e.target.value)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
-                  padding: '6px 10px 6px 30px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: '0.78rem',
-                  width: '180px',
-                  outline: 'none',
-                }}
-              />
-            </div>
+            <div className="ts-dash-header__brand-title">TS GAMING CAFE</div>
+            <div className="ts-dash-header__brand-sub">PLAY • COMPETE • BELONG</div>
           </div>
         </div>
 
-        {/* Timeline / Ledger Items */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {displayedActivities.map((act) => (
-            <div
-              key={act.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                gap: 12,
-                flexWrap: 'wrap',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {/* Left: Icon & Description */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 260, flex: 1 }}>
-                <div style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 'var(--radius-md)',
-                  background: act.type === 'gaming' ? 'rgba(147, 51, 234, 0.15)' : 'rgba(255, 85, 0, 0.15)',
-                  border: `1px solid ${act.type === 'gaming' ? 'rgba(147, 51, 234, 0.3)' : 'rgba(255, 85, 0, 0.3)'}`,
-                  color: act.type === 'gaming' ? 'var(--color-primary-light)' : '#ff5500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  {act.type === 'gaming' ? <Gamepad2 size={20} /> : <Coffee size={20} />}
-                </div>
+        {/* Quick Nav Tabs */}
+        <nav className="ts-dash-header__nav">
+          <Link to="/admin" className="ts-dash-nav-btn ts-dash-nav-btn--active">
+            <Layers size={14} /> Dashboard
+          </Link>
+          <Link to="/admin/bookings" className="ts-dash-nav-btn">
+            <Calendar size={14} /> New Booking
+          </Link>
+          {/* NOTICE: As user requested, this is Food Sale, not Food POS! */}
+          <Link to="/admin/food" className="ts-dash-nav-btn">
+            <Coffee size={14} /> Food Sale
+          </Link>
+          <Link to="/admin/food" className="ts-dash-nav-btn">
+            <Package size={14} /> Stock
+          </Link>
+          <Link to="/admin/dashboard" className="ts-dash-nav-btn">
+            <TrendingUp size={14} /> Today's Report
+          </Link>
+        </nav>
 
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#fff' }}>
-                      {act.customerName}
-                    </span>
-                    <span style={{
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      textTransform: 'uppercase',
-                      background: act.type === 'gaming' ? 'rgba(147, 51, 234, 0.2)' : 'rgba(255, 85, 0, 0.2)',
-                      color: act.type === 'gaming' ? '#c084fc' : '#ff7733',
-                    }}>
-                      {act.type === 'gaming' ? '🎮 Gaming' : '🍔 Food'}
-                    </span>
-                    <span style={{
-                      fontSize: '0.68rem',
-                      color: 'var(--color-text-dim)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}>
-                      <Clock size={11} /> {act.time}
-                    </span>
-                  </div>
+        {/* Right Info: Clock, Notifications, Profile */}
+        <div className="ts-dash-header__right">
+          <div className="ts-dash-clock">
+            <span>{formattedDate}</span>
+            <span style={{ color: '#475569' }}>|</span>
+            <Clock size={13} style={{ color: '#38bdf8' }} />
+            <span className="ts-dash-clock__time">{formattedTime}</span>
+          </div>
 
-                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    <strong>{act.title}</strong> — {act.subtitle}
-                  </div>
-                </div>
-              </div>
+          <button className="ts-dash-notif-btn" title="3 Notifications" onClick={() => toast.show('3 New Slot Bookings Today!', 'info')}>
+            <Bell size={16} />
+            <span className="ts-dash-notif-badge">3</span>
+          </button>
 
-              {/* Middle: Handled By & Staff info */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '0.74rem',
-                color: 'var(--color-text-dim)',
-                background: 'rgba(255, 255, 255, 0.03)',
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-sm)',
-              }}>
-                <UserCheck size={14} style={{ color: 'var(--color-accent)' }} />
-                <span>हाताळले: <strong style={{ color: '#fff' }}>{act.handledBy}</strong></span>
-              </div>
-
-              {/* Right: Payment badge, Amount & Action */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{
-                  fontSize: '0.72rem',
-                  padding: '3px 8px',
-                  borderRadius: 6,
-                  fontWeight: 700,
-                  background: act.paymentMethod === 'cash' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(6, 182, 212, 0.15)',
-                  color: act.paymentMethod === 'cash' ? '#fbbf24' : '#22d3ee',
-                  border: `1px solid ${act.paymentMethod === 'cash' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(6, 182, 212, 0.3)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}>
-                  {act.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
-                </span>
-
-                <div style={{
-                  fontSize: '1.15rem',
-                  fontWeight: 900,
-                  color: '#4ade80',
-                  fontFamily: 'var(--font-display)',
-                  minWidth: 70,
-                  textAlign: 'right',
-                }}>
-                  ₹{act.amount}
-                </div>
-
-                {/* WhatsApp Receipt trigger */}
-                {act.type === 'food' ? (
-                  <a
-                    href={getWhatsAppFoodBill(act.raw)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="WhatsApp पावती पाठवा"
-                    className="btn btn-sm btn-ghost"
-                    style={{ padding: '4px 6px', color: '#22c55e' }}
-                  >
-                    <MessageCircle size={15} />
-                  </a>
-                ) : (
-                  <a
-                    href={getWhatsAppBookingReceipt(act.raw)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="WhatsApp बुकिंग स्लिप पाठवा"
-                    className="btn btn-sm btn-ghost"
-                    style={{ padding: '4px 6px', color: '#22c55e' }}
-                  >
-                    <MessageCircle size={15} />
-                  </a>
-                )}
-              </div>
+          <div className="ts-dash-profile">
+            <div className="ts-dash-profile__avatar">
+              {isAdmin ? '👑' : <User size={16} />}
             </div>
-          ))}
-
-          {displayedActivities.length === 0 && (
-            <div style={{
-              textAlign: 'center',
-              padding: '2.5rem',
-              color: 'var(--color-text-muted)',
-              fontSize: '0.85rem',
-            }}>
-              या तारखेला कोणतीही नोंद आढळली नाही. (No activities recorded on this date).
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── TWO-COLUMN GRID: Staff Collection & Best Sellers ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: 'var(--space-md)',
-        marginBottom: '1.5rem',
-      }}>
-        {/* Staff-wise Collection Breakdown */}
-        <div className="glass" style={{ padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="admin-section-header" style={{ marginBottom: '12px' }}>
             <div>
-              <h3 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-                <UserCheck size={18} style={{ color: 'var(--color-primary)' }} />
-                स्टाफ हिशोब आज (Staff Collection Breakdown)
-              </h3>
-              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
-                कोणत्या स्टाफने किती रोख (Cash) व किती UPI जमा केले
-              </span>
+              <div className="ts-dash-profile__name">
+                {isAdmin ? 'Admin' : (staffUser?.name || 'Staff')}
+              </div>
+              <div className="ts-dash-profile__role">
+                {isAdmin ? 'Super Admin' : 'Staff Desk'}
+              </div>
             </div>
-            <Link to="/admin/staff" className="btn btn-sm btn-ghost">Full Staff →</Link>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Top 5 Stat KPI Cards Row ── */}
+      <section className="ts-dash-stats-grid">
+        {/* Card 1: Cash Collection */}
+        <div className="ts-dash-stat-card">
+          <div className="ts-dash-stat-icon ts-dash-stat-icon--green">
+            <span>₹</span>
+          </div>
+          <div className="ts-dash-stat-body">
+            <span className="ts-dash-stat-label">Cash Collection</span>
+            <span className="ts-dash-stat-val">₹{stats.cash.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+
+        {/* Card 2: UPI Collection */}
+        <div className="ts-dash-stat-card">
+          <div className="ts-dash-stat-icon ts-dash-stat-icon--purple">
+            <Zap size={22} />
+          </div>
+          <div className="ts-dash-stat-body">
+            <span className="ts-dash-stat-label">UPI Collection</span>
+            <span className="ts-dash-stat-val">₹{stats.upi.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+
+        {/* Card 3: Gaming Sales */}
+        <div className="ts-dash-stat-card">
+          <div className="ts-dash-stat-icon ts-dash-stat-icon--blue">
+            <Gamepad2 size={22} />
+          </div>
+          <div className="ts-dash-stat-body">
+            <span className="ts-dash-stat-label">Gaming Sales</span>
+            <span className="ts-dash-stat-val">₹{stats.gaming.toLocaleString('en-IN')}</span>
+            <span className="ts-dash-stat-sub">{stats.sessionsCount} Sessions</span>
+          </div>
+        </div>
+
+        {/* Card 4: Food & Drinks Sales */}
+        <div className="ts-dash-stat-card">
+          <div className="ts-dash-stat-icon ts-dash-stat-icon--orange">
+            <Coffee size={22} />
+          </div>
+          <div className="ts-dash-stat-body">
+            <span className="ts-dash-stat-label">Food & Drinks Sales</span>
+            <span className="ts-dash-stat-val">₹{stats.food.toLocaleString('en-IN')}</span>
+            <span className="ts-dash-stat-sub">{stats.itemsCount} Items</span>
+          </div>
+        </div>
+
+        {/* Card 5: Total Sales (Today) */}
+        <div className="ts-dash-stat-card">
+          <div className="ts-dash-stat-icon ts-dash-stat-icon--dark">
+            <Calendar size={22} />
+          </div>
+          <div className="ts-dash-stat-body">
+            <span className="ts-dash-stat-label">Total Sales (Today)</span>
+            <span className="ts-dash-stat-val">₹{stats.total.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Main Two-Column Layout ── */}
+      <div className="ts-dash-main-grid">
+        {/* ══ LEFT COLUMN (New Booking + Today's Bookings) ══ */}
+        <div className="ts-dash-col-left">
+          {/* Card 1: New Booking Wizard */}
+          <div className="ts-dash-card">
+            <div className="ts-dash-card__header">
+              <div className="ts-dash-card__title">
+                <Plus size={16} style={{ color: '#ff5500' }} />
+                <span>New Booking</span>
+              </div>
+              <Link to="/admin/bookings" className="ts-dash-card__link">
+                View All Bookings
+              </Link>
+            </div>
+
+            <div className="ts-dash-card__body">
+              {/* Stepper Bar */}
+              <div className="ts-dash-stepper">
+                <div className="ts-dash-step-item ts-dash-step-item--active">
+                  <span className="ts-dash-step-num">1</span>
+                  <span>Select Station</span>
+                </div>
+                <ChevronRight size={12} color="#475569" />
+                <div className="ts-dash-step-item">
+                  <span className="ts-dash-step-num">2</span>
+                  <span>Duration</span>
+                </div>
+                <ChevronRight size={12} color="#475569" />
+                <div className="ts-dash-step-item">
+                  <span className="ts-dash-step-num">3</span>
+                  <span>Players</span>
+                </div>
+                <ChevronRight size={12} color="#475569" />
+                <div className="ts-dash-step-item">
+                  <span className="ts-dash-step-num">4</span>
+                  <span>Date & Time</span>
+                </div>
+                <ChevronRight size={12} color="#475569" />
+                <div className="ts-dash-step-item">
+                  <span className="ts-dash-step-num">5</span>
+                  <span>Confirm</span>
+                </div>
+              </div>
+
+              {/* Station Selection Row */}
+              <div className="ts-dash-stations-row">
+                {PRESET_STATIONS.map((station) => {
+                  const isActive = selectedStation === station.type;
+                  return (
+                    <button
+                      key={station.id}
+                      type="button"
+                      className={`ts-dash-station-btn ${isActive ? 'ts-dash-station-btn--active' : ''}`}
+                      onClick={() => setSelectedStation(station.type)}
+                    >
+                      <div className="ts-dash-station-img-wrap">
+                        <img
+                          src={station.image}
+                          alt={station.name}
+                          className="ts-dash-station-img"
+                        />
+                      </div>
+                      <span className="ts-dash-station-title">{station.name}</span>
+                      {station.sub && (
+                        <span className="ts-dash-station-note">{station.sub}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Controls Row: Date, Duration, Players */}
+              <div className="ts-dash-controls-row">
+                {/* Select Date */}
+                <div className="ts-dash-control-group">
+                  <label className="ts-dash-control-label">Select Date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="ts-dash-date-select"
+                  />
+                </div>
+
+                {/* Select Duration */}
+                <div className="ts-dash-control-group">
+                  <label className="ts-dash-control-label">Select Duration</label>
+                  <div className="ts-dash-pill-group">
+                    {['30 Min', '1 Hour', '2 Hours', 'Group'].map((dur) => (
+                      <button
+                        key={dur}
+                        type="button"
+                        className={`ts-dash-pill ${selectedDuration === dur ? 'ts-dash-pill--active' : ''}`}
+                        onClick={() => setSelectedDuration(dur)}
+                      >
+                        {dur}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* No. of Players */}
+                <div className="ts-dash-control-group">
+                  <label className="ts-dash-control-label">No. of Players</label>
+                  <div className="ts-dash-pill-group">
+                    {[1, 2, 3, 4].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={`ts-dash-pill ${selectedPlayers === p ? 'ts-dash-pill--active' : ''}`}
+                        onClick={() => setSelectedPlayers(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`ts-dash-pill ${selectedPlayers > 4 ? 'ts-dash-pill--active' : ''}`}
+                      onClick={() => setSelectedPlayers(5)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Available Time Slots Section */}
+              <div className="ts-dash-slots-header">
+                <div className="ts-dash-slots-title">
+                  <Clock size={15} style={{ color: '#ff5500' }} />
+                  <span>Available Time Slots ({selectedStation})</span>
+                </div>
+                <div className="ts-dash-slots-legend">
+                  <span>
+                    <span className="ts-dash-legend-dot ts-dash-legend-dot--green"></span> Available
+                  </span>
+                  <span>
+                    <span className="ts-dash-legend-dot ts-dash-legend-dot--red"></span> Booked
+                  </span>
+                  <span>
+                    <span className="ts-dash-legend-dot ts-dash-legend-dot--orange"></span> Selected
+                  </span>
+                </div>
+              </div>
+
+              {/* Slots Grid */}
+              <div className="ts-dash-slots-grid">
+                {TIME_SLOTS.map((slot) => {
+                  const isBooked = isSlotBooked(slot);
+                  const isSelected = selectedSlot && selectedSlot.id === slot.id;
+
+                  let slotClass = 'ts-dash-slot-badge--available';
+                  let statusText = 'Available';
+                  let dotClass = 'ts-dash-legend-dot--green';
+
+                  if (isBooked) {
+                    slotClass = 'ts-dash-slot-badge--booked';
+                    statusText = 'Booked';
+                    dotClass = 'ts-dash-legend-dot--red';
+                  } else if (isSelected) {
+                    slotClass = 'ts-dash-slot-badge--selected';
+                    statusText = 'Selected';
+                    dotClass = 'ts-dash-legend-dot--orange';
+                  }
+
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      disabled={isBooked}
+                      className={`ts-dash-slot-badge ${slotClass}`}
+                      onClick={() => !isBooked && setSelectedSlot(slot)}
+                    >
+                      <span className={`ts-dash-legend-dot ${dotClass}`}></span>
+                      <span>{slot.label}</span>
+                      <span style={{ fontSize: '0.65rem', opacity: 0.85, marginLeft: 'auto' }}>
+                        {statusText}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Book Action Bar */}
+              {selectedSlot && (
+                <div className="ts-dash-book-action-bar">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CheckCircle size={16} color="#ff5500" />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f8fafc' }}>
+                      Selected: <strong>{selectedStation}</strong> for <strong>{selectedSlot.label}</strong> ({selectedDuration}, {selectedPlayers} Player{selectedPlayers > 1 ? 's' : ''})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="ts-dash-book-action-btn"
+                    onClick={() => setIsBookModalOpen(true)}
+                  >
+                    Confirm Booking →
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {staffDailySummary.map(({ staff, todayCount, todayGamingCount, todayFoodCount, todayCash, todayUpi, todayCollection }) => (
-              <div
-                key={staff.id}
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.07)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                      width: 30, height: 30, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
-                      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 800, fontSize: '0.75rem',
-                    }}>
-                      {(staff.name || 'S')[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#fff' }}>{staff.name}</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-dim)' }}>
-                        🎮 {todayGamingCount || 0} गेमिंग • 🍔 {todayFoodCount || 0} फूड ऑर्डर्स
+          {/* Card 2: Today's Bookings (All Stations) */}
+          <div className="ts-dash-card">
+            <div className="ts-dash-card__header">
+              <div className="ts-dash-card__title">
+                <Calendar size={16} style={{ color: '#38bdf8' }} />
+                <span>Today's Bookings (All Stations)</span>
+              </div>
+              <Link to="/admin/bookings" className="ts-dash-card__link">
+                View All
+              </Link>
+            </div>
+
+            <div className="ts-dash-table-wrap">
+              <table className="ts-dash-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Time</th>
+                    <th>Station</th>
+                    <th>Players</th>
+                    <th>Customer</th>
+                    <th>Booked By</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayBookings.map((b) => (
+                    <tr key={b.id}>
+                      <td style={{ color: '#94a3b8' }}>{b.index}</td>
+                      <td style={{ fontWeight: 600 }}>{b.time}</td>
+                      <td>
+                        <span style={{
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: '#38bdf8',
+                        }}>
+                          {b.station}
+                        </span>
+                      </td>
+                      <td>{b.players}</td>
+                      <td style={{ fontWeight: 600, color: '#fff' }}>{b.customer}</td>
+                      <td style={{ color: '#94a3b8' }}>{b.bookedBy}</td>
+                      <td style={{ fontWeight: 700, color: '#4ade80' }}>₹{b.amount}</td>
+                      <td>
+                        <span className={`ts-dash-badge ${b.status === 'Playing' ? 'ts-dash-badge--playing' : 'ts-dash-badge--confirmed'}`}>
+                          {b.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ══ RIGHT COLUMN (Food Sale + Stock + Sales by Staff) ══ */}
+        <div className="ts-dash-col-right">
+          {/* Card 1: Food Sale (Food Sale only, NO Food POS) */}
+          <div className="ts-dash-card">
+            <div className="ts-dash-card__header">
+              <div className="ts-dash-card__title">
+                <Coffee size={16} style={{ color: '#ff5500' }} />
+                <span>Food Sale Today</span>
+              </div>
+              <Link to="/admin/food" className="ts-dash-card__link">
+                View All Sales
+              </Link>
+            </div>
+
+            <div className="ts-dash-card__body">
+              {/* Category Filter Pills */}
+              <div className="ts-dash-food-filters">
+                {['All', 'Pizza', 'Burger', 'Snacks', 'Drinks', 'Ice Cream'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`ts-dash-food-tab ${foodCategoryFilter === cat ? 'ts-dash-food-tab--active' : ''}`}
+                    onClick={() => setFoodCategoryFilter(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Food Sales Activity Ledger List */}
+              <div className="ts-dash-food-sales-list">
+                {displayFoodSales.map((sale) => {
+                  const itemsText = Array.isArray(sale.items)
+                    ? sale.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')
+                    : 'Food Items';
+
+                  const firstItemName = Array.isArray(sale.items) && sale.items[0]?.name?.toLowerCase();
+                  let thumb = '/images/more-items.jpg';
+                  if (firstItemName?.includes('burger')) thumb = '/images/burger.jpg';
+                  else if (firstItemName?.includes('pizza')) thumb = '/images/pizza.jpg';
+                  else if (firstItemName?.includes('fries')) thumb = '/images/french-fries.jpg';
+                  else if (firstItemName?.includes('vada')) thumb = '/images/vadapav.jpg';
+                  else if (firstItemName?.includes('momo')) thumb = '/images/momos.jpg';
+                  else if (firstItemName?.includes('drink') || firstItemName?.includes('coke')) thumb = '/images/cold-drinks.jpg';
+                  else if (firstItemName?.includes('ice')) thumb = '/images/icecream.jpg';
+
+                  return (
+                    <div key={sale.id} className="ts-dash-food-sale-item">
+                      <div className="ts-dash-food-item-left">
+                        <img
+                          src={thumb}
+                          alt="Food Thumb"
+                          className="ts-dash-food-thumb"
+                        />
+                        <div>
+                          <div className="ts-dash-food-item-title">{itemsText}</div>
+                          <div className="ts-dash-food-item-sub">
+                            {sale.customerName || 'Walk-in'} • {sale.time || 'Today'} • by {(sale.handledBy || 'Staff').replace(/\s*\(Staff\)/gi, '')}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="ts-dash-food-item-right">
+                        <span className="ts-dash-food-item-price">₹{sale.totalAmount}</span>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          textTransform: 'uppercase',
+                          fontWeight: 700,
+                          color: sale.paymentMethod === 'cash' ? '#fbbf24' : '#22d3ee',
+                        }}>
+                          {sale.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
+                        </span>
                       </div>
                     </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#4ade80' }}>
-                      ₹{todayCollection}
-                    </div>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>एकूण गोळा</span>
-                  </div>
-                </div>
-
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  fontSize: '0.72rem',
-                }}>
-                  <span>💵 हातातील रोख (Cash to collect): <strong style={{ color: '#fbbf24' }}>₹{todayCash}</strong></span>
-                  <span>📱 ऑनलाइन (UPI): <strong style={{ color: '#22d3ee' }}>₹{todayUpi}</strong></span>
-                </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+          </div>
 
-            {staffDailySummary.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-                कोणताही स्टाफ जोडलेला नाही. <Link to="/admin/staff">स्टाफ जोडा →</Link>
+          {/* Card 2: Current Stock (Food & Drinks) */}
+          <div className="ts-dash-card">
+            <div className="ts-dash-card__header">
+              <div className="ts-dash-card__title">
+                <Package size={16} style={{ color: '#f59e0b' }} />
+                <span>Current Stock (Food & Drinks)</span>
               </div>
-            )}
+              <Link to="/admin/food" className="ts-dash-card__link">
+                View All
+              </Link>
+            </div>
+
+            <div className="ts-dash-table-wrap">
+              <table className="ts-dash-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Total Stock</th>
+                    <th>Sold (Today)</th>
+                    <th>Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayStock.map((stk, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <div className="ts-dash-stock-item-cell">
+                          <img
+                            src={stk.image}
+                            alt={stk.name}
+                            className="ts-dash-stock-thumb"
+                          />
+                          <span style={{ fontWeight: 600 }}>{stk.name}</span>
+                        </div>
+                      </td>
+                      <td>{stk.total}</td>
+                      <td style={{ color: '#f59e0b', fontWeight: 600 }}>{stk.sold}</td>
+                      <td style={{ color: stk.remaining <= 10 ? '#ef4444' : '#4ade80', fontWeight: 700 }}>
+                        {stk.remaining}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Card 3: Today's Sales by Staff */}
+          <div className="ts-dash-card">
+            <div className="ts-dash-card__header">
+              <div className="ts-dash-card__title">
+                <Users size={16} style={{ color: '#c084fc' }} />
+                <span>Today's Sales by Staff</span>
+              </div>
+              <Link to="/admin/staff" className="ts-dash-card__link">
+                View All
+              </Link>
+            </div>
+
+            <div className="ts-dash-table-wrap">
+              <table className="ts-dash-table">
+                <thead>
+                  <tr>
+                    <th>Staff</th>
+                    <th>Gaming Sales</th>
+                    <th>Food Sales</th>
+                    <th>Total Sales</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayStaffSales.map((staff, idx) => {
+                    let rowClass = '';
+                    if (staff.isCurrent) rowClass = 'ts-dash-staff-row--current';
+                    else if (staff.isAdmin) rowClass = 'ts-dash-staff-row--admin';
+
+                    return (
+                      <tr key={idx} className={rowClass}>
+                        <td style={{ fontWeight: 700 }}>
+                          {staff.name}
+                        </td>
+                        <td style={{ color: '#60a5fa' }}>₹{staff.gaming}</td>
+                        <td style={{ color: '#f97316' }}>₹{staff.food}</td>
+                        <td style={{ color: '#4ade80', fontWeight: 800 }}>
+                          ₹{staff.total}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Top Selling Food / Snacks Breakdown */}
-        <div className="glass" style={{ padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="admin-section-header" style={{ marginBottom: '12px' }}>
-            <div>
-              <h3 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-                <ShoppingBag size={18} style={{ color: '#ff5500' }} />
-                जास्त विकलेले पदार्थ (Top Selling Items Today)
-              </h3>
-              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
-                कॅफेमध्ये आज कोणत्या स्नॅक्स किंवा पेयांची सर्वाधिक विक्री झाली
-              </span>
-            </div>
-            <Link to="/admin/food" className="btn btn-sm btn-ghost">Food Stock →</Link>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {topSellingFood.map((item, idx) => (
-              <div
-                key={item.name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                }}
+      {/* ── Quick Booking Modal ── */}
+      {isBookModalOpen && (
+        <div className="ts-modal-overlay" onClick={() => setIsBookModalOpen(false)}>
+          <div className="ts-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="ts-modal-header">
+              <div className="ts-modal-title">
+                <Gamepad2 size={20} color="#ff5500" />
+                <span>New Booking Confirmation</span>
+              </div>
+              <button
+                type="button"
+                className="ts-modal-close-btn"
+                onClick={() => setIsBookModalOpen(false)}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: idx === 0 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                    color: idx === 0 ? '#fbbf24' : '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 800, fontSize: '0.72rem',
-                  }}>
-                    #{idx + 1}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#fff' }}>{item.name}</div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--color-text-dim)' }}>
-                      विकलेली संख्या: <strong>{item.quantity}</strong> units
-                    </div>
-                  </div>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickBook}>
+              <div className="ts-modal-body">
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  background: 'rgba(255, 85, 0, 0.08)',
+                  border: '1px solid rgba(255, 85, 0, 0.25)',
+                  fontSize: '0.8rem',
+                  color: '#e2e8f0',
+                  lineHeight: 1.5,
+                }}>
+                  🎮 Console: <strong>{selectedStation}</strong> | ⏰ Slot: <strong>{selectedSlot.label}</strong> ({selectedDate})<br />
+                  ⏳ Duration: <strong>{selectedDuration}</strong> | 👥 Players: <strong>{selectedPlayers}</strong>
                 </div>
 
-                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#ff7733' }}>
-                  ₹{item.revenue}
+                <div className="ts-form-field">
+                  <label className="ts-form-label">Customer Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Your name"
+                    value={bookingCustName}
+                    onChange={(e) => setBookingCustName(e.target.value)}
+                    className="ts-form-input"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="ts-form-field">
+                  <label className="ts-form-label">Mobile Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 7972430951"
+                    value={bookingCustPhone}
+                    onChange={(e) => setBookingCustPhone(e.target.value)}
+                    className="ts-form-input"
+                  />
+                </div>
+
+                <div className="ts-form-field">
+                  <label className="ts-form-label">Payment Mode</label>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.82rem' }}>
+                      <input
+                        type="radio"
+                        name="payMode"
+                        value="cash"
+                        checked={bookingPaymentMode === 'cash'}
+                        onChange={() => setBookingPaymentMode('cash')}
+                      />
+                      💵 Cash
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.82rem' }}>
+                      <input
+                        type="radio"
+                        name="payMode"
+                        value="upi"
+                        checked={bookingPaymentMode === 'upi'}
+                        onChange={() => setBookingPaymentMode('upi')}
+                      />
+                      📱 Online UPI
+                    </label>
+                  </div>
                 </div>
               </div>
-            ))}
 
-            {topSellingFood.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-                आज अजून कोणतीही फूड ऑर्डर झालेली नाही.
+              <div className="ts-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setIsBookModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBooking}
+                  className="btn btn-primary btn-sm"
+                  style={{ background: '#ff5500', borderColor: '#ff5500' }}
+                >
+                  {isSubmittingBooking ? 'Saving...' : 'Confirm & Save Booking'}
+                </button>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── PlayStation Consoles Status ── */}
-      <div className="glass" style={{ padding: 'var(--space-lg)', marginBottom: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-        <div className="admin-section-header">
-          <div>
-            <h3 className="admin-section-title" style={{ margin: 0 }}>
-              प्लेस्टेशन कंसोल स्थिती (PlayStation Setups Status)
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-              PS2, PS3, PS4, PS5 व PC setups ची लाईव्ह स्थिती
-            </span>
-          </div>
-          <Link to="/admin/setups" className="btn btn-sm btn-ghost">Manage Setups →</Link>
-        </div>
-        <div className="admin-setups-grid">
-          {setups.map((setup) => (
-            <div
-              key={setup.id}
-              className={`admin-setup-tile admin-setup-tile--${setup.status}`}
-              title={`${setup.name} — ${setup.status}`}
-            >
-              <div className="admin-setup-tile__number">#{String(setup.setupNumber || '?').padStart(2, '0')}</div>
-              <div className={`status-dot ${setup.status === 'available' ? 'green' : setup.status === 'occupied' ? 'red' : 'gray'}`} style={{ margin: '4px auto' }} />
-              <div className="admin-setup-tile__name">{setup.type || 'PS'}</div>
-            </div>
-          ))}
-          {setups.length === 0 && (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--color-text-muted)' }}>
-              No PlayStation setups found. <Link to="/admin/setups">Add Consoles →</Link>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Active Live Sessions Preview ── */}
-      {activeSessions.length > 0 && (
-        <div className="glass" style={{ padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="admin-section-header">
-            <h3 className="admin-section-title" style={{ margin: 0 }}>
-              🟢 चालू गेमिंग सेशन्स (Live Playing Now — {activeSessions.length})
-            </h3>
-            <Link to="/admin/sessions" className="btn btn-sm btn-ghost">Full Live Sessions →</Link>
-          </div>
-          <div className="admin-sessions-grid">
-            {activeSessions.slice(0, 4).map((session) => (
-              <MiniSessionCard key={session.id} session={session} />
-            ))}
+            </form>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function MiniSessionCard({ session }) {
-  const { remaining } = useSessionTimer(session, null);
-  return (
-    <div className="admin-session-card glass">
-      <div className="admin-session-card__user">
-        <img
-          src={session.userImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.userName || 'U')}&background=9333ea&color=fff`}
-          alt={session.userName}
-          className="admin-session-card__avatar"
-          style={{ width: 32, height: 32 }}
-        />
-        <div>
-          <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{session.userName}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{session.setupName}</div>
-        </div>
-      </div>
-      <div className="admin-session-card__timer" style={{ fontSize: '1.4rem' }}>
-        {formatTime(remaining)}
-      </div>
     </div>
   );
 }

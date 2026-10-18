@@ -128,6 +128,11 @@ function formatTime12h(time24) {
   return `${hour12}:${String(m || 0).padStart(2, '0')} ${period}`;
 }
 
+export function formatHandledByName(name) {
+  if (!name) return '';
+  return name.replace(/\s*\(Staff\)/gi, '').trim();
+}
+
 function getFormattedDateTitle(dateStr) {
   if (!dateStr) return 'All Dates';
   const today = getTodayString();
@@ -173,11 +178,26 @@ export default function AdminBookings() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSlotDetailsModal, setShowSlotDetailsModal] = useState(false);
+  const [showOnTimeModal, setShowOnTimeModal] = useState(false);
   const [selectedSlotBooking, setSelectedSlotBooking] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [staffList, setStaffList] = useState([]);
   const [staffFilter, setStaffFilter] = useState('all'); // 'all' | 'my' | specific staffId
+
+  // Fast On-Time (Walk-in) Booking Form
+  const [onTimeForm, setOnTimeForm] = useState({
+    userName: '',
+    userPhone: '',
+    setupId: '',
+    setupName: '',
+    durationHours: 1,
+    hourlyRate: 100,
+    totalAmount: 100,
+    paymentStatus: 'paid_cash',
+    playersCount: 1,
+    notes: '',
+  });
 
   const isStaff = isStaffLoggedIn();
   const isAdmin = isAdminLoggedIn();
@@ -329,7 +349,7 @@ export default function AdminBookings() {
   // Handle clicking a 1-hour slot in Add Modal
   const handleSlotClick = (slot) => {
     if (isSlotTimePassed(slot.start, formData.date)) {
-      toast.warning('Slot Expired (N/A)', `हा वेळ आधीच निघून गेला आहे (${slot.label}).`);
+      toast.warning('Slot Expired (N/A)', `This time has already passed (${slot.label}).`);
       return;
     }
 
@@ -369,7 +389,7 @@ export default function AdminBookings() {
   // Handle clicking a 1-hour slot in Edit Modal
   const handleEditSlotClick = (slot) => {
     if (isSlotTimePassed(slot.start, formData.date)) {
-      toast.warning('Slot Expired (N/A)', `हा वेळ आधीच निघून गेला आहे (${slot.label}).`);
+      toast.warning('Slot Expired (N/A)', `This time has already passed (${slot.label}).`);
       return;
     }
 
@@ -395,7 +415,7 @@ export default function AdminBookings() {
   const openDirectBookingForSlot = (setup, slot) => {
     const targetDate = dateFilter || getTodayString();
     if (isSlotTimePassed(slot.start, targetDate)) {
-      toast.warning('Slot Expired (N/A)', `हा वेळ निघून गेला आहे (${slot.label}). कृपया पुढील मोकळा स्लॉट निवडा.`);
+      toast.warning('Slot Expired (N/A)', `This time has passed (${slot.label}). Please choose the next available slot.`);
       return;
     }
 
@@ -443,6 +463,137 @@ export default function AdminBookings() {
     setShowAddModal(true);
   };
 
+  // Open Fast On-Time (Walk-in) Booking Modal for Current Time
+  const openOnTimeBookingModal = () => {
+    const now = new Date();
+    const curHour = now.getHours();
+    const curMin = now.getMinutes();
+    const nowMins = curHour * 60 + curMin;
+
+    // Find first available console right now
+    const availableSetup = setups.find(s => {
+      const isOccupied = bookings.some(b => {
+        if (b.status === 'cancelled') return false;
+        if (b.setupId !== s.id || b.date !== getTodayString()) return false;
+        const bStart = timeToMins(b.startTime);
+        const bEnd = timeToMins(b.endTime);
+        return nowMins >= bStart && nowMins < bEnd;
+      }) || activeSessions.some(ses => ses.setupId === s.id && ses.status !== 'completed');
+      return !isOccupied;
+    }) || setups.find(s => s.status === 'available') || setups[0];
+
+    const rate = availableSetup?.pricePerHour || 100;
+
+    setOnTimeForm({
+      userName: '',
+      userPhone: '',
+      setupId: availableSetup?.id || '',
+      setupName: availableSetup?.name || '',
+      durationHours: 1,
+      hourlyRate: rate,
+      totalAmount: rate,
+      paymentStatus: 'paid_cash',
+      playersCount: 1,
+      notes: '',
+    });
+    setShowOnTimeModal(true);
+  };
+
+  // Submit Fast On-Time Booking
+  const handleOnTimeBookingSubmit = async (e) => {
+    e.preventDefault();
+    if (!onTimeForm.userName.trim()) {
+      return toast.error('Validation Error', 'Customer Name is required.');
+    }
+    if (!onTimeForm.setupId) {
+      return toast.error('Validation Error', 'Please select a PlayStation Setup.');
+    }
+
+    setSubmitting(true);
+    try {
+      const now = new Date();
+      const curHour = now.getHours();
+      const curMin = now.getMinutes();
+      const startTimeStr = `${String(curHour).padStart(2, '0')}:${String(curMin).padStart(2, '0')}`;
+      const durationMs = Number(onTimeForm.durationHours) * 3600000;
+      const endTimeDate = new Date(now.getTime() + durationMs);
+      const endTimeStr = `${String(endTimeDate.getHours()).padStart(2, '0')}:${String(endTimeDate.getMinutes()).padStart(2, '0')}`;
+
+      const setup = setups.find(s => s.id === onTimeForm.setupId);
+      const today = getTodayString();
+
+      // Find matching slot in board
+      const currentSlot = ONE_HOUR_SLOTS.find(s => {
+        const sStart = timeToMins(s.start);
+        const sEnd = timeToMins(s.end);
+        const nowMins = curHour * 60 + curMin;
+        return nowMins >= sStart && nowMins < sEnd;
+      }) || ONE_HOUR_SLOTS.find(s => !isSlotTimePassed(s.start, today)) || ONE_HOUR_SLOTS[0];
+
+      // Staff attribution: ONLY staff name! No (Staff) suffix!
+      const staffNameToSave = isStaff ? (currentStaffUser?.name || 'Staff') : 'Super Admin';
+      const staffIdToSave = isStaff ? (currentStaffUser?.id || 'staff') : 'admin';
+
+      const payload = {
+        userId: 'admin-walkin',
+        userName: onTimeForm.userName.trim(),
+        userPhone: onTimeForm.userPhone.trim(),
+        userEmail: '',
+        setupId: onTimeForm.setupId,
+        setupName: onTimeForm.setupName || setup?.name || 'PlayStation Console',
+        date: today,
+        startTime: currentSlot?.start || startTimeStr,
+        endTime: currentSlot?.end || endTimeStr,
+        actualStartTime: startTimeStr,
+        actualEndTime: endTimeStr,
+        duration: Number(onTimeForm.durationHours),
+        hourlyRate: Number(onTimeForm.hourlyRate),
+        totalAmount: Number(onTimeForm.totalAmount),
+        paymentStatus: onTimeForm.paymentStatus,
+        status: 'active',
+        isWalkIn: true,
+        bookingTypeLabel: '⚡ On-Time Walk-In',
+        notes: onTimeForm.notes.trim() || '⚡ On-Time Booking (Walk-In)',
+        players: Number(onTimeForm.playersCount) || 1,
+        staffId: staffIdToSave,
+        staffName: staffNameToSave,
+        handledByStaffId: staffIdToSave,
+        createdBy: staffNameToSave,
+        handledBy: staffNameToSave,
+      };
+
+      const docRef = await createBooking(payload);
+
+      // Start session in Firestore
+      await createSession({
+        bookingId: docRef.id,
+        userId: 'admin-walkin',
+        userName: onTimeForm.userName.trim(),
+        userPhone: onTimeForm.userPhone.trim(),
+        userImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(onTimeForm.userName.trim())}&background=06b6d4&color=fff`,
+        setupId: onTimeForm.setupId,
+        setupName: payload.setupName,
+        sessionStartTime: toFirestoreTimestamp(now),
+        sessionEndTime: toFirestoreTimestamp(endTimeDate),
+        duration: Number(onTimeForm.durationHours),
+        handledBy: staffNameToSave,
+      });
+
+      await updateSetup(onTimeForm.setupId, { status: 'occupied' });
+
+      toast.success(
+        '⚡ Session Started!',
+        `🎮 ${onTimeForm.userName} is now live on ${payload.setupName} (${onTimeForm.durationHours} hr)!`
+      );
+
+      setShowOnTimeModal(false);
+    } catch (err) {
+      toast.error('Booking Error', err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Open Edit Modal
   const openEditModal = (b) => {
     setEditingBooking(b);
@@ -486,11 +637,13 @@ export default function AdminBookings() {
     try {
       const setup = setups.find(s => s.id === formData.setupId);
 
-      // Determine staff attribution
+      // Determine staff attribution (pure name, no '(Staff)' suffix)
       const selectedStaffObj = staffList.find(s => s.id === formData.staffId) || (currentStaffUser?.id === formData.staffId ? currentStaffUser : null);
-      const staffIdToSave = formData.staffId || (currentStaffUser ? currentStaffUser.id : 'admin');
-      const staffNameToSave = selectedStaffObj ? selectedStaffObj.name : (formData.staffName || (staffIdToSave === 'admin' ? 'Super Admin' : 'Staff'));
-      const staffLabelToSave = staffIdToSave === 'admin' ? 'Super Admin' : `${staffNameToSave} (Staff)`;
+      const staffIdToSave = isStaff ? (currentStaffUser?.id || 'staff') : (formData.staffId || 'admin');
+      const staffNameToSave = isStaff
+        ? (currentStaffUser?.name || 'Staff')
+        : (selectedStaffObj ? selectedStaffObj.name : (formData.staffName || (staffIdToSave === 'admin' ? 'Super Admin' : 'Staff')));
+      const staffLabelToSave = staffIdToSave === 'admin' ? 'Super Admin' : formatHandledByName(staffNameToSave);
 
       const payload = {
         userId: 'admin-walkin',
@@ -557,11 +710,13 @@ export default function AdminBookings() {
     try {
       const setup = setups.find(s => s.id === formData.setupId);
 
-      // Determine updated staff attribution
+      // Determine updated staff attribution (pure name, no '(Staff)' suffix)
       const selectedStaffObj = staffList.find(s => s.id === formData.staffId);
-      const staffIdToSave = formData.staffId || editingBooking.staffId || 'admin';
-      const staffNameToSave = selectedStaffObj ? selectedStaffObj.name : (formData.staffName || editingBooking.staffName || (staffIdToSave === 'admin' ? 'Super Admin' : 'Staff'));
-      const staffLabelToSave = staffIdToSave === 'admin' ? 'Super Admin' : `${staffNameToSave} (Staff)`;
+      const staffIdToSave = isStaff ? (currentStaffUser?.id || 'staff') : (formData.staffId || editingBooking.staffId || 'admin');
+      const staffNameToSave = isStaff
+        ? (currentStaffUser?.name || 'Staff')
+        : (selectedStaffObj ? selectedStaffObj.name : (formData.staffName || editingBooking.staffName || (staffIdToSave === 'admin' ? 'Super Admin' : 'Staff')));
+      const staffLabelToSave = staffIdToSave === 'admin' ? 'Super Admin' : formatHandledByName(staffNameToSave);
 
       const updates = {
         userName: formData.userName.trim(),
@@ -735,18 +890,40 @@ export default function AdminBookings() {
               </div>
               <div>
                 <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>माझी आजची ड्युटी: {currentStaffUser?.name}</span>
+                  <span>My shift today: {currentStaffUser?.name}</span>
                   <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 10, background: 'rgba(147,51,234,0.3)', color: 'var(--color-primary-light)' }}>
                     {currentStaffUser?.role || 'Staff'}
                   </span>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>
-                  शिफ्ट: {currentStaffUser?.shift || 'General Shift'}
+                  Shift: {currentStaffUser?.shift || 'General Shift'}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={openOnTimeBookingModal}
+                className="btn btn-sm"
+                style={{
+                  background: 'linear-gradient(135deg, #06b6d4, #9333ea)',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: '0 0 16px rgba(6, 182, 212, 0.4)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Zap size={14} style={{ color: '#ffea79' }} /> ⚡ On-Time Booking
+              </button>
+
               <button
                 onClick={() => setStaffFilter('all')}
                 className="btn btn-xs"
@@ -784,28 +961,28 @@ export default function AdminBookings() {
             gap: 10,
           }}>
             <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>आजच्या बुकिंग्स</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>Bookings today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--color-primary-light)' }}>
                 {myStaffStats.todayCount} <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>Slots</span>
               </div>
             </div>
 
             <div style={{ background: 'rgba(16,185,129,0.08)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16,185,129,0.2)' }}>
-              <div style={{ fontSize: '0.7rem', color: '#10b981' }}>आजचे एकूण कलेक्शन</div>
+              <div style={{ fontSize: '0.7rem', color: '#10b981' }}>Total collected today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>
                 ₹{myStaffStats.todayCollection}
               </div>
             </div>
 
             <div style={{ background: 'rgba(245,158,11,0.08)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245,158,11,0.2)' }}>
-              <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>रोख जमा (Cash)</div>
+              <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>Cash received</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f59e0b' }}>
                 ₹{myStaffStats.todayCash}
               </div>
             </div>
 
             <div style={{ background: 'rgba(6,182,212,0.08)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(6,182,212,0.2)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-accent)' }}>ऑनलाइन जमा (UPI)</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-accent)' }}>UPI received</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-accent)' }}>
                 ₹{myStaffStats.todayUpi}
               </div>
@@ -828,7 +1005,7 @@ export default function AdminBookings() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
             <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>👥 आजचे स्टाफनिहाय कलेक्शन व बुकिंग्स (Staff Duty Summary):</span>
+              <span>👥 Staff bookings and collections today:</span>
             </div>
             <div style={{ fontSize: '0.73rem', color: 'var(--color-text-dim)' }}>
               Click any staff to inspect their bookings:
@@ -897,7 +1074,7 @@ export default function AdminBookings() {
               <span>·</span>
               <span>🔴 Booked (Edit/Cancel)</span>
               <span>·</span>
-              <span>⚪ N/A (वेळ संपली)</span>
+              <span>⚪ N/A (Time passed)</span>
               <span>·</span>
               <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
                 {activeBookingsCount} Playing Now
@@ -945,6 +1122,27 @@ export default function AdminBookings() {
                 <List size={13} /> List
               </button>
             </div>
+
+            {/* Quick On-Time Booking Button */}
+            <button
+              className="btn btn-sm"
+              onClick={openOnTimeBookingModal}
+              id="admin-ontime-booking-btn"
+              style={{
+                padding: '7px 13px',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                background: 'linear-gradient(135deg, #06b6d4, #9333ea)',
+                color: '#fff',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                boxShadow: '0 0 14px rgba(6, 182, 212, 0.35)',
+              }}
+            >
+              <Zap size={14} style={{ color: '#ffea79' }} /> ⚡ On-Time
+            </button>
 
             {/* Direct Book Button */}
             <button
@@ -1174,7 +1372,7 @@ export default function AdminBookings() {
                               setSelectedSlotBooking({ booking: booked, setup, slot });
                               setShowSlotDetailsModal(true);
                             } else if (isPassed) {
-                              toast.info('Slot Expired (N/A)', `हा वेळ निघून गेला आहे (${slot.label}).`);
+                              toast.info('Slot Expired (N/A)', `This time has passed (${slot.label}).`);
                             } else {
                               openDirectBookingForSlot(setup, slot);
                             }
@@ -1324,7 +1522,7 @@ export default function AdminBookings() {
                         )}
                         {(b.handledBy || b.createdBy) && (
                           <div style={{ fontSize: '0.68rem', color: 'var(--color-primary-light)', marginTop: 2 }}>
-                            👤 By: {b.handledBy || b.createdBy}
+                            👤 By: {formatHandledByName(b.handledBy || b.createdBy)}
                           </div>
                         )}
                       </td>
@@ -1573,7 +1771,7 @@ export default function AdminBookings() {
                 )}
                 {(selectedSlotBooking.booking.handledBy || selectedSlotBooking.booking.createdBy) && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-primary-light)', marginTop: 6 }}>
-                    👤 Handled by: {selectedSlotBooking.booking.handledBy || selectedSlotBooking.booking.createdBy}
+                    👤 Handled by: {formatHandledByName(selectedSlotBooking.booking.handledBy || selectedSlotBooking.booking.createdBy)}
                   </div>
                 )}
               </div>
@@ -1753,7 +1951,7 @@ export default function AdminBookings() {
                           className={`admin-slot-btn ${btnClass}`}
                           onClick={() => handleSlotClick(slot)}
                           disabled={isBooked || isPassed}
-                          title={isPassed ? `${slot.label} (वेळ संपली - N/A)` : isBooked ? `Booked by ${booked.userName}` : `Select ${slot.label}`}
+                          title={isPassed ? `${slot.label} (Time passed - N/A)` : isBooked ? `Booked by ${booked.userName}` : `Select ${slot.label}`}
                         >
                           <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>{slot.short}</div>
                           <div style={{ fontSize: '0.65rem' }}>
@@ -1774,7 +1972,7 @@ export default function AdminBookings() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="e.g. Rahul Sharma"
+                      placeholder="e.g. Your name"
                       value={formData.userName}
                       onChange={e => setFormData(p => ({ ...p, userName: e.target.value }))}
                       required
@@ -1855,31 +2053,53 @@ export default function AdminBookings() {
                     </select>
                   </div>
 
-                  {/* Staff attribution selector */}
+                  {/* Staff attribution: ONLY staff name! */}
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by (कर्मचारी)
+                      <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by
                     </label>
-                    <select
-                      className="form-input"
-                      value={formData.staffId || ''}
-                      onChange={e => {
-                        const sId = e.target.value;
-                        const sObj = staffList.find(s => s.id === sId);
-                        setFormData(p => ({
-                          ...p,
-                          staffId: sId,
-                          staffName: sObj ? sObj.name : 'Super Admin',
-                        }));
-                      }}
-                    >
-                      <option value="admin">👑 Super Admin</option>
-                      {staffList.map(s => (
-                        <option key={s.id} value={s.id}>
-                          👤 {s.name} ({s.role || 'Staff'})
-                        </option>
-                      ))}
-                    </select>
+                    {isStaff ? (
+                      <div
+                        className="form-input"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: 'rgba(147, 51, 234, 0.12)',
+                          borderColor: 'rgba(147, 51, 234, 0.35)',
+                          color: '#fff',
+                          fontWeight: 700,
+                          height: '38px',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        <span>👤 {formatHandledByName(currentStaffUser?.name || 'Staff Member')}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--color-primary-light)', marginLeft: 'auto', background: 'rgba(147,51,234,0.25)', padding: '2px 6px', borderRadius: 4 }}>
+                          Logged In
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        className="form-input"
+                        value={formData.staffId || ''}
+                        onChange={e => {
+                          const sId = e.target.value;
+                          const sObj = staffList.find(s => s.id === sId);
+                          setFormData(p => ({
+                            ...p,
+                            staffId: sId,
+                            staffName: sObj ? sObj.name : 'Super Admin',
+                          }));
+                        }}
+                      >
+                        <option value="admin">👑 Super Admin</option>
+                        {staffList.map(s => (
+                          <option key={s.id} value={s.id}>
+                            👤 {formatHandledByName(s.name)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -2066,7 +2286,7 @@ export default function AdminBookings() {
                           className={`admin-slot-btn ${btnClass}`}
                           onClick={() => handleEditSlotClick(slot)}
                           disabled={isBookedByOther || (!isSelected && isPassed)}
-                          title={isBookedByOther ? `Booked by ${booked.userName}` : isPassed && !isSelected ? `${slot.label} (वेळ संपली - N/A)` : slot.label}
+                          title={isBookedByOther ? `Booked by ${booked.userName}` : isPassed && !isSelected ? `${slot.label} (Time passed - N/A)` : slot.label}
                         >
                           <div style={{ fontSize: '0.8rem', fontWeight: 800 }}>{slot.short}</div>
                           <div style={{ fontSize: '0.65rem' }}>
@@ -2128,31 +2348,53 @@ export default function AdminBookings() {
                     </select>
                   </div>
 
-                  {/* Edit Staff Selector */}
+                  {/* Edit Staff Selector: ONLY staff name! */}
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by (कर्मचारी)
+                      <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by
                     </label>
-                    <select
-                      className="form-input"
-                      value={formData.staffId || ''}
-                      onChange={e => {
-                        const sId = e.target.value;
-                        const sObj = staffList.find(s => s.id === sId);
-                        setFormData(p => ({
-                          ...p,
-                          staffId: sId,
-                          staffName: sObj ? sObj.name : 'Super Admin',
-                        }));
-                      }}
-                    >
-                      <option value="admin">👑 Super Admin</option>
-                      {staffList.map(s => (
-                        <option key={s.id} value={s.id}>
-                          👤 {s.name} ({s.role || 'Staff'})
-                        </option>
-                      ))}
-                    </select>
+                    {isStaff ? (
+                      <div
+                        className="form-input"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: 'rgba(147, 51, 234, 0.12)',
+                          borderColor: 'rgba(147, 51, 234, 0.35)',
+                          color: '#fff',
+                          fontWeight: 700,
+                          height: '38px',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        <span>👤 {formatHandledByName(currentStaffUser?.name || formData.staffName || 'Staff Member')}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--color-primary-light)', marginLeft: 'auto', background: 'rgba(147,51,234,0.25)', padding: '2px 6px', borderRadius: 4 }}>
+                          Logged In
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        className="form-input"
+                        value={formData.staffId || ''}
+                        onChange={e => {
+                          const sId = e.target.value;
+                          const sObj = staffList.find(s => s.id === sId);
+                          setFormData(p => ({
+                            ...p,
+                            staffId: sId,
+                            staffName: sObj ? sObj.name : 'Super Admin',
+                          }));
+                        }}
+                      >
+                        <option value="admin">👑 Super Admin</option>
+                        {staffList.map(s => (
+                          <option key={s.id} value={s.id}>
+                            👤 {formatHandledByName(s.name)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -2218,6 +2460,292 @@ export default function AdminBookings() {
                     {submitting ? 'Saving...' : '✓ Save Changes'}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ULTRA-FAST ON-TIME WALK-IN BOOKING MODAL (Staff & Admin) ─── */}
+      {showOnTimeModal && (
+        <div className="modal-backdrop" onClick={() => setShowOnTimeModal(false)}>
+          <div
+            className="modal-box glass-strong"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 540, width: '94%', maxHeight: '92vh', overflowY: 'auto', padding: '22px' }}
+          >
+            <div className="modal-header" style={{ marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 12 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #06b6d4, #9333ea)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    boxShadow: '0 0 12px rgba(6, 182, 212, 0.4)'
+                  }}>
+                    <Zap size={18} />
+                  </span>
+                  <h3 className="modal-title" style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                    ⚡ On-Time Walk-In Booking
+                  </h3>
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--color-text-dim)' }}>
+                  Start gaming immediately right now on the counter for walk-in players.
+                </p>
+              </div>
+              <button className="btn-close" onClick={() => setShowOnTimeModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleOnTimeBookingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Live Time & Date Badge */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(6, 182, 212, 0.08)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                fontSize: '0.8rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-accent)', fontWeight: 700 }}>
+                  <Clock size={14} />
+                  <span>Current Time: <strong>{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700, background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: 10 }}>
+                  🟢 Play Right Now
+                </span>
+              </div>
+
+              {/* 1. PlayStation Setup Picker */}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                  <Gamepad2 size={13} style={{ color: 'var(--color-primary)' }} /> Select PlayStation Console <span style={{ color: 'var(--color-danger)' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                  {setups.map(s => {
+                    const isSelected = onTimeForm.setupId === s.id;
+                    const isBusy = activeSessions.some(ses => ses.setupId === s.id && ses.status !== 'completed');
+                    const rate = s.pricePerHour || 100;
+
+                    return (
+                      <button
+                        type="button"
+                        key={s.id}
+                        onClick={() => {
+                          setOnTimeForm(p => ({
+                            ...p,
+                            setupId: s.id,
+                            setupName: s.name,
+                            hourlyRate: rate,
+                            totalAmount: Math.round(rate * Number(p.durationHours)),
+                          }));
+                        }}
+                        style={{
+                          padding: '10px 8px',
+                          borderRadius: 'var(--radius-md)',
+                          border: isSelected ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)',
+                          background: isSelected ? 'rgba(6, 182, 212, 0.18)' : 'rgba(255,255,255,0.03)',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 4,
+                          boxShadow: isSelected ? '0 0 16px rgba(6, 182, 212, 0.35)' : 'none',
+                          transition: 'all 0.15s ease',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+                          {s.name}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.7rem' }}>
+                          <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>₹{rate}/hr</span>
+                          <span style={{
+                            color: isBusy ? '#ef4444' : '#10b981',
+                            fontWeight: 700,
+                            fontSize: '0.65rem'
+                          }}>
+                            {isBusy ? '🔴 In Use' : '🟢 Free'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Customer Name & Phone */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ marginBottom: 4 }}>
+                    Customer Name <span style={{ color: 'var(--color-danger)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Customer name"
+                    value={onTimeForm.userName}
+                    onChange={e => setOnTimeForm(p => ({ ...p, userName: e.target.value }))}
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ marginBottom: 4 }}>
+                    Phone (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    className="form-input"
+                    placeholder="e.g. 9876543210"
+                    value={onTimeForm.userPhone}
+                    onChange={e => setOnTimeForm(p => ({ ...p, userPhone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* 3. Duration Selector (Chips) */}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>
+                    ⏱️ Select Duration
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-accent)', fontWeight: 700 }}>
+                    {onTimeForm.durationHours} hr ({Math.round(onTimeForm.durationHours * 60)} mins)
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                  {[
+                    { label: '30 Min', hours: 0.5 },
+                    { label: '1 Hour', hours: 1 },
+                    { label: '1.5 Hrs', hours: 1.5 },
+                    { label: '2 Hours', hours: 2 },
+                  ].map(opt => {
+                    const isSelected = onTimeForm.durationHours === opt.hours;
+                    const calculatedPrice = Math.round((onTimeForm.hourlyRate || 100) * opt.hours);
+                    return (
+                      <button
+                        type="button"
+                        key={opt.hours}
+                        onClick={() => {
+                          setOnTimeForm(p => ({
+                            ...p,
+                            durationHours: opt.hours,
+                            totalAmount: Math.round(p.hourlyRate * opt.hours),
+                          }));
+                        }}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: isSelected ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
+                          background: isSelected ? 'var(--color-primary)' : 'rgba(255,255,255,0.04)',
+                          color: isSelected ? '#fff' : 'var(--color-text-dim)',
+                          fontWeight: 800,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 2,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span>{opt.label}</span>
+                        <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>₹{calculatedPrice}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 4. Payment Method & Handled By Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                {/* Payment Option */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ marginBottom: 4 }}>
+                    Payment Mode
+                  </label>
+                  <select
+                    className="form-input"
+                    value={onTimeForm.paymentStatus}
+                    onChange={e => setOnTimeForm(p => ({ ...p, paymentStatus: e.target.value }))}
+                  >
+                    <option value="paid_cash">💵 Cash Received</option>
+                    <option value="paid_upi">📱 UPI / QR Received</option>
+                    <option value="pending">⏳ Pay Later / Unpaid</option>
+                  </select>
+                </div>
+
+                {/* Handled By - Locked to Staff Name */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by
+                  </label>
+                  <div
+                    className="form-input"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: 'rgba(147, 51, 234, 0.12)',
+                      borderColor: 'rgba(147, 51, 234, 0.35)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      height: '38px',
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    <span>👤 {formatHandledByName(isStaff ? (currentStaffUser?.name || 'Staff') : 'Super Admin')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Big Start Session Button */}
+              <div style={{ marginTop: 8, display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setShowOnTimeModal(false)}
+                  style={{ flex: '0 0 90px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="btn btn-primary"
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #06b6d4, #9333ea)',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '0.95rem',
+                    padding: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    boxShadow: '0 0 20px rgba(6, 182, 212, 0.45)',
+                  }}
+                >
+                  {submitting ? 'Starting...' : (
+                    <>
+                      <Zap size={18} style={{ color: '#ffea79' }} />
+                      <span>Start Session Now • ₹{onTimeForm.totalAmount}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>

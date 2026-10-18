@@ -423,16 +423,16 @@
 }
 
 .booking-card {
-  background: #ffffff;
-  color: #0f172a;
+  background: #0d121f;
+  color: #f1f5f9;
   border-radius: 18px;
-  padding: 2.5rem;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 85, 0, 0.2);
-  border: 2px solid rgba(255, 85, 0, 0.3);
+  padding: 2rem;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(255, 85, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .booking-title-tag h2 {
-  color: #0f172a !important;
+  color: #ffffff !important;
 }
 
 .booking-layout {
@@ -1958,4 +1958,645 @@
 
 .user-matrix-cell--booked:hover {
   background: rgba(239, 68, 68, 0.18);
+}
+
+/* ============================================================
+   STEP-BY-STEP BOOKING WIZARD STYLES
+   ============================================================ */
+
+.wizard-section-wrap {
+  background: #06080d;
+  padding: 3rem 0;
+  position: relative;
+}
+
+.wizard-card {
+  background: linear-gradient(145deg, #0d121f 0%, #080c14 100%);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 40px rgba(255, 85, 0, 0.12);
+  padding: 2.2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.wizard-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff5500, #ff8800, #38bdf8, #ff5500);
+  background-size: 200% 100%;
+  animation: wizardBorderGlow 4s linear infinite;
+}
+
+@keyframes wizardBorderGlow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* ── Stepper Navigation Bar ── */
+.wizard-stepper-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+}
+
+.wizard-step-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.wizard-step-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.wizard-step-tab--active {
+  background: rgba(255, 85, 0, 0.12) !important;
+  border-color: #ff5500 !important;
+  box-shadow: 0 0 16px rgba(255, 85, 0, 0.3);
+}
+
+.wizard-step-tab--completed {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.wizard-step-badge {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  transition: all 0.25s ease;
+}
+
+.wizard-step-tab--active .wizard-step-badge {
+  background: #ff5500;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(255, 85, 0, 0.7);
+}
+
+.wizard-step-tab--completed .wizard-step-badge {
+  background: #22c55e;
+  color: #fff;
+}
+
+.wizard-step-info {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.wizard-step-num-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.wizard-step-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.wizard-step-tab--active .wizard-step-title {
+  color: #ff8800;
+}
+
+/* ── Progress Bar ── */
+.wizard-progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  margin-bottom: 2rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.wizard-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff5500, #ff8800, #38bdf8);
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(255, 85, 0, 0.6);
+}
+
+/* ── Step Content Animation ── */
+.wizard-step-pane {
+  animation: wizardFadeIn 0.3s ease-in-out;
+}
+
+@keyframes wizardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wizard-step-header {
+  margin-bottom: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wizard-step-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wizard-step-subtext {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.wizard-step-pill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #ff8800;
+  background: rgba(255, 85, 0, 0.12);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+  padding: 4px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.wizard-step-heading {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.02em;
+  margin: 4px 0 0;
+}
+
+/* ── Summary Ribbon at Top of Steps 2, 3, 4 ── */
+.wizard-summary-ribbon {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 1.6rem;
+}
+
+.wizard-summary-ribbon-items {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.wizard-summary-ribbon-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-summary-ribbon-item strong {
+  color: #fff;
+}
+
+.wizard-summary-ribbon-price {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+}
+
+/* ── Step 1: Big Station Cards ── */
+.wizard-stations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 2rem;
+}
+
+.wizard-station-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.wizard-station-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 85, 0, 0.4);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+}
+
+.wizard-station-card--active {
+  background: linear-gradient(160deg, rgba(255, 85, 0, 0.15) 0%, rgba(13, 18, 31, 0.8) 100%) !important;
+  border-color: #ff5500 !important;
+  box-shadow: 0 0 25px rgba(255, 85, 0, 0.4), inset 0 0 15px rgba(255, 85, 0, 0.1) !important;
+  transform: translateY(-4px);
+}
+
+.wizard-station-card-img-wrap {
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.wizard-station-card-img {
+  max-width: 85%;
+  max-height: 85%;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.wizard-station-card:hover .wizard-station-card-img {
+  transform: scale(1.08);
+}
+
+.wizard-station-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 85, 0, 0.9);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wizard-station-card-title {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.wizard-station-card-spec {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.35;
+  margin-bottom: 12px;
+  min-height: 32px;
+}
+
+.wizard-station-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wizard-station-price {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #4ade80;
+}
+
+.wizard-station-check-btn {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wizard-station-card--active .wizard-station-check-btn {
+  background: #ff5500;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 85, 0, 0.5);
+}
+
+/* ── Step 2: Duration & Players Choice Cards ── */
+.wizard-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.8rem;
+}
+
+.wizard-option-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  text-align: left;
+}
+
+.wizard-option-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 85, 0, 0.35);
+}
+
+.wizard-option-card--active {
+  background: rgba(255, 85, 0, 0.12) !important;
+  border-color: #ff5500 !important;
+  box-shadow: 0 0 18px rgba(255, 85, 0, 0.3) !important;
+}
+
+.wizard-option-card-title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #fff;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wizard-option-card-desc {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.wizard-option-card-price {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #4ade80;
+  margin-top: auto;
+}
+
+/* ── Step 4: Cafe Food Cards ── */
+.wizard-food-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.wizard-food-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.wizard-food-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 85, 0, 0.3);
+}
+
+.wizard-food-card-img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.wizard-food-card-name {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.wizard-food-card-price {
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #4ade80;
+  margin-bottom: 8px;
+}
+
+.wizard-food-btn-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+}
+
+.wizard-food-qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wizard-food-qty-btn:hover {
+  background: #ff5500;
+  border-color: #ff5500;
+}
+
+/* ── Step 5: Final Review & Checkout Receipt ── */
+.wizard-checkout-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .wizard-checkout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wizard-ticket-card {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1.5px solid rgba(255, 85, 0, 0.35);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.wizard-ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+  margin-bottom: 16px;
+}
+
+.wizard-ticket-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 0.84rem;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.wizard-ticket-row:last-child {
+  border-bottom: none;
+}
+
+.wizard-ticket-row strong {
+  color: #fff;
+}
+
+.wizard-ticket-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 2px dashed rgba(255, 85, 0, 0.4);
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+/* ── Wizard Navigation Actions (Back / Next) ── */
+.wizard-nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wizard-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 12px 22px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wizard-btn-back:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.wizard-btn-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #ff5500 0%, #ff7700 100%);
+  border: none;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 900;
+  padding: 13px 28px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 20px rgba(255, 85, 0, 0.45);
+  letter-spacing: 0.02em;
+}
+
+.wizard-btn-next:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(255, 85, 0, 0.7);
+}
+
+.wizard-btn-skip {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #94a3b8;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wizard-btn-skip:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
 }

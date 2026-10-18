@@ -4,28 +4,7 @@
 
 export const ADMIN_PASSWORD = 'TSGaming@2024';
 
-export const DEFAULT_STAFF = [
-  {
-    id: 'staff-1',
-    name: 'Rahul Shinde',
-    phone: '9876543210',
-    role: 'Counter Operator',
-    pin: '1234',
-    shift: 'Morning (09:00 AM - 03:00 PM)',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'staff-2',
-    name: 'Akshay More',
-    phone: '9812345678',
-    role: 'Gaming Assistant',
-    pin: '2024',
-    shift: 'Evening (03:00 PM - 10:00 PM)',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-  },
-];
+export const DEFAULT_STAFF = [];
 
 const ADMIN_AUTH_KEY = 'ts_admin_auth';
 const AUTH_ROLE_KEY = 'ts_auth_role';     // 'admin' | 'staff'

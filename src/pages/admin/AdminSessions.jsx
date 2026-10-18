@@ -11,6 +11,7 @@ import {
 } from '../../firebase/firestore';
 import { useSessionTimer, formatTime } from '../../hooks/useSessionTimer';
 import { useToast } from '../../context/ToastContext';
+import { getStaffUser, isStaffLoggedIn } from '../../utils/adminAuth';
 import { Play, Pause, Square, Plus, AlertTriangle, Camera } from 'lucide-react';
 import CameraCapture from '../../components/CameraCapture';
 
@@ -117,6 +118,10 @@ export default function AdminSessions() {
       const now = new Date();
       const end = new Date(now.getTime() + newSessionData.duration * 60000);
       
+      const isStaff = isStaffLoggedIn();
+      const currentStaff = getStaffUser();
+      const staffName = isStaff ? (currentStaff?.name || 'Staff') : 'Super Admin';
+
       await createSession({
         userId: 'walk-in',
         userName: newSessionData.name.trim(),
@@ -125,6 +130,8 @@ export default function AdminSessions() {
         setupName: setup.name,
         sessionStartTime: toFirestoreTimestamp(now),
         sessionEndTime: toFirestoreTimestamp(end),
+        duration: Math.round(newSessionData.duration / 60),
+        handledBy: staffName,
       });
 
       await updateSetup(setup.id, { status: 'occupied' });
@@ -198,7 +205,7 @@ export default function AdminSessions() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="E.g. Aryan K."
+                  placeholder="e.g. Player name"
                   value={newSessionData.name}
                   onChange={e => setNewSessionData(d => ({ ...d, name: e.target.value }))}
                   autoFocus
@@ -299,11 +306,17 @@ export function SessionCard({ session, onEnd, onExtend, onPause, onResume }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '4px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-sm)', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: '4px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-xs)', justifyContent: 'center' }}>
         <span>Start: {tsToDate(session.sessionStartTime)?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         <span>·</span>
         <span>End: {tsToDate(session.sessionEndTime)?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
+
+      {session.handledBy && (
+        <div style={{ fontSize: '0.72rem', color: 'var(--color-primary-light)', textAlign: 'center', marginBottom: 'var(--space-sm)' }}>
+          👤 Handled by: {session.handledBy.replace(/\s*\(Staff\)/gi, '')}
+        </div>
+      )}
 
       {/* Extend time */}
       <div className="extend-btns">

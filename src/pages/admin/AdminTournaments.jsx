@@ -202,7 +202,7 @@ export default function AdminTournaments() {
 
               <div className="form-group">
                 <label className="form-label">Winners (one per line — 1st, 2nd, 3rd)</label>
-                <textarea className="form-input" rows={3} value={form.winners} onChange={e => setForm(p => ({...p, winners: e.target.value}))} placeholder="Aryan K.&#10;Rohit S.&#10;Priya M." id="tournament-winners-input" />
+                <textarea className="form-input" rows={3} value={form.winners} onChange={e => setForm(p => ({...p, winners: e.target.value}))} placeholder="Winner 1&#10;Winner 2&#10;Winner 3" id="tournament-winners-input" />
               </div>
             </div>
 

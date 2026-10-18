@@ -508,7 +508,7 @@ ${itemLines}
         <div className="glass" style={{ padding: '3rem', textAlign: 'center' }}>
           <h3 style={{ color: 'var(--color-danger)' }}>Access Restricted</h3>
           <p style={{ color: 'var(--color-text-muted)', marginTop: '8px' }}>
-            स्टाफसाठी इन्व्हेंटरी ॲक्सेस बंद आहे. फक्त सुपर ॲडमिन इन्व्हेंटरी मॅनेज करू शकतात.
+            Inventory access is disabled for staff. Only the super admin can manage inventory.
           </p>
           <button className="btn btn-primary" onClick={() => setActiveTab('pos')} style={{ marginTop: '14px' }}>
             Go to Cafe POS Billing →
@@ -976,7 +976,7 @@ ${itemLines}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Rahul"
+                    placeholder="e.g. Staff name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="admin-form-input"
@@ -1190,7 +1190,7 @@ ${itemLines}
                         </span>
                       </td>
                       <td style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-                        {sale.handledBy || 'Staff'}
+                        {(sale.handledBy || 'Staff').replace(/\s*\(Staff\)/gi, '')}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 900, color: '#ff5500', fontSize: '1rem' }}>
                         ₹{sale.totalAmount}

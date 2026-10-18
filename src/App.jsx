@@ -12,6 +12,7 @@ import Games from './pages/Games';
 import Setups from './pages/Setups';
 import Gallery from './pages/Gallery';
 import Contact from './pages/Contact';
+import Booking from './pages/Booking';
 
 // Admin Protection & Layout
 import AdminRoute from './components/AdminRoute';
@@ -41,6 +42,7 @@ function AppContent() {
       <Routes>
         {/* ── Public Website Routes ── */}
         <Route path="/" element={<Home />} />
+        <Route path="/booking" element={<Booking />} />
         <Route path="/games" element={<Games />} />
         <Route path="/setups" element={<Setups />} />
         <Route path="/gallery" element={<Gallery />} />
@@ -59,14 +61,14 @@ function AppContent() {
             </AdminRoute>
           }
         >
-          <Route index element={<AdminBookings />} />
+          <Route index element={<AdminRoute adminOnly><AdminDashboard /></AdminRoute>} />
+          <Route path="dashboard" element={<AdminRoute adminOnly><AdminDashboard /></AdminRoute>} />
           <Route path="bookings" element={<AdminBookings />} />
           <Route path="sessions" element={<AdminSessions />} />
           <Route path="timer" element={<AdminTimer />} />
           <Route path="food" element={<AdminFood />} />
           <Route path="setups" element={<AdminSetups />} />
           <Route path="staff" element={<AdminStaff />} />
-          <Route path="dashboard" element={<AdminDashboard />} />
         </Route>
 
         {/* ── Fallback ── */}

@@ -35,17 +35,15 @@ export default function AdminLayout() {
   // Role-based Navigation Links (Available to both Admin & Staff!)
   const navLinks = [
     ...(isAdmin
-      ? [
-          { to: '/admin/dashboard', label: 'Dashboard & All Sales', shortLabel: 'Sales', icon: LayoutDashboard },
-        ]
+      ? [{ to: '/admin/dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard }]
       : []),
-    { to: '/admin', label: 'Bookings & Slots', shortLabel: 'Slots', icon: Calendar, end: true },
+    { to: '/admin/bookings', label: 'Bookings & Slots', shortLabel: 'Slots', icon: Calendar },
     { to: '/admin/sessions', label: 'Live Sessions', shortLabel: 'Live', icon: Zap },
     { to: '/admin/timer', label: 'Big Timer', shortLabel: 'Timer', icon: Clock },
     {
       to: '/admin/food',
-      label: isAdmin ? 'Cafe Food & Stock' : 'Cafe POS Counter',
-      shortLabel: isAdmin ? 'Food/Stock' : 'Cafe POS',
+      label: isAdmin ? 'Food Sale & Stock' : 'Cafe POS Counter',
+      shortLabel: isAdmin ? 'Food Sale' : 'Cafe POS',
       icon: Coffee,
     },
     ...(isAdmin

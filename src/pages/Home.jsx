@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Gamepad2,
   Clock,
@@ -15,6 +15,12 @@ import {
   MessageCircle,
   X,
   Zap,
+  Receipt,
+  ShoppingBag,
+  Trash2,
+  Plus,
+  Minus,
+  Sparkles,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import {
@@ -25,6 +31,7 @@ import {
   DEFAULT_FOOD_ITEMS,
 } from '../firebase/firestore';
 import './Home.css';
+import './admin/AdminDashboard.css';
 
 /* ── DEFAULT FALLBACK STATIONS ── */
 const DEFAULT_STATIONS = [
@@ -35,7 +42,7 @@ const DEFAULT_STATIONS = [
     image: '/images/ps2.jpg',
     badge: 'Retro Classic',
     shortInfo: 'Group games only (WWE, SmackDown etc.)',
-    pricing: { '1h': 30, '2h': 60, 'group': 20 },
+    pricing: { '30m': 15, '1h': 30, '2h': 60, 'group': 20 },
   },
   {
     id: 'ps3',
@@ -44,7 +51,7 @@ const DEFAULT_STATIONS = [
     image: '/images/ps3.jpg',
     badge: 'Co-op Favorite',
     shortInfo: 'HD Multiplayer & legendary classic titles',
-    pricing: { '1h': 40, '2h': 80, 'group': 30 },
+    pricing: { '30m': 20, '1h': 40, '2h': 80, 'group': 30 },
   },
   {
     id: 'ps4',
@@ -53,7 +60,7 @@ const DEFAULT_STATIONS = [
     image: '/images/ps4.jpg',
     badge: 'Pro 4K HDR',
     shortInfo: 'High-end gaming library & competitive sports',
-    pricing: { '1h': 50, '2h': 100, 'group': 40 },
+    pricing: { '30m': 30, '1h': 50, '2h': 100, 'group': 40 },
   },
   {
     id: 'ps5',
@@ -62,7 +69,7 @@ const DEFAULT_STATIONS = [
     image: '/images/ps5.jpg',
     badge: 'Next-Gen 120Hz',
     shortInfo: 'Ultra-fast SSD, 120 FPS & DualSense Haptics',
-    pricing: { '1h': 80, '2h': 160, 'group': 70 },
+    pricing: { '30m': 50, '1h': 80, '2h': 160, 'group': 70 },
   },
   {
     id: 'sim_racing',
@@ -71,7 +78,7 @@ const DEFAULT_STATIONS = [
     image: '/images/sim-racing.jpg',
     badge: 'Force Feedback',
     shortInfo: 'Pro racing wheel, metal pedals & cockpit seat',
-    pricing: { '1h': 150, '2h': 300, 'group': 80 },
+    pricing: { '30m': 80, '1h': 150, '2h': 300, 'group': 80 },
   },
 ];
 
@@ -96,8 +103,9 @@ const TIME_SLOTS = [
   '9:00 PM',
 ];
 
-/* ── DURATION OPTIONS (30m removed, 2h without free snacks promo) ── */
+/* ── DURATION OPTIONS (Matching Screenshot) ── */
 const DURATIONS = [
+  { id: '30m', label: '30 Min', durationHours: 0.5 },
   { id: '1h', label: '1 Hour', durationHours: 1 },
   { id: '2h', label: '2 Hours', durationHours: 2 },
   { id: 'group', label: 'Group', durationHours: 1 },
@@ -239,12 +247,44 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [bookingMode]);
 
+  // Step-by-Step Wizard State (1: Station, 2: Duration & Players, 3: Date & Slot, 4: Snacks, 5: Confirm)
+  const [bookingStep, setBookingStep] = useState(1);
+
   // Confirmation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+
+  // Snacks Add-On State
+  const [snackCategory, setSnackCategory] = useState('All');
+  const [snackCart, setSnackCart] = useState([]);
+
+  const handleAddSnack = (item) => {
+    setSnackCart((prev) => {
+      const existing = prev.find((i) => i.name === item.name);
+      if (existing) {
+        return prev.map((i) => (i.name === item.name ? { ...i, quantity: i.quantity + 1 } : i));
+      }
+      return [...prev, { ...item, quantity: 1 }];
+    });
+    toast.show(`Added ${item.name} to snacks!`, 'success');
+  };
+
+  const handleUpdateSnackQty = (itemName, delta) => {
+    setSnackCart((prev) => {
+      return prev
+        .map((i) => {
+          if (i.name === itemName) {
+            const newQty = i.quantity + delta;
+            return newQty > 0 ? { ...i, quantity: newQty } : null;
+          }
+          return i;
+        })
+        .filter(Boolean);
+    });
+  };
 
   // Sync selectedStationId with loaded stations from admin
   useEffect(() => {
@@ -339,6 +379,12 @@ export default function Home() {
   const pricePerPlayer = currentStation.pricing[duration] || currentStation.pricing['1h'];
   const totalAmount = pricePerPlayer * playerCount;
 
+  const snacksTotal = useMemo(() => {
+    return snackCart.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
+  }, [snackCart]);
+
+  const grandTotal = totalAmount + snacksTotal;
+
   // Compute End Time
   const calculateEndTime = (startTimeStr, durationType) => {
     try {
@@ -347,8 +393,8 @@ export default function Home() {
       if (modifier === 'PM' && hours < 12) hours += 12;
       if (modifier === 'AM' && hours === 12) hours = 0;
 
-      const durationHours = durationType === '2h' ? 2 : 1;
-      let totalMinutes = hours * 60 + minutes + durationHours * 60;
+      const durationMinutes = durationType === '30m' ? 30 : durationType === '2h' ? 120 : 60;
+      let totalMinutes = hours * 60 + minutes + durationMinutes;
       let endHours = Math.floor(totalMinutes / 60) % 24;
       let endMinutes = totalMinutes % 60;
 
@@ -365,7 +411,10 @@ export default function Home() {
 
   // Scroll to Booking Handler
   const scrollToBooking = (stationId) => {
-    if (stationId) setSelectedStationId(stationId);
+    if (stationId) {
+      setSelectedStationId(stationId);
+      setBookingStep(2);
+    }
     const el = document.getElementById('booking');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
@@ -398,11 +447,11 @@ export default function Home() {
     // Guard against expired or double-booked slots on submit
     if (bookingMode === 'slot') {
       if (isSlotPassed(selectedTime)) {
-        toast.error('Slot Expired (N/A)', 'हा स्लॉट वेळ आधीच संपला आहे. कृपया पुढील उपलब्ध स्लॉट निवडा.');
+        toast.error('Slot Expired (N/A)', 'This slot has already passed. Please choose the next available slot.');
         return;
       }
       if (isSlotBooked(selectedTime)) {
-        toast.error('Already Booked', 'हा स्लॉट आधीच बुक झालेला आहे. कृपया दुसरा स्लॉट निवडा.');
+        toast.error('Already Booked', 'This slot is already booked. Please choose another slot.');
         return;
       }
     }
@@ -429,7 +478,10 @@ export default function Home() {
       startTime: start24,
       endTime: end24,
       timeSlotRange: `${selectedTime} - ${formattedEndTime}`,
-      totalAmount,
+      gamingAmount: totalAmount,
+      snacksAmount: snacksTotal,
+      totalAmount: grandTotal,
+      foodItems: snackCart,
       bookingMode,
       isWalkIn: bookingMode === 'now',
       bookingTypeLabel: bookingMode === 'now' ? '⚡ Walk-In (Play Now)' : '📅 Advance Slot',
@@ -461,16 +513,21 @@ export default function Home() {
   const getWhatsAppBookingUrl = (booking) => {
     if (!booking) return '';
     const modeText = booking.isWalkIn ? '⚡ Walk-In / Play Right Now' : '📅 Advance Slot Booking';
+    let foodText = '';
+    if (booking.foodItems && booking.foodItems.length > 0) {
+      foodText = `\n🍔 *Snacks Ordered:* ` + booking.foodItems.map((i) => `${i.name} (x${i.quantity})`).join(', ') + ` (₹${booking.snacksAmount || 0})`;
+    }
     const message = `🎮 *New Booking from TS Gaming Cafe Website*
 🕹️ Type: ${modeText}
 👤 Name: ${booking.customerName}
 📞 Phone: ${booking.customerPhone}
-🎮 Station: ${booking.stationName} (${booking.stationFullName})
+🎮 Station: ${booking.stationName} (${booking.stationFullName || booking.stationName})
 👥 Players: ${booking.playerCount}
 ⏱️ Duration: ${booking.durationLabel}
 📅 Date: ${booking.date}
-⏰ Time: ${booking.timeSlotRange} ${booking.isWalkIn ? '(Starting Immediately)' : ''}
-💰 Total: ₹${booking.totalAmount}
+⏰ Time: ${booking.timeSlotRange} ${booking.isWalkIn ? '(Starting Immediately)' : ''}${foodText}
+💰 Gaming: ₹${booking.gamingAmount || booking.totalAmount}
+${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}🔥 *Grand Total: ₹${booking.totalAmount}*
 📍 Location: Waluj, Aurangabad`;
 
     return `https://wa.me/917972430951?text=${encodeURIComponent(message)}`;
@@ -627,316 +684,828 @@ export default function Home() {
       </section>
 
       {/* ============================================================
-          SECTION 4: BOOKING SECTION
+          SECTION 4: STEP-BY-STEP BOOKING WIZARD
           ============================================================ */}
-      <section className="section-booking" id="booking">
-        <div className="container">
-          <div className="booking-card">
-            <div className="section-header-tag booking-title-tag">
-              <Gamepad2 size={22} className="tag-icon" />
-              <h2>BOOK YOUR SESSION</h2>
+      <section className="section-booking wizard-section-wrap" id="booking">
+        <div className="container" style={{ maxWidth: '1360px', margin: '0 auto' }}>
+          <div className="wizard-card">
+            {/* Header with Title & Cafe Badge */}
+            <div className="section-header-tag booking-title-tag" style={{ marginBottom: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Gamepad2 size={26} style={{ color: '#ff5500' }} />
+                <h2 style={{ color: '#fff', fontSize: '1.75rem', fontWeight: 900, letterSpacing: '0.04em', margin: 0 }}>
+                  BOOK YOUR GAMING SESSION
+                </h2>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 800 }}>
+                ⚡ TS Gaming Cafe • Waluj, Sambhajinagar
+              </span>
             </div>
 
-            <div className="booking-layout">
-              {/* Left Column: Selection Form */}
-              <div className="booking-steps-col">
-
-                {/* ── Booking Mode Switcher: Play Now vs Advance Slot ── */}
-                <div className="booking-mode-selector">
-                  <label className="step-title" style={{ marginBottom: '10px' }}>
-                    Choose Booking Type
-                  </label>
-                  <div className="booking-mode-tabs">
-                    <button
-                      type="button"
-                      className={`booking-mode-tab ${bookingMode === 'now' ? 'booking-mode-tab--active-now' : ''}`}
-                      onClick={() => {
-                        setBookingMode('now');
-                        const today = new Date().toISOString().split('T')[0];
-                        setSelectedDate(today);
-                        setSelectedTime(getCurrentTime12h());
-                      }}
-                      id="mode-play-now-btn"
-                    >
-                      <span className="mode-tab-icon">⚡</span>
-                      <div className="mode-tab-text">
-                        <strong className="mode-tab-title">Play Right Now (Walk-In)</strong>
-                        <span className="mode-tab-subtitle">कॅफेमध्ये आहात? थेट चालू वेळेत लगेच खेळा</span>
-                      </div>
-                      <span className="mode-tab-badge mode-tab-badge--live">LIVE NOW</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`booking-mode-tab ${bookingMode === 'slot' ? 'booking-mode-tab--active-slot' : ''}`}
-                      onClick={() => {
-                        setBookingMode('slot');
-                        if (!TIME_SLOTS.includes(selectedTime)) {
-                          setSelectedTime('5:00 PM');
-                        }
-                      }}
-                      id="mode-advance-slot-btn"
-                    >
-                      <span className="mode-tab-icon">📅</span>
-                      <div className="mode-tab-text">
-                        <strong className="mode-tab-title">Book Advance Slot</strong>
-                        <span className="mode-tab-subtitle">आज पुढे किंवा उद्यासाठी वेळ निवडा</span>
-                      </div>
-                      <span className="mode-tab-badge mode-tab-badge--slot">SLOTS</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Step 1: Select Station */}
-                <div className="booking-step">
-                  <div className="step-badge">1</div>
-                  <div className="step-body">
-                    <label className="step-title">Select Station</label>
-                    <div className="step-station-selector">
-                      <div className="station-select-wrapper">
-                        <img
-                          src={currentStation.image}
-                          alt={currentStation.name}
-                          className="station-thumb"
-                        />
-                        <select
-                          value={selectedStationId}
-                          onChange={(e) => setSelectedStationId(e.target.value)}
-                          className="step-select-input"
-                          id="booking-station-select"
-                        >
-                          {stations.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} {s.fullName && s.fullName !== s.name ? `— ${s.fullName}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Step 2: Select Duration */}
-                <div className="booking-step">
-                  <div className="step-badge">2</div>
-                  <div className="step-body">
-                    <label className="step-title">Select Duration</label>
-                    <div className="duration-buttons-grid">
-                      {DURATIONS.map((d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          className={`duration-btn ${duration === d.id ? 'active' : ''}`}
-                          onClick={() => setDuration(d.id)}
-                        >
-                          <span>{d.label}</span>
-                          {d.promo && <span className="duration-promo-badge">{d.promo}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Step 3: Number of Players */}
-                <div className="booking-step">
-                  <div className="step-badge">3</div>
-                  <div className="step-body">
-                    <label className="step-title">Number of Players</label>
-                    <div className="players-counter-row">
-                      <div className="counter-box">
-                        <button
-                          type="button"
-                          className="counter-btn"
-                          onClick={() => setPlayerCount((p) => Math.max(1, p - 1))}
-                          disabled={playerCount <= 1}
-                        >
-                          -
-                        </button>
-                        <span className="counter-val">{playerCount}</span>
-                        <button
-                          type="button"
-                          className="counter-btn"
-                          onClick={() => setPlayerCount((p) => Math.min(8, p + 1))}
-                          disabled={playerCount >= 8}
-                        >
-                          +
-                        </button>
-                      </div>
-                      <span className="counter-hint">Price will be calculated automatically</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Conditional Step 4 & 5 based on Mode */}
-                {bookingMode === 'now' ? (
-                  /* ── Walk-in Live Time Box ── */
-                  <div className="walkin-instant-card">
-                    <div className="walkin-instant-card__top">
-                      <div className="walkin-instant-card__status">
-                        <span className="live-pulse-dot" />
-                        <strong>⚡ Starting Immediately (Live Time)</strong>
-                      </div>
-                      <span className="walkin-instant-card__badge">No Slot Waiting</span>
-                    </div>
-
-                    <div className="walkin-instant-card__times">
-                      <div className="walkin-time-block">
-                        <span className="walkin-time-label">Start Time (Now)</span>
-                        <span className="walkin-time-val">{selectedTime}</span>
-                        <span className="walkin-time-sub">Today ({formatDisplayDate(selectedDate)})</span>
-                      </div>
-                      <div className="walkin-arrow-block">
-                        <span>➜</span>
-                        <small>{DURATIONS.find((d) => d.id === duration)?.label}</small>
-                      </div>
-                      <div className="walkin-time-block">
-                        <span className="walkin-time-label">Session Ends</span>
-                        <span className="walkin-time-val text-orange">{formattedEndTime}</span>
-                        <span className="walkin-time-sub">Automatic timer on desk</span>
-                      </div>
-                    </div>
-
-                    <div className="walkin-instant-card__note">
-                      👍 <strong>Walk-in Gamer:</strong> थेट <strong>TS Gaming Cafe (Waluj)</strong> काउंटरवर जा. नाव सांगा आणि console लगेच ॲक्टिव्हेट होईल!
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Step 4: Select Date */}
-                    <div className="booking-step">
-                      <div className="step-badge">4</div>
-                      <div className="step-body">
-                        <label className="step-title">Select Date</label>
-                        <div className="date-input-wrap">
-                          <Calendar size={18} className="input-calendar-icon" />
-                          <input
-                            type="date"
-                            value={selectedDate}
-                            min={getTodayDateStr()}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="booking-date-input"
-                            id="booking-date-input"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Step 5: Select Time */}
-                    <div className="booking-step">
-                      <div className="step-badge">5</div>
-                      <div className="step-body">
-                        <div className="slot-header-flex">
-                          <label className="step-title" style={{ marginBottom: 0 }}>Select Time Slot</label>
-                          <div className="slot-legend-hint">
-                            <span className="legend-tag legend-tag--na">N/A = वेळ संपली</span>
-                            <span className="legend-tag legend-tag--booked">Booked = आधीच बुक</span>
-                          </div>
-                        </div>
-                        <div className="time-slots-grid">
-                          {TIME_SLOTS.map((slot) => {
-                            const isPassed = isSlotPassed(slot);
-                            const isBooked = isSlotBooked(slot);
-                            const isUnavailable = isPassed || isBooked;
-                            const isSelected = selectedTime === slot;
-
-                            let statusClass = '';
-                            if (isPassed) statusClass = 'time-slot-btn--passed';
-                            else if (isBooked) statusClass = 'time-slot-btn--booked';
-
-                            return (
-                              <button
-                                key={slot}
-                                type="button"
-                                className={`time-slot-btn ${statusClass} ${isSelected && !isUnavailable ? 'active' : ''}`}
-                                onClick={() => {
-                                  if (!isUnavailable) setSelectedTime(slot);
-                                }}
-                                disabled={isUnavailable}
-                                title={
-                                  isPassed
-                                    ? `${slot} (वेळ संपली - N/A)`
-                                    : isBooked
-                                    ? `${slot} (हा स्लॉट आधीच बुक आहे)`
-                                    : `${slot} बुक करा`
-                                }
-                              >
-                                <span className="time-slot-label">{slot}</span>
-                                {isPassed && <span className="slot-badge slot-badge--na">N/A</span>}
-                                {isBooked && !isPassed && <span className="slot-badge slot-badge--booked">Booked</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Right Column: Booking Summary Card */}
-              <div className="booking-summary-col">
-                <div className="summary-card">
-                  <h3 className="summary-card__header">Booking Summary</h3>
-
-                  <div className="summary-station-preview">
-                    <img
-                      src={currentStation.image}
-                      alt={currentStation.name}
-                      className="summary-console-img"
-                    />
-                    <div className="summary-meta">
-                      <h4 className="summary-station-title">{currentStation.name}</h4>
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        background: bookingMode === 'now' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 85, 0, 0.12)',
-                        color: bookingMode === 'now' ? '#16a34a' : '#ff5500',
-                        border: bookingMode === 'now' ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 85, 0, 0.25)',
-                        marginBottom: '6px'
-                      }}>
-                        {bookingMode === 'now' ? '⚡ Walk-In (Play Now)' : '📅 Advance Slot'}
-                      </div>
-                      <p className="summary-item">
-                        <Users size={14} /> {playerCount} {playerCount === 1 ? 'Player' : 'Players'}
-                      </p>
-                      <p className="summary-item">
-                        <Clock size={14} /> {DURATIONS.find((d) => d.id === duration)?.label}
-                      </p>
-                      <p className="summary-item">
-                        <Calendar size={14} /> {formatDisplayDate(selectedDate)}
-                      </p>
-                      <p className="summary-item">
-                        ⏰ {selectedTime} - {formattedEndTime} {bookingMode === 'now' && '(Starting Now)'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="summary-divider" />
-
-                  <div className="summary-total-row">
-                    <span className="total-label">Total Amount</span>
-                    <span className="total-amount">₹{totalAmount}</span>
-                  </div>
-
+            {/* ── 5-Step Stepper Navigation Bar ── */}
+            <div className="wizard-stepper-nav">
+              {[
+                { step: 1, title: 'Console', sub: 'Select Station' },
+                { step: 2, title: 'Duration & Squad', sub: 'Time & Players' },
+                { step: 3, title: 'Date & Slot', sub: 'Choose Time' },
+                { step: 4, title: 'Cafe Food', sub: 'Snacks Add-on' },
+                { step: 5, title: 'Confirm', sub: 'Review & Slip' },
+              ].map((s) => {
+                const isActive = bookingStep === s.step;
+                const isCompleted = bookingStep > s.step;
+                return (
                   <button
-                    className="summary-confirm-btn"
-                    onClick={() => {
-                      setConfirmedBooking(null);
-                      setIsModalOpen(true);
-                    }}
-                    id="confirm-booking-open-modal-btn"
+                    key={s.step}
+                    type="button"
+                    onClick={() => setBookingStep(s.step)}
+                    className={`wizard-step-tab ${isActive ? 'wizard-step-tab--active' : ''} ${isCompleted ? 'wizard-step-tab--completed' : ''}`}
                   >
-                    <span>Confirm Booking</span>
+                    <div className="wizard-step-badge">
+                      {isCompleted ? '✓' : s.step}
+                    </div>
+                    <div className="wizard-step-info">
+                      <span className="wizard-step-num-label">Step {s.step}</span>
+                      <span className="wizard-step-title">{s.title}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Progress Bar ── */}
+            <div className="wizard-progress-bar-wrap">
+              <div
+                className="wizard-progress-bar-fill"
+                style={{ width: `${(bookingStep / 5) * 100}%` }}
+              />
+            </div>
+
+            {/* ====================================================
+                STEP 1: CHOOSE CONSOLE / STATION
+                ==================================================== */}
+            {bookingStep === 1 && (
+              <div className="wizard-step-pane">
+                <div className="wizard-step-header">
+                  <div className="wizard-step-header-left">
+                    <span className="wizard-step-pill-tag">Step 1 of 5</span>
+                    <h3 className="wizard-step-heading">Choose Your Gaming Station</h3>
+                    <p className="wizard-step-subtext">
+                      Select your preferred console setup from PS2 retro classic to PS5 next-gen and Racing Simulator.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stations Grid */}
+                <div className="wizard-stations-grid">
+                  {stations.map((station) => {
+                    const isSelected = selectedStationId === station.id;
+                    const startingPrice = station.pricing?.['1h'] || station.pricing?.['30m'] || 40;
+                    return (
+                      <div
+                        key={station.id}
+                        className={`wizard-station-card ${isSelected ? 'wizard-station-card--active' : ''}`}
+                        onClick={() => setSelectedStationId(station.id)}
+                      >
+                        <div className="wizard-station-card-img-wrap">
+                          <img
+                            src={station.image}
+                            alt={station.name}
+                            className="wizard-station-card-img"
+                            onError={(e) => { e.target.src = '/images/ps5.jpg'; }}
+                          />
+                          {station.badge && (
+                            <span className="wizard-station-badge">{station.badge}</span>
+                          )}
+                        </div>
+
+                        <div className="wizard-station-card-title">{station.name}</div>
+                        <div className="wizard-station-card-spec">{station.shortInfo || station.fullName}</div>
+
+                        <div className="wizard-station-card-footer">
+                          <span className="wizard-station-price">₹{startingPrice}/hr</span>
+                          <button
+                            type="button"
+                            className="wizard-station-check-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStationId(station.id);
+                              setBookingStep(2);
+                            }}
+                          >
+                            {isSelected ? 'Selected ✓' : 'Select'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Step 1 Footer Navigation */}
+                <div className="wizard-nav-actions" style={{ justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '0.88rem', color: '#cbd5e1' }}>
+                    🎮 Selected Console: <strong style={{ color: '#fff' }}>{currentStation.name}</strong> ({currentStation.badge || 'Available'})
+                  </div>
+                  <button
+                    type="button"
+                    className="wizard-btn-next"
+                    onClick={() => setBookingStep(2)}
+                  >
+                    <span>Continue to Duration & Squad (Step 2)</span>
                     <ChevronRight size={18} />
                   </button>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* ====================================================
+                STEP 2: SELECT DURATION & NUMBER OF PLAYERS
+                ==================================================== */}
+            {bookingStep === 2 && (
+              <div className="wizard-step-pane">
+                <div className="wizard-step-header">
+                  <div className="wizard-step-header-left">
+                    <span className="wizard-step-pill-tag">Step 2 of 5</span>
+                    <h3 className="wizard-step-heading">Select Session Time & Squad Size</h3>
+                    <p className="wizard-step-subtext">
+                      Choose how long you want to play and how many gamers are in your squad.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Summary Ribbon */}
+                <div className="wizard-summary-ribbon">
+                  <div className="wizard-summary-ribbon-items">
+                    <div className="wizard-summary-ribbon-item">
+                      <span>🎮 Console:</span>
+                      <strong>{currentStation.name} ({currentStation.badge || 'Setup'})</strong>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBookingStep(1)}
+                      style={{ background: 'transparent', border: 'none', color: '#ff8800', cursor: 'pointer', fontSize: '0.78rem', textDecoration: 'underline' }}
+                    >
+                      Change Console
+                    </button>
+                  </div>
+                  <div className="wizard-summary-ribbon-price">
+                    Gaming Subtotal: ₹{totalAmount}
+                  </div>
+                </div>
+
+                {/* Duration Selection */}
+                <div style={{ marginBottom: '1.6rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800, color: '#fff', marginBottom: 10 }}>
+                    ⏱️ Select Playing Duration:
+                  </label>
+                  <div className="wizard-options-grid">
+                    {DURATIONS.map((d) => {
+                      const isSel = duration === d.id;
+                      const rate = currentStation.pricing?.[d.id] || (d.id === '30m' ? Math.round(pricePerPlayer / 2) : pricePerPlayer);
+                      return (
+                        <div
+                          key={d.id}
+                          className={`wizard-option-card ${isSel ? 'wizard-option-card--active' : ''}`}
+                          onClick={() => setDuration(d.id)}
+                        >
+                          <div className="wizard-option-card-title">
+                            <span>{d.label}</span>
+                            {isSel && <Check size={16} color="#ff5500" />}
+                          </div>
+                          <div className="wizard-option-card-desc">
+                            {d.id === '30m' ? 'Quick Warmup / Blitz' : d.id === '1h' ? 'Standard (Most Popular)' : d.id === '2h' ? 'Marathon (Best Value)' : 'Special Squad Pass'}
+                          </div>
+                          <div className="wizard-option-card-price">
+                            ₹{rate} / player
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Squad Size Selection */}
+                <div style={{ marginBottom: '1.2rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800, color: '#fff', marginBottom: 10 }}>
+                    👥 Select Number of Players (Controllers):
+                  </label>
+                  <div className="wizard-options-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+                    {[
+                      { count: 1, label: '1 Player', sub: 'Solo Champion' },
+                      { count: 2, label: '2 Players', sub: 'Duo / 1v1 Battle' },
+                      { count: 3, label: '3 Players', sub: 'Trio Squad' },
+                      { count: 4, label: '4 Players', sub: 'Full Squad Co-op' },
+                      { count: 5, label: '5+ Players', sub: 'Group Party' },
+                    ].map((p) => {
+                      const isSel = playerCount === p.count || (p.count === 5 && playerCount >= 5);
+                      return (
+                        <div
+                          key={p.count}
+                          className={`wizard-option-card ${isSel ? 'wizard-option-card--active' : ''}`}
+                          onClick={() => setPlayerCount(p.count)}
+                        >
+                          <div className="wizard-option-card-title">
+                            <span>{p.label}</span>
+                            {isSel && <Check size={16} color="#ff5500" />}
+                          </div>
+                          <div className="wizard-option-card-desc">{p.sub}</div>
+                          <div className="wizard-option-card-price">
+                            Total: ₹{pricePerPlayer * p.count}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Step 2 Footer Navigation */}
+                <div className="wizard-nav-actions">
+                  <button
+                    type="button"
+                    className="wizard-btn-back"
+                    onClick={() => setBookingStep(1)}
+                  >
+                    ⬅ Back to Consoles
+                  </button>
+                  <button
+                    type="button"
+                    className="wizard-btn-next"
+                    onClick={() => setBookingStep(3)}
+                  >
+                    <span>Continue to Date & Time Slot (Step 3)</span>
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ====================================================
+                STEP 3: SELECT DATE & TIME SLOT
+                ==================================================== */}
+            {bookingStep === 3 && (
+              <div className="wizard-step-pane">
+                <div className="wizard-step-header">
+                  <div className="wizard-step-header-left">
+                    <span className="wizard-step-pill-tag">Step 3 of 5</span>
+                    <h3 className="wizard-step-heading">Select Date & Available Time Slot</h3>
+                    <p className="wizard-step-subtext">
+                      Choose when you want to play. Slots are updated in real-time.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Summary Ribbon */}
+                <div className="wizard-summary-ribbon">
+                  <div className="wizard-summary-ribbon-items">
+                    <div className="wizard-summary-ribbon-item">
+                      <span>🎮 Console:</span>
+                      <strong>{currentStation.name}</strong>
+                    </div>
+                    <div className="wizard-summary-ribbon-item">
+                      <span>⏱️ Duration:</span>
+                      <strong>{DURATIONS.find((d) => d.id === duration)?.label}</strong>
+                    </div>
+                    <div className="wizard-summary-ribbon-item">
+                      <span>👥 Players:</span>
+                      <strong>{playerCount}</strong>
+                    </div>
+                  </div>
+                  <div className="wizard-summary-ribbon-price">
+                    Gaming: ₹{totalAmount}
+                  </div>
+                </div>
+
+                {/* Date Selection Row */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  marginBottom: '1.5rem',
+                  flexWrap: 'wrap',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  padding: '12px 16px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Calendar size={18} color="#ff5500" />
+                    <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fff' }}>Select Date:</span>
+                  </div>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    min={getTodayDateStr()}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="ts-dash-date-select"
+                    style={{ background: '#0a0d16', border: '1px solid rgba(255, 85, 0, 0.3)', color: '#fff', padding: '6px 12px', borderRadius: 8 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="ts-dash-pill"
+                      onClick={() => setSelectedDate(getTodayDateStr())}
+                      style={{ fontSize: '0.78rem' }}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      className="ts-dash-pill"
+                      onClick={() => {
+                        const tm = new Date();
+                        tm.setDate(tm.getDate() + 1);
+                        setSelectedDate(tm.toISOString().split('T')[0]);
+                      }}
+                      style={{ fontSize: '0.78rem' }}
+                    >
+                      Tomorrow
+                    </button>
+                  </div>
+                </div>
+
+                {/* Available Slots Header */}
+                <div className="ts-dash-slots-header" style={{ marginBottom: 12 }}>
+                  <div className="ts-dash-slots-title">
+                    <Clock size={16} style={{ color: '#ff5500' }} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff' }}>
+                      Available Time Slots ({currentStation.name})
+                    </span>
+                  </div>
+                  <div className="ts-dash-slots-legend">
+                    <span><span className="ts-dash-legend-dot ts-dash-legend-dot--green"></span> Available</span>
+                    <span><span className="ts-dash-legend-dot ts-dash-legend-dot--red"></span> Booked / Passed</span>
+                    <span><span className="ts-dash-legend-dot ts-dash-legend-dot--orange"></span> Selected</span>
+                  </div>
+                </div>
+
+                {/* 15 Time Slots Grid */}
+                <div className="ts-dash-slots-grid" style={{ marginBottom: '1.5rem' }}>
+                  {TIME_SLOTS.map((slot12) => {
+                    const isPassed = isSlotPassed(slot12);
+                    const isBooked = isSlotBooked(slot12);
+                    const isUnavailable = isPassed || isBooked;
+                    const isSelected = selectedTime === slot12;
+
+                    let slotClass = 'ts-dash-slot-badge--available';
+                    let statusText = 'Available';
+                    let dotClass = 'ts-dash-legend-dot--green';
+
+                    if (isUnavailable) {
+                      slotClass = 'ts-dash-slot-badge--booked';
+                      statusText = isPassed ? 'Passed' : 'Booked';
+                      dotClass = 'ts-dash-legend-dot--red';
+                    } else if (isSelected) {
+                      slotClass = 'ts-dash-slot-badge--selected';
+                      statusText = 'Selected';
+                      dotClass = 'ts-dash-legend-dot--orange';
+                    }
+
+                    return (
+                      <button
+                        key={slot12}
+                        type="button"
+                        disabled={isUnavailable}
+                        className={`ts-dash-slot-badge ${slotClass}`}
+                        onClick={() => {
+                          if (!isUnavailable) setSelectedTime(slot12);
+                        }}
+                      >
+                        <span className={`ts-dash-legend-dot ${dotClass}`}></span>
+                        <span>{slot12}</span>
+                        <span style={{ fontSize: '0.65rem', opacity: 0.85, marginLeft: 'auto' }}>
+                          {statusText}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected Slot Highlight Box */}
+                <div style={{
+                  padding: '12px 18px',
+                  borderRadius: 10,
+                  background: 'rgba(255, 85, 0, 0.08)',
+                  border: '1px solid rgba(255, 85, 0, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}>
+                  <div style={{ fontSize: '0.86rem', color: '#cbd5e1' }}>
+                    ⏰ Selected Time Slot: <strong style={{ color: '#fff' }}>{selectedTime} - {formattedEndTime}</strong> on <strong>{formatDisplayDate(selectedDate)}</strong>
+                  </div>
+                  <span style={{ fontSize: '0.85rem', color: '#4ade80', fontWeight: 800 }}>
+                    ✓ Ready to Reserve
+                  </span>
+                </div>
+
+                {/* Step 3 Footer Navigation */}
+                <div className="wizard-nav-actions">
+                  <button
+                    type="button"
+                    className="wizard-btn-back"
+                    onClick={() => setBookingStep(2)}
+                  >
+                    ⬅ Back to Duration & Players
+                  </button>
+                  <button
+                    type="button"
+                    className="wizard-btn-next"
+                    onClick={() => setBookingStep(4)}
+                  >
+                    <span>Continue to Snacks & Drinks (Step 4)</span>
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ====================================================
+                STEP 4: CAFE FOOD & DRINKS (OPTIONAL ADD-ON)
+                ==================================================== */}
+            {bookingStep === 4 && (
+              <div className="wizard-step-pane">
+                <div className="wizard-step-header">
+                  <div className="wizard-step-header-left">
+                    <span className="wizard-step-pill-tag">Step 4 of 5 (Optional)</span>
+                    <h3 className="wizard-step-heading">Level Up with Cafe Food & Drinks 🍕🥤</h3>
+                    <p className="wizard-step-subtext">
+                      Freshly prepared hot snacks and chilled cold drinks served right at your gaming chair! (You can skip this step).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Summary Ribbon */}
+                <div className="wizard-summary-ribbon">
+                  <div className="wizard-summary-ribbon-items">
+                    <div className="wizard-summary-ribbon-item">
+                      <span>🎮 Gaming:</span>
+                      <strong>{currentStation.name} ({selectedTime} - {formattedEndTime})</strong>
+                    </div>
+                    <div className="wizard-summary-ribbon-item">
+                      <span>Gaming Total:</span>
+                      <strong style={{ color: '#fff' }}>₹{totalAmount}</strong>
+                    </div>
+                    {snacksTotal > 0 && (
+                      <div className="wizard-summary-ribbon-item">
+                        <span>🍔 Snacks:</span>
+                        <strong style={{ color: '#ff8800' }}>+₹{snacksTotal}</strong>
+                      </div>
+                    )}
+                  </div>
+                  <div className="wizard-summary-ribbon-price">
+                    Subtotal: ₹{grandTotal}
+                  </div>
+                </div>
+
+                {/* Food Category Tabs */}
+                <div className="ts-dash-food-filters" style={{ marginBottom: 14 }}>
+                  {['All', 'Pizza', 'Burger', 'Snacks', 'Drinks', 'Desserts'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`ts-dash-food-tab ${snackCategory === cat ? 'ts-dash-food-tab--active' : ''}`}
+                      onClick={() => setSnackCategory(cat)}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Food Grid */}
+                <div className="wizard-food-grid">
+                  {foodItems
+                    .filter((item) => snackCategory === 'All' || (item.category || '').toLowerCase().includes(snackCategory.toLowerCase()))
+                    .map((item) => {
+                      const inCart = snackCart.find((i) => i.name === item.name);
+                      return (
+                        <div key={item.id || item.name} className="wizard-food-card">
+                          <img
+                            src={item.image || '/images/more-items.jpg'}
+                            alt={item.name}
+                            className="wizard-food-card-img"
+                            onError={(e) => { e.target.src = '/images/more-items.jpg'; }}
+                          />
+                          <span className="wizard-food-card-name">{item.name}</span>
+                          <span className="wizard-food-card-price">₹{item.price}</span>
+
+                          <div className="wizard-food-btn-wrap">
+                            {inCart ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  className="wizard-food-qty-btn"
+                                  onClick={() => handleUpdateSnackQty(item.name, -1)}
+                                >
+                                  -
+                                </button>
+                                <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#fff' }}>
+                                  {inCart.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="wizard-food-qty-btn"
+                                  onClick={() => handleUpdateSnackQty(item.name, 1)}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="wizard-btn-next"
+                                style={{ padding: '5px 14px', fontSize: '0.78rem', borderRadius: 6 }}
+                                onClick={() => handleAddSnack(item)}
+                              >
+                                + Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Active Snacks Cart Bar */}
+                {snackCart.length > 0 && (
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    background: 'rgba(255, 85, 0, 0.08)',
+                    border: '1px solid rgba(255, 85, 0, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                    marginBottom: '1rem',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: '0.88rem', color: '#fff' }}>
+                        🛒 Added Snacks ({snackCart.reduce((s, i) => s + i.quantity, 0)}):
+                      </strong>
+                      <span style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                        {snackCart.map((i) => `${i.name} (x${i.quantity})`).join(', ')}
+                      </span>
+                    </div>
+                    <span style={{ fontWeight: 800, color: '#4ade80', fontSize: '0.95rem' }}>
+                      Snacks Total: ₹{snacksTotal}
+                    </span>
+                  </div>
+                )}
+
+                {/* Step 4 Footer Navigation */}
+                <div className="wizard-nav-actions">
+                  <button
+                    type="button"
+                    className="wizard-btn-back"
+                    onClick={() => setBookingStep(3)}
+                  >
+                    ⬅ Back to Time Slots
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {snackCart.length === 0 ? (
+                      <button
+                        type="button"
+                        className="wizard-btn-skip"
+                        onClick={() => setBookingStep(5)}
+                      >
+                        Skip Snacks & Checkout ➜
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="wizard-btn-next"
+                        onClick={() => setBookingStep(5)}
+                      >
+                        <span>Continue with Snacks (₹{grandTotal})</span>
+                        <ChevronRight size={18} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ====================================================
+                STEP 5: REVIEW BOOKING & INSTANT CONFIRMATION
+                ==================================================== */}
+            {bookingStep === 5 && (
+              <div className="wizard-step-pane">
+                <div className="wizard-step-header">
+                  <div className="wizard-step-header-left">
+                    <span className="wizard-step-pill-tag">Step 5 of 5</span>
+                    <h3 className="wizard-step-heading">Review & Instant Confirmation</h3>
+                    <p className="wizard-step-subtext">
+                      Verify your session details. Enter your contact info to receive an instant WhatsApp booking slip.
+                    </p>
+                  </div>
+                </div>
+
+                {/* If already confirmed */}
+                {confirmedBooking ? (
+                  <div className="modal-success-view" style={{ maxWidth: 650, margin: '0 auto', padding: '2.5rem' }}>
+                    <div className="success-badge" style={{ fontSize: '3rem', marginBottom: 12 }}>✅</div>
+                    <h3 className="modal-title" style={{ fontSize: '1.6rem', color: '#fff', marginBottom: 8 }}>
+                      Booking Confirmed!
+                    </h3>
+                    <p className="modal-subtitle" style={{ color: '#cbd5e1', marginBottom: 20 }}>
+                      Thank you, <strong>{confirmedBooking.customerName}</strong>! Your gaming station for <strong>{confirmedBooking.stationName}</strong> has been successfully reserved.
+                    </p>
+
+                    <div className="confirmed-details-box" style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 85, 0, 0.3)', borderRadius: 12, padding: 18, marginBottom: 20 }}>
+                      <div className="detail-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span>Station:</span> <strong>{confirmedBooking.stationName}</strong>
+                      </div>
+                      <div className="detail-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span>Date & Time:</span> <strong>{confirmedBooking.date} ({confirmedBooking.timeSlotRange})</strong>
+                      </div>
+                      <div className="detail-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span>Players:</span> <strong>{confirmedBooking.playerCount}</strong>
+                      </div>
+                      <div className="detail-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span>Gaming Charge:</span> <strong>₹{confirmedBooking.gamingAmount || confirmedBooking.totalAmount}</strong>
+                      </div>
+                      {confirmedBooking.snacksAmount > 0 && (
+                        <div className="detail-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span>Snacks:</span> <strong>{confirmedBooking.foodItems?.map((f) => `${f.name} x${f.quantity}`).join(', ')} (₹{confirmedBooking.snacksAmount})</strong>
+                        </div>
+                      )}
+                      <div className="detail-line" style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, fontSize: '1.15rem' }}>
+                        <span>Grand Total:</span> <strong style={{ color: '#ff5500' }}>₹{confirmedBooking.totalAmount}</strong>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: 8 }}>
+                        📍 TS GAMING CAFE, Waluj, Sambhajinagar • Pay at Counter
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <a
+                        href={getWhatsAppBookingUrl(confirmedBooking)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="whatsapp-btn"
+                        style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 10, fontWeight: 800 }}
+                      >
+                        <MessageCircle size={20} />
+                        <span>Send Slip on WhatsApp</span>
+                      </a>
+                      <button
+                        type="button"
+                        className="wizard-btn-back"
+                        onClick={() => {
+                          setConfirmedBooking(null);
+                          setBookingStep(1);
+                        }}
+                      >
+                        Book Another Session 🔄
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleConfirmBookingSubmit} className="wizard-checkout-grid">
+                    {/* Left: Transparent Cyberpunk Ticket / Receipt */}
+                    <div className="wizard-ticket-card">
+                      <div className="wizard-ticket-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Receipt size={18} color="#ff5500" />
+                          <strong style={{ color: '#fff', fontSize: '1rem', letterSpacing: '0.04em' }}>
+                            BOOKING SUMMARY SLIP
+                          </strong>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 800 }}>
+                          ⚡ Pay at Counter
+                        </span>
+                      </div>
+
+                      <div className="wizard-ticket-row">
+                        <span>🎮 Station Setup:</span>
+                        <strong>{currentStation.name} ({currentStation.badge || 'Console'})</strong>
+                      </div>
+                      <div className="wizard-ticket-row">
+                        <span>⏱️ Session Duration:</span>
+                        <strong>{DURATIONS.find((d) => d.id === duration)?.label}</strong>
+                      </div>
+                      <div className="wizard-ticket-row">
+                        <span>👥 Number of Players:</span>
+                        <strong>{playerCount} Gamer(s)</strong>
+                      </div>
+                      <div className="wizard-ticket-row">
+                        <span>📅 Booking Date:</span>
+                        <strong>{formatDisplayDate(selectedDate)}</strong>
+                      </div>
+                      <div className="wizard-ticket-row">
+                        <span>⏰ Time Slot:</span>
+                        <strong style={{ color: '#ff8800' }}>{selectedTime} - {formattedEndTime}</strong>
+                      </div>
+                      <div className="wizard-ticket-row">
+                        <span>🎮 Gaming Subtotal:</span>
+                        <strong style={{ color: '#4ade80' }}>₹{totalAmount}</strong>
+                      </div>
+                      {snacksTotal > 0 && (
+                        <div className="wizard-ticket-row">
+                          <span>🍔 Snacks & Drinks:</span>
+                          <strong style={{ color: '#ff8800' }}>
+                            {snackCart.map((i) => `${i.name} x${i.quantity}`).join(', ')} (₹{snacksTotal})
+                          </strong>
+                        </div>
+                      )}
+                      <div className="wizard-ticket-row">
+                        <span>📍 Cafe Location:</span>
+                        <span>Waluj, Sambhajinagar</span>
+                      </div>
+
+                      <div className="wizard-ticket-total-row">
+                        <span>Total to Pay:</span>
+                        <span style={{ color: '#4ade80' }}>₹{grandTotal}</span>
+                      </div>
+                    </div>
+
+                    {/* Right: Customer Details Form & Confirmation */}
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.025)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 16,
+                      padding: 22,
+                    }}>
+                      <h4 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 900, marginBottom: 14 }}>
+                        Customer Details
+                      </h4>
+
+                      <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: 'block', fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 700, marginBottom: 6 }}>
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Your name"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          className="modal-input"
+                          style={{
+                            width: '100%',
+                            background: '#070a12',
+                            border: '1px solid rgba(255, 85, 0, 0.3)',
+                            color: '#fff',
+                            padding: '12px 14px',
+                            borderRadius: 10,
+                            fontSize: '0.9rem',
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ display: 'block', fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 700, marginBottom: 6 }}>
+                          Mobile / WhatsApp Number *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="e.g. 7972430951"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          className="modal-input"
+                          style={{
+                            width: '100%',
+                            background: '#070a12',
+                            border: '1px solid rgba(255, 85, 0, 0.3)',
+                            color: '#fff',
+                            padding: '12px 14px',
+                            borderRadius: 10,
+                            fontSize: '0.9rem',
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="wizard-btn-next"
+                        style={{
+                          width: '100%',
+                          padding: '14px',
+                          justifyContent: 'center',
+                          fontSize: '1rem',
+                        }}
+                      >
+                        {isSubmitting ? 'Reserving Slot...' : `Confirm & Pay ₹${grandTotal} at Cafe ➔`}
+                      </button>
+
+                      <div style={{ textAlign: 'center', marginTop: 14 }}>
+                        <button
+                          type="button"
+                          onClick={() => setBookingStep(4)}
+                          style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                          ⬅ Back to Edit Snacks (Step 4)
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -1064,7 +1633,7 @@ export default function Home() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rahul Sharma"
+                    placeholder="e.g. Your name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="modal-input"
@@ -1077,7 +1646,7 @@ export default function Home() {
                   <input
                     type="tel"
                     required
-                    placeholder="e.g. 7972430951"
+                    placeholder="e.g. 9000000000"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="modal-input"
@@ -1090,7 +1659,7 @@ export default function Home() {
                   className="modal-submit-btn"
                   id="final-confirm-booking-btn"
                 >
-                  {isSubmitting ? 'Confirming...' : `Confirm & Pay ₹${totalAmount} at Cafe`}
+                  {isSubmitting ? 'Confirming...' : `Confirm & Pay ₹${grandTotal} at Cafe`}
                 </button>
               </form>
             ) : (
@@ -1111,8 +1680,13 @@ export default function Home() {
                   <div className="detail-line">
                     <span>Players:</span> <strong>{confirmedBooking.playerCount}</strong>
                   </div>
+                  {confirmedBooking.snacksAmount > 0 && (
+                    <div className="detail-line">
+                      <span>Snacks:</span> <strong>{confirmedBooking.foodItems?.map((f) => `${f.name} x${f.quantity}`).join(', ')} (₹{confirmedBooking.snacksAmount})</strong>
+                    </div>
+                  )}
                   <div className="detail-line">
-                    <span>Total Amount:</span> <strong className="text-orange">₹{confirmedBooking.totalAmount}</strong>
+                    <span>Grand Total:</span> <strong className="text-orange">₹{confirmedBooking.totalAmount}</strong>
                   </div>
                   <div className="detail-line">
                     <span>Location:</span> <strong>TS GAMING CAFE, Waluj</strong>

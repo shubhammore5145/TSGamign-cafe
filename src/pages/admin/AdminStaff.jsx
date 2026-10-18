@@ -33,6 +33,7 @@ import {
   Table,
 } from 'lucide-react';
 import './Admin.css';
+import './AdminStaff.css';
 
 const ROLES = [
   'Counter Operator',
@@ -246,26 +247,29 @@ export default function AdminStaff() {
   });
 
   const activeCount = staffList.filter((s) => s.status === 'active').length;
+  const inactiveCount = staffList.length - activeCount;
 
   return (
-    <div style={{ maxWidth: 1240, margin: '0 auto' }}>
+    <div className="admin-staff-page" style={{ maxWidth: 1240, margin: '0 auto' }}>
       {/* Page Header */}
-      <div className="admin-section-header" style={{ flexWrap: 'wrap', gap: 12, marginBottom: 'var(--space-md)' }}>
-        <div>
+      <div className="admin-section-header staff-page-header" style={{ flexWrap: 'wrap', gap: 12, marginBottom: 'var(--space-md)' }}>
+        <div className="staff-page-heading">
+          <span className="staff-page-eyebrow">TEAM OVERVIEW</span>
           <h2 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Users size={24} style={{ color: 'var(--color-primary)' }} />
-            Staff Management & Collection Report
+            Staff management
           </h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
-            कर्मचाऱ्यांची यादी, शिफ्ट, लॉगिन PIN आणि प्रत्येकाने केलेल्या बुकिंग्स व कलेक्शनचा हिशोब.
+          <p className="staff-page-description">
+            Manage staff accounts, shifts and login access. Review bookings and payments collected below.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="staff-page-actions" style={{ display: 'flex', gap: 8 }}>
           {/* Tab Switcher: Cards vs Report Table */}
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: 3, borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="staff-view-switcher" style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: 3, borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <button
               onClick={() => setViewTab('cards')}
+              aria-pressed={viewTab === 'cards'}
               style={{
                 padding: '6px 12px',
                 borderRadius: 'var(--radius-xs)',
@@ -280,10 +284,11 @@ export default function AdminStaff() {
                 gap: 5,
               }}
             >
-              <LayoutGrid size={13} /> Staff Cards
+              <LayoutGrid size={13} /> Staff directory
             </button>
             <button
               onClick={() => setViewTab('report')}
+              aria-pressed={viewTab === 'report'}
               style={{
                 padding: '6px 12px',
                 borderRadius: 'var(--radius-xs)',
@@ -298,7 +303,7 @@ export default function AdminStaff() {
                 gap: 5,
               }}
             >
-              <Table size={13} /> Collection Report (हिशोब)
+              <Table size={13} /> Performance report
             </button>
           </div>
 
@@ -307,19 +312,14 @@ export default function AdminStaff() {
             className="btn btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <UserPlus size={16} /> Add New Staff
+            <UserPlus size={16} /> Add staff member
           </button>
         </div>
       </div>
 
       {/* Summary KPI Bar */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 'var(--space-md)',
-        marginBottom: 'var(--space-lg)',
-      }}>
-        <div className="glass" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="staff-summary-grid">
+        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 44,
             height: 44,
@@ -333,12 +333,13 @@ export default function AdminStaff() {
             <Users size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>{staffList.length}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>Total Staff ({activeCount} Active)</div>
+            <div className="staff-summary-value" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>{staffList.length}</div>
+            <div className="staff-summary-label">Staff members</div>
+            <div className="staff-summary-note">{activeCount} active · {inactiveCount} inactive</div>
           </div>
         </div>
 
-        <div className="glass" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 44,
             height: 44,
@@ -355,13 +356,14 @@ export default function AdminStaff() {
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>
               ₹{overallTotals.todayCollection}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>
-              आजचे स्टाफ कलेक्शन ({overallTotals.todayCount} Bookings)
+            <div className="staff-summary-label">
+              Collected today
             </div>
+            <div className="staff-summary-note">From {overallTotals.todayCount} bookings</div>
           </div>
         </div>
 
-        <div className="glass" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 44,
             height: 44,
@@ -376,15 +378,14 @@ export default function AdminStaff() {
           </div>
           <div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b' }}>
-              ₹{overallTotals.todayCash} <span style={{ fontSize: '0.8rem', color: 'var(--color-text-dim)', fontWeight: 500 }}>Cash</span>
+              ₹{overallTotals.todayCash}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>
-              UPI: ₹{overallTotals.todayUpi}
-            </div>
+            <div className="staff-summary-label">Cash received today</div>
+            <div className="staff-summary-note">UPI received: ₹{overallTotals.todayUpi}</div>
           </div>
         </div>
 
-        <div className="glass" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 44,
             height: 44,
@@ -401,9 +402,8 @@ export default function AdminStaff() {
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--color-accent)' }}>
               ₹{overallTotals.allTimeCollection}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>
-              एकूण ऑल-टाईम कलेक्शन ({overallTotals.allTimeCount} Bookings)
-            </div>
+            <div className="staff-summary-label">Collected all time</div>
+            <div className="staff-summary-note">Across {overallTotals.allTimeCount} bookings</div>
           </div>
         </div>
       </div>
@@ -412,7 +412,7 @@ export default function AdminStaff() {
       {viewTab === 'cards' && (
         <>
           {/* Search and Filters */}
-          <div className="glass" style={{
+          <div className="glass staff-filter-bar" style={{
             padding: 'var(--space-md)',
             marginBottom: 'var(--space-xl)',
             display: 'flex',
@@ -427,13 +427,13 @@ export default function AdminStaff() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name, phone or role..."
+                placeholder="Search staff by name, phone or role"
                 className="form-input"
                 style={{ paddingLeft: 38, height: 38, fontSize: '0.85rem' }}
               />
             </div>
 
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div className="staff-status-filters" style={{ display: 'flex', gap: 6 }}>
               {['all', 'active', 'inactive'].map((tab) => (
                 <button
                   key={tab}
@@ -455,9 +455,13 @@ export default function AdminStaff() {
           </div>
 
           {/* Staff Grid */}
-          <div style={{
+          {loading && (
+            <div className="staff-loading-state" role="status">Loading staff members…</div>
+          )}
+
+          {!loading && filteredStaff.length > 0 && <div className="staff-card-grid" style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
             gap: 'var(--space-lg)',
           }}>
             {filteredStaff.map((staff) => {
@@ -468,7 +472,7 @@ export default function AdminStaff() {
               return (
                 <div
                   key={staff.id}
-                  className="glass"
+                  className={`glass staff-card ${isActive ? 'staff-card--active' : 'staff-card--inactive'}`}
                   style={{
                     padding: 'var(--space-lg)',
                     borderRadius: 'var(--radius-lg)',
@@ -563,20 +567,21 @@ export default function AdminStaff() {
                       {/* Phone */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Phone size={13} style={{ color: 'var(--color-primary)' }} /> Mobile:
+                          <Phone size={13} style={{ color: 'var(--color-primary)' }} /> Phone
                         </span>
-                        <a
-                          href={staff.phone ? `tel:${staff.phone}` : '#'}
-                          style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}
-                        >
-                          {staff.phone || '—'}
+                        {staff.phone ? (
+                        <a href={`tel:${staff.phone}`} style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+                          {staff.phone}
                         </a>
+                        ) : (
+                        <span>Not provided</span>
+                        )}
                       </div>
 
                       {/* Shift */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Clock size={13} style={{ color: 'var(--color-secondary)' }} /> Shift:
+                          <Clock size={13} style={{ color: 'var(--color-secondary)' }} /> Work shift
                         </span>
                         <span style={{ color: '#fff', fontWeight: 600 }}>{staff.shift || 'Flexible'}</span>
                       </div>
@@ -584,7 +589,7 @@ export default function AdminStaff() {
                       {/* Security PIN */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <KeyRound size={13} style={{ color: '#f59e0b' }} /> Login PIN:
+                          <KeyRound size={13} style={{ color: '#f59e0b' }} /> Login PIN
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{
@@ -624,16 +629,16 @@ export default function AdminStaff() {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                           <span style={{ color: 'var(--color-primary-light)', fontWeight: 700 }}>
-                            🎯 आजचे काम (Today):
+                            Today
                           </span>
                           <span style={{ color: '#fff', fontWeight: 800 }}>
-                            {stats.todayCount} Bookings • <span style={{ color: '#10b981' }}>₹{stats.todayCollection}</span>
+                            {stats.todayCount} bookings · <span style={{ color: '#10b981' }}>₹{stats.todayCollection}</span>
                           </span>
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--color-text-dim)' }}>
-                          <span>💵 Cash: <strong style={{ color: '#f59e0b' }}>₹{stats.todayCash}</strong></span>
-                          <span>📱 UPI: <strong style={{ color: 'var(--color-accent)' }}>₹{stats.todayUpi}</strong></span>
+                          <span>Cash: <strong style={{ color: '#f59e0b' }}>₹{stats.todayCash}</strong></span>
+                          <span>UPI: <strong style={{ color: 'var(--color-accent)' }}>₹{stats.todayUpi}</strong></span>
                         </div>
 
                         <div style={{
@@ -643,9 +648,9 @@ export default function AdminStaff() {
                           justifyContent: 'space-between',
                           fontSize: '0.72rem',
                         }}>
-                          <span style={{ color: 'var(--color-text-dim)' }}>🏆 एकूण हिशोब (All-Time):</span>
+                          <span style={{ color: 'var(--color-text-dim)' }}>All-time total</span>
                           <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
-                            {stats.allTimeCount} Bks • ₹{stats.allTimeCollection}
+                            {stats.allTimeCount} bookings · ₹{stats.allTimeCollection}
                           </span>
                         </div>
                       </div>
@@ -703,20 +708,20 @@ export default function AdminStaff() {
                 </div>
               );
             })}
-          </div>
+          </div>}
         </>
       )}
 
       {/* ─── VIEW 2: STAFF PERFORMANCE & COLLECTION REPORT TABLE ─── */}
       {viewTab === 'report' && (
-        <div className="glass admin-table-wrap" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div className="glass admin-table-wrap staff-report" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
             <div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-                📊 Staff Duty & Collection Report (कलेक्शन व बुकिंग रिपोर्ट)
+                Staff performance and collection
               </h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', margin: '3px 0 0' }}>
-                प्रत्येक कर्मचाऱ्याने आज आणि आतापर्यंत किती बुकिंग्स घेतल्या व किती रोख/ऑनलाइन रक्कम गोळा केली त्याचा तपशील.
+                Compare each staff member’s bookings and payments collected today with their all-time totals.
               </p>
             </div>
           </div>
@@ -724,14 +729,14 @@ export default function AdminStaff() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Staff Member</th>
-                <th>Duty Shift</th>
-                <th>Today's Bookings</th>
-                <th>Today's Cash (रोख)</th>
-                <th>Today's UPI (ऑनलाइन)</th>
-                <th>Today's Collection</th>
-                <th>All-Time Bookings</th>
-                <th>All-Time Collection</th>
+                <th>Staff member</th>
+                <th>Work shift</th>
+                <th>Bookings today</th>
+                <th>Cash today</th>
+                <th>UPI today</th>
+                <th>Total collected today</th>
+                <th>Bookings all time</th>
+                <th>Total collected all time</th>
               </tr>
             </thead>
             <tbody>
@@ -805,6 +810,20 @@ export default function AdminStaff() {
                 </tr>
               ))}
 
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ color: 'var(--color-text-dim)', textAlign: 'center' }}>
+                    Loading staff report…
+                  </td>
+                </tr>
+              ) : staffSummaryList.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ color: 'var(--color-text-dim)', textAlign: 'center' }}>
+                    No staff members to report yet.
+                  </td>
+                </tr>
+              ) : null}
+
               {/* Cafe Total Row */}
               <tr style={{
                 background: 'rgba(147, 51, 234, 0.12)',
@@ -812,7 +831,7 @@ export default function AdminStaff() {
                 fontWeight: 800,
               }}>
                 <td colSpan={2} style={{ color: '#fff', fontSize: '0.9rem' }}>
-                  ⚡ एकूण कॅफे बेरीज (CAFE TOTAL)
+                  Cafe total
                 </td>
                 <td style={{ color: 'var(--color-primary-light)', fontSize: '1rem' }}>
                   {overallTotals.todayCount}
@@ -839,20 +858,27 @@ export default function AdminStaff() {
       )}
 
       {/* Empty State */}
-      {!loading && filteredStaff.length === 0 && (
-        <div className="glass" style={{
+      {viewTab === 'cards' && !loading && filteredStaff.length === 0 && (
+        <div className="glass staff-empty-state" style={{
           textAlign: 'center',
           padding: '60px 20px',
           borderRadius: 'var(--radius-lg)',
           marginTop: 'var(--space-xl)',
         }}>
           <Users size={48} style={{ color: 'var(--color-text-dim)', marginBottom: 12 }} />
-          <h3 style={{ color: '#fff', marginBottom: 6 }}>No Staff Members Found</h3>
+          <h3 style={{ color: '#fff', marginBottom: 6 }}>
+            {staffList.length === 0 ? 'No staff members yet' : 'No staff match your search'}
+          </h3>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginBottom: 16 }}>
-            {searchTerm ? 'No results matched your search query.' : 'Click Add New Staff to register your first cafe worker.'}
+            {staffList.length === 0
+              ? 'Add a staff member to give them a shift and login access.'
+              : 'Try another name or change the status filter.'}
           </p>
-          <button onClick={handleOpenAdd} className="btn btn-primary btn-sm">
-            <UserPlus size={14} /> Add First Staff
+          <button
+            onClick={staffList.length === 0 ? handleOpenAdd : () => { setSearchTerm(''); setStatusFilter('all'); }}
+            className="btn btn-primary btn-sm"
+          >
+            {staffList.length === 0 ? <><UserPlus size={14} /> Add first staff member</> : 'Clear search and filters'}
           </button>
         </div>
       )}
@@ -868,7 +894,7 @@ export default function AdminStaff() {
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {editingStaff ? <Edit2 size={18} /> : <UserPlus size={18} />}
-                {editingStaff ? 'Edit Staff Member' : 'Register New Staff Member'}
+                {editingStaff ? 'Edit staff member' : 'Add staff member'}
               </h3>
               <button
                 className="btn-close"
@@ -880,12 +906,12 @@ export default function AdminStaff() {
 
             <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
-                <label className="form-label">FULL NAME (कर्मचाऱ्याचे पूर्ण नाव) *</label>
+                <label className="form-label">Full name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Rahul Shinde"
+                  placeholder="e.g. Staff name"
                   className="form-input"
                   required
                   autoFocus
@@ -894,7 +920,7 @@ export default function AdminStaff() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                  <label className="form-label">PHONE NUMBER (मोबाईल)</label>
+                  <label className="form-label">Phone number</label>
                   <input
                     type="tel"
                     value={formData.phone}
@@ -906,13 +932,13 @@ export default function AdminStaff() {
 
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>LOGIN PIN *</span>
+                    <span>Login PIN *</span>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, pin: String(Math.floor(1000 + Math.random() * 9000)) })}
                       style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '0.7rem', cursor: 'pointer' }}
                     >
-                      🎲 Generate
+                      Generate PIN
                     </button>
                   </label>
                   <input
@@ -928,7 +954,7 @@ export default function AdminStaff() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ROLE / DESIGNATION (पद)</label>
+                <label className="form-label">Role</label>
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -941,7 +967,7 @@ export default function AdminStaff() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">DUTY SHIFT (शिफ्ट वेळ)</label>
+                <label className="form-label">Work shift</label>
                 <select
                   value={formData.shift}
                   onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
@@ -954,7 +980,7 @@ export default function AdminStaff() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ACCOUNT STATUS</label>
+                <label className="form-label">Login access</label>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <input
@@ -964,7 +990,7 @@ export default function AdminStaff() {
                       checked={formData.status === 'active'}
                       onChange={() => setFormData({ ...formData, status: 'active' })}
                     />
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>🟢 Active (Can Login)</span>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>Active — can log in</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <input
@@ -974,13 +1000,13 @@ export default function AdminStaff() {
                       checked={formData.status === 'inactive'}
                       onChange={() => setFormData({ ...formData, status: 'inactive' })}
                     />
-                    <span style={{ color: '#ef4444', fontWeight: 600 }}>🔴 Inactive (Disabled)</span>
+                    <span style={{ color: '#ef4444', fontWeight: 600 }}>Inactive — sign-in disabled</span>
                   </label>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">NOTES / ADDRESS (पर्यायी)</label>
+                <label className="form-label">Notes (optional)</label>
                 <input
                   type="text"
                   value={formData.notes}
@@ -1004,7 +1030,7 @@ export default function AdminStaff() {
                   className="btn btn-primary"
                   style={{ flex: 1 }}
                 >
-                  {editingStaff ? 'Save Changes' : 'Add Staff Member'}
+                  {editingStaff ? 'Save changes' : 'Add staff member'}
                 </button>
               </div>
             </form>

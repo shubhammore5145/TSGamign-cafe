@@ -189,28 +189,7 @@ export const subscribeToCafeConfig = (callback) =>
   onSnapshot(doc(db, 'cafeConfig', 'main'), (snap) => callback(snap.exists() ? snap.data() : null));
 
 // ─── STAFF MANAGEMENT ─────────────────────────────────────────
-const DEFAULT_STAFF_SEED = [
-  {
-    id: 'staff-1',
-    name: 'Rahul Shinde',
-    phone: '9876543210',
-    role: 'Counter Operator',
-    pin: '1234',
-    shift: 'Morning (09:00 AM - 03:00 PM)',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'staff-2',
-    name: 'Akshay More',
-    phone: '9812345678',
-    role: 'Gaming Assistant',
-    pin: '2024',
-    shift: 'Evening (03:00 PM - 10:00 PM)',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-  },
-];
+const DEFAULT_STAFF_SEED = [];
 
 export const getStaffList = async () => {
   try {

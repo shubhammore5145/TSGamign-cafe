@@ -210,7 +210,7 @@ export default function AdminLogin() {
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <User size={13} style={{ color: 'var(--color-primary)' }} />
-                SELECT YOUR NAME (कर्मचारी निवडा)
+                Select your name
               </label>
               <select
                 value={selectedStaffId}
