@@ -1,0 +1,166 @@
+.admin-timer-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xl);
+}
+
+.admin-large-timer-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xl);
+  min-width: 0;
+  padding: var(--space-2xl);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+.admin-large-timer-card.neon-border-orange {
+  border-width: 2px;
+  border-color: var(--color-warning);
+}
+
+.admin-large-timer-card__glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(circle at right center, rgba(245, 158, 11, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.admin-large-timer-card__photo-wrap,
+.admin-large-timer-card__details {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-large-timer-card__photo-wrap {
+  flex: 0 0 auto;
+}
+
+.admin-large-timer-card__photo {
+  display: block;
+  width: 260px;
+  height: 260px;
+  border: 6px solid var(--color-surface);
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.3s ease;
+}
+
+.admin-large-timer-card__photo--ending {
+  border-color: var(--color-warning);
+}
+
+.admin-large-timer-card__details {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.admin-large-timer-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-lg);
+}
+
+.admin-large-timer-card__name {
+  margin: 0 0 var(--space-xl);
+  overflow-wrap: anywhere;
+  background: linear-gradient(to right, #fff, var(--color-text-dim));
+  background-clip: text;
+  color: transparent;
+  font-size: 3.5rem;
+  font-weight: 900;
+  line-height: 1.1;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.admin-large-timer-card__timer {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: var(--space-xl) var(--space-2xl);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+.admin-large-timer-card__timer-label {
+  margin-bottom: 12px;
+  color: var(--color-text-dim);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.admin-large-timer-card__time {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 5rem;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
+  white-space: nowrap;
+}
+
+.admin-large-timer-card__time--ending {
+  color: var(--color-warning);
+  text-shadow: 0 0 25px rgba(245, 158, 11, 0.5);
+}
+
+@media (max-width: 768px) {
+  .admin-large-timer-card {
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px;
+    text-align: center;
+  }
+
+  .admin-large-timer-card__photo {
+    width: clamp(120px, 38vw, 180px);
+    height: clamp(120px, 38vw, 180px);
+  }
+
+  .admin-large-timer-card__badges {
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+
+  .admin-large-timer-card__details {
+    width: 100%;
+    align-items: center;
+  }
+
+  .admin-large-timer-card__name {
+    max-width: 100%;
+    margin-bottom: 12px;
+    font-size: clamp(1.25rem, 5vw, 1.75rem) !important;
+    line-height: 1.15;
+  }
+
+  .admin-large-timer-card__timer {
+    align-self: center;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 16px;
+  }
+
+  .admin-large-timer-card__timer-label {
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+  }
+
+  .admin-large-timer-card__time {
+    font-size: clamp(1.75rem, 8vw, 2.5rem) !important;
+  }
+}

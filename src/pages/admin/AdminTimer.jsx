@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { subscribeToAllActiveSessions } from '../../firebase/firestore';
 import { useSessionTimer, formatTime } from '../../hooks/useSessionTimer';
-import { AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import './AdminTimer.css';
 
 export default function AdminTimer() {
   const [sessions, setSessions] = useState([]);
@@ -24,7 +25,7 @@ export default function AdminTimer() {
           <p className="text-muted">Wait for someone to start a session.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-xl)' }}>
+        <div className="admin-timer-list">
           {sessions.map(session => (
             <LargeTimerCard key={session.id} session={session} />
           ))}
@@ -39,53 +40,25 @@ function LargeTimerCard({ session }) {
   const isEndingSoon = remaining !== null && remaining <= 600_000 && remaining > 0;
 
   return (
-    <div className={`glass ${isEndingSoon ? 'neon-border-orange' : ''}`} style={{ 
-      padding: 'var(--space-2xl)', 
-      display: 'flex', 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      justifyContent: 'flex-start',
-      gap: 'var(--space-2xl)',
-      borderColor: isEndingSoon ? 'var(--color-warning)' : 'rgba(255, 255, 255, 0.05)',
-      borderWidth: isEndingSoon ? '2px' : '1px',
-      background: 'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.2) 100%)',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
+    <div className={`admin-large-timer-card glass ${isEndingSoon ? 'neon-border-orange' : ''}`}>
       
       {/* Decorative background glow if ending soon */}
-      {isEndingSoon && (
-        <div style={{
-          position: 'absolute',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'radial-gradient(circle at right center, rgba(245,158,11,0.15) 0%, transparent 60%)',
-          pointerEvents: 'none',
-          zIndex: 0
-        }} />
-      )}
+      {isEndingSoon && <div className="admin-large-timer-card__glow" />}
 
       {/* LEFT SIDE: Big Photo */}
-      <div style={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
+      <div className="admin-large-timer-card__photo-wrap">
         <img
           src={session.userImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.userName || 'U')}&background=9333ea&color=fff&size=300`}
           alt={session.userName}
-          style={{
-            width: '260px',
-            height: '260px',
-            borderRadius: '50%',
-            objectFit: 'cover',
-            border: `6px solid ${isEndingSoon ? 'var(--color-warning)' : 'var(--color-surface)'}`,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
-            transition: 'border-color 0.3s ease'
-          }}
+          className={`admin-large-timer-card__photo${isEndingSoon ? ' admin-large-timer-card__photo--ending' : ''}`}
         />
       </div>
 
       {/* RIGHT SIDE: Info and Timer */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 1 }}>
+      <div className="admin-large-timer-card__details">
         
         {/* Badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-lg)' }}>
+        <div className="admin-large-timer-card__badges">
           <div className="badge" style={{ 
             background: 'var(--color-primary)', 
             color: '#fff', 
@@ -111,39 +84,16 @@ function LargeTimerCard({ session }) {
         </div>
         
         {/* User Name */}
-        <h3 style={{ 
-          fontSize: '3.5rem', 
-          fontWeight: 900,
-          marginBottom: 'var(--space-xl)',
-          background: 'linear-gradient(to right, #fff, var(--color-text-dim))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          lineHeight: 1.1
-        }}>
+        <h3 className="admin-large-timer-card__name">
           {session.userName}
         </h3>
         
         {/* Timer Block */}
-        <div style={{ 
-          background: 'rgba(0,0,0,0.4)',
-          border: '1px solid rgba(255,255,255,0.05)',
-          padding: 'var(--space-xl) var(--space-2xl)',
-          borderRadius: 'var(--radius-lg)',
-          display: 'inline-block',
-          alignSelf: 'flex-start',
-          boxShadow: 'inset 0 2px 20px rgba(0,0,0,0.5)'
-        }}>
-          <div style={{ color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: 3, fontSize: '0.9rem', marginBottom: 12, fontWeight: 600 }}>
+        <div className="admin-large-timer-card__timer">
+          <div className="admin-large-timer-card__timer-label">
             Time Remaining
           </div>
-          <div style={{ 
-            fontFamily: 'var(--font-mono)', 
-            fontSize: '5rem', 
-            fontWeight: 800, 
-            lineHeight: 1,
-            color: isEndingSoon ? 'var(--color-warning)' : 'var(--color-accent)',
-            textShadow: `0 0 25px ${isEndingSoon ? 'rgba(245,158,11,0.5)' : 'rgba(16,185,129,0.5)'}`
-          }}>
+          <div className={`admin-large-timer-card__time${isEndingSoon ? ' admin-large-timer-card__time--ending' : ''}`}>
             {formatTime(remaining)}
           </div>
         </div>

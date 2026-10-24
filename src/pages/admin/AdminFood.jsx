@@ -58,7 +58,7 @@ export default function AdminFood() {
 
   const [foodItems, setFoodItems] = useState([]);
   const [foodSales, setFoodSales] = useState([]);
-  const [activeTab, setActiveTab] = useState(() => (isAdmin ? 'inventory' : 'pos')); // 'inventory' | 'pos' | 'history'
+  const [activeTab, setActiveTab] = useState('pos'); // 'inventory' | 'pos' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 

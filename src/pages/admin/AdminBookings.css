@@ -450,9 +450,75 @@
 
 /* ── 6. Mobile Booking Cards (Visible on <= 768px) ── */
 .bookings-mobile-cards-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+.booking-modal-box {
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  padding: 20px 16px;
+}
+
+.booking-fast-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+  min-width: 0;
+}
+
+.booking-customer-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.booking-customer-fields > *,
+.booking-date-time-panel,
+.booking-amount-payment > *,
+.booking-action-options > * {
+  min-width: 0;
+}
+
+.booking-duration-options {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.booking-amount-payment {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.8fr);
+  align-items: stretch;
+}
+
+.booking-action-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.booking-time-span > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.booking-modal-box .material-clock-input {
+  background: #171717;
+  border-color: #38bdf8;
+}
+
+.booking-modal-box .material-clock-label-cutout {
+  background: #171717;
+}
+
+.booking-modal-box .material-clock-display-text {
+  color: #f8fafc;
+}
+
+.booking-modal-box .material-clock-icon-wrap {
+  color: #cbd5e1;
+}
+
+.booking-modal-box .material-clock-popover {
+  max-width: calc(100vw - 48px);
 }
 
 .mobile-booking-card {
@@ -489,6 +555,7 @@
   font-size: 0.95rem;
   font-weight: 800;
   color: #ffffff;
+  overflow-wrap: anywhere;
 }
 
 .mobile-card-phone-row {
@@ -531,7 +598,7 @@
 /* Card Info Grid */
 .mobile-card-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 8px 10px;
   background: rgba(0, 0, 0, 0.35);
@@ -557,6 +624,8 @@
   font-size: 0.82rem;
   font-weight: 700;
   color: #ffffff;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .mobile-grid-val.time-val {
@@ -594,13 +663,10 @@
 
 /* Responsive Table Wrapper for Desktop */
 .desktop-bookings-table-wrap {
-  display: block;
+  display: none !important;
 }
 
 @media (max-width: 768px) {
-  .desktop-bookings-table-wrap {
-    display: none !important;
-  }
   .bookings-hero-header {
     padding: 12px 14px;
   }
@@ -614,10 +680,65 @@
   .bookings-search-wrap {
     max-width: 100%;
   }
+  .bookings-date-nav {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .date-display-badge {
+    flex-basis: 100%;
+    margin: 2px 0 0;
+  }
+  .bookings-mobile-cards-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mobile-card-actions-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .mobile-card-btns {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
 }
 
-@media (min-width: 769px) {
-  .bookings-mobile-cards-list {
-    display: none !important;
+@media (max-width: 520px) {
+  .booking-modal-box {
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+    padding: 16px 12px;
+  }
+
+  .booking-customer-fields,
+  .booking-amount-payment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booking-duration-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .booking-time-span {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .booking-action-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booking-form-footer {
+    position: sticky;
+    bottom: -16px;
+    margin: 8px -12px -16px !important;
+    padding: 10px 12px;
+    background: rgba(17, 17, 17, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+@media (max-width: 360px) {
+  .booking-duration-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

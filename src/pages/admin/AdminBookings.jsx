@@ -278,7 +278,7 @@ export default function AdminBookings() {
   const [activeSessions, setActiveSessions] = useState([]);
 
   // View Mode: 'board' (Slot Grid Timeline) or 'table' (List view)
-  const [viewMode, setViewMode] = useState('board');
+  const [viewMode, setViewMode] = useState('table');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -746,7 +746,7 @@ export default function AdminBookings() {
     setEditingBooking(b);
     setFormData({
       userName: b.userName || '',
-      userPhone: b.userPhone || '',
+      userPhone: getClean10Phone(b.userPhone),
       userEmail: b.userEmail || '',
       setupId: b.setupId || '',
       setupName: b.setupName || '',
@@ -1557,7 +1557,7 @@ export default function AdminBookings() {
             </table>
           </div>
 
-          {/* Mobile Cards View (Displayed on <= 768px screens) */}
+          {/* Complete responsive booking cards */}
           <div className="bookings-mobile-cards-list">
             {filteredBookings.map(b => {
               const isLive = b.status === 'active';
@@ -1598,6 +1598,11 @@ export default function AdminBookings() {
                   {/* Info Grid */}
                   <div className="mobile-card-grid">
                     <div className="mobile-grid-item">
+                      <span className="mobile-grid-label">Booking ID</span>
+                      <span className="mobile-grid-val">#{b.id.slice(0, 6).toUpperCase()}</span>
+                    </div>
+
+                    <div className="mobile-grid-item">
                       <span className="mobile-grid-label">Console</span>
                       <span className="mobile-grid-val" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Gamepad2 size={13} style={{ color: 'var(--color-primary)' }} />
@@ -1615,6 +1620,13 @@ export default function AdminBookings() {
                     <div className="mobile-grid-item">
                       <span className="mobile-grid-label">Date</span>
                       <span className="mobile-grid-val">{b.date}</span>
+                    </div>
+
+                    <div className="mobile-grid-item">
+                      <span className="mobile-grid-label">Duration</span>
+                      <span className="mobile-grid-val">
+                        {b.duration || (Number(b.durationMins) / 60) || 0}h
+                      </span>
                     </div>
 
                     <div className="mobile-grid-item">
@@ -2014,12 +2026,18 @@ export default function AdminBookings() {
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Phone Number</label>
-                    <input
-                      type="tel"
-                      className="form-input"
-                      value={formData.userPhone}
-                      onChange={e => setFormData(p => ({ ...p, userPhone: e.target.value }))}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>+91</span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        className="form-input"
+                        placeholder="Mobile number (optional)"
+                        value={formData.userPhone}
+                        onChange={e => setFormData(p => ({ ...p, userPhone: getClean10Phone(e.target.value) }))}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -2163,9 +2181,8 @@ export default function AdminBookings() {
       {showBookingModal && (
         <div className="modal-backdrop" onClick={() => setShowBookingModal(false)}>
           <div
-            className="modal-box glass-strong"
+            className="modal-box glass-strong booking-modal-box"
             onClick={e => e.stopPropagation()}
-            style={{ maxWidth: 560, width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '20px 16px' }}
           >
             {/* Header */}
             <div className="modal-header" style={{ marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 12 }}>
@@ -2206,7 +2223,7 @@ export default function AdminBookings() {
               </button>
             </div>
 
-            <form onSubmit={handleBookingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form onSubmit={handleBookingSubmit} className="booking-fast-form">
               {/* 1. PlayStation Console Picker */}
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
@@ -2262,7 +2279,7 @@ export default function AdminBookings() {
               </div>
 
               {/* 2. Customer Name & Phone */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+              <div className="booking-customer-fields" style={{ display: 'grid', gap: 10 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ marginBottom: 4 }}>
                     Customer Name <span style={{ color: 'var(--color-danger)' }}>*</span>
@@ -2280,20 +2297,25 @@ export default function AdminBookings() {
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ marginBottom: 4 }}>
-                    WhatsApp Mobile Number
+                    Mobile Number <span style={{ color: 'var(--color-text-dim)', fontWeight: 400 }}>(optional)</span>
                   </label>
-                  <input
-                    type="tel"
-                    className="form-input"
-                    placeholder="10-digit mobile"
-                    value={bookingForm.userPhone}
-                    onChange={e => setBookingForm(p => ({ ...p, userPhone: e.target.value }))}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>+91</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      className="form-input"
+                      placeholder="98765 43210"
+                      value={bookingForm.userPhone}
+                      onChange={e => setBookingForm(p => ({ ...p, userPhone: getClean10Phone(e.target.value) }))}
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* 3. Date & Circular Analog Clock Time Picker */}
-              <div style={{
+              <div className="booking-date-time-panel" style={{
                 background: 'rgba(255,255,255,0.03)',
                 padding: '12px',
                 borderRadius: 'var(--radius-md)',
@@ -2368,10 +2390,12 @@ export default function AdminBookings() {
                 </div>
 
                 {/* Calculated Time Span Banner */}
-                <div style={{
+                <div className="booking-time-span" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 6,
                   padding: '8px 12px',
                   borderRadius: 'var(--radius-sm)',
                   background: 'rgba(6, 182, 212, 0.1)',
@@ -2398,7 +2422,7 @@ export default function AdminBookings() {
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                <div className="booking-duration-options" style={{ display: 'grid', gap: 6 }}>
                   {[
                     { label: '30 Min', mins: 30 },
                     { label: '1 Hour', mins: 60 },
@@ -2438,7 +2462,7 @@ export default function AdminBookings() {
               </div>
 
               {/* 5. Total Booking Amount (Editable) & Payment Mode */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 10 }}>
+              <div className="booking-amount-payment" style={{ display: 'grid', gap: 10 }}>
                 {/* Total Charge (Editable) */}
                 <div style={{
                   padding: '10px 12px',
@@ -2499,7 +2523,7 @@ export default function AdminBookings() {
                 <label className="form-label" style={{ marginBottom: 6 }}>
                   Booking Action
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div className="booking-action-options" style={{ display: 'grid', gap: 8 }}>
                   <button
                     type="button"
                     onClick={() => setBookingForm(p => ({ ...p, startSessionNow: true }))}
@@ -2580,7 +2604,7 @@ export default function AdminBookings() {
               </div>
 
               {/* 8. Action Buttons */}
-              <div style={{ marginTop: 8, display: 'flex', gap: 10 }}>
+              <div className="booking-form-footer" style={{ marginTop: 8, display: 'flex', gap: 10 }}>
                 <button
                   type="button"
                   className="btn btn-ghost"
