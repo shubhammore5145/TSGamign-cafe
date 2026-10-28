@@ -15,6 +15,9 @@ import {
   formatINR,
   formatPhoneNumber,
   getClean10Phone,
+  isStaffCurrentlyOnShift,
+  generateStaffCredentialsMessage,
+  getTodayString,
 } from '../../utils/staffStats';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -28,8 +31,6 @@ import {
   EyeOff,
   Edit2,
   Trash2,
-  CheckCircle,
-  XCircle,
   Search,
   X,
   DollarSign,
@@ -38,6 +39,16 @@ import {
   LayoutGrid,
   Table,
   MessageSquare,
+  Copy,
+  Check,
+  Share2,
+  Printer,
+  Gamepad2,
+  Coffee,
+  Sparkles,
+  Filter,
+  Calendar,
+  Zap,
 } from 'lucide-react';
 import './Admin.css';
 import './AdminStaff.css';
@@ -65,8 +76,12 @@ export default function AdminStaff() {
   const [bookings, setBookings] = useState([]);
   const [foodSales, setFoodSales] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [shiftFilter, setShiftFilter] = useState('all');
   const [viewTab, setViewTab] = useState('cards'); // 'cards' | 'report'
 
   // PIN visibility map { [staffId]: boolean }
@@ -77,14 +92,18 @@ export default function AdminStaff() {
   const [editingStaff, setEditingStaff] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // Form state
+  // Form state with enhanced fields
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    email: '',
     role: 'Counter Operator',
     pin: '',
     shift: 'Morning (09:00 AM - 03:00 PM)',
     status: 'active',
+    joiningDate: getTodayString(),
+    emergencyContact: '',
+    upiId: '',
     notes: '',
   });
 
@@ -111,8 +130,25 @@ export default function AdminStaff() {
     return calculateAllStaffSummary(staffList, bookings, foodSales);
   }, [staffList, bookings, foodSales]);
 
+  // Count currently on duty staff members
+  const onDutyCount = useMemo(() => {
+    return staffList.filter((s) => isStaffCurrentlyOnShift(s.shift, s.status)).length;
+  }, [staffList]);
+
   const togglePinVisibility = (id) => {
     setShowPins((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleCopyPin = (staff) => {
+    if (!staff.pin) return;
+    navigator.clipboard.writeText(staff.pin);
+    toast.success('PIN Copied', `PIN for ${staff.name} copied to clipboard!`);
+  };
+
+  const handleCopyCredentials = (staff) => {
+    const message = generateStaffCredentialsMessage(staff);
+    navigator.clipboard.writeText(message);
+    toast.success('Credentials Copied', `Login instructions for ${staff.name} copied to clipboard!`);
   };
 
   const handleOpenAdd = () => {
@@ -120,10 +156,14 @@ export default function AdminStaff() {
     setFormData({
       name: '',
       phone: '',
+      email: '',
       role: 'Counter Operator',
       pin: randomPin,
       shift: 'Morning (09:00 AM - 03:00 PM)',
       status: 'active',
+      joiningDate: getTodayString(),
+      emergencyContact: '',
+      upiId: '',
       notes: '',
     });
     setShowAddModal(true);
@@ -134,10 +174,14 @@ export default function AdminStaff() {
     setFormData({
       name: staff.name || '',
       phone: staff.phone || '',
+      email: staff.email || '',
       role: staff.role || 'Counter Operator',
       pin: staff.pin || '1234',
       shift: staff.shift || 'Morning (09:00 AM - 03:00 PM)',
       status: staff.status || 'active',
+      joiningDate: staff.joiningDate || getTodayString(),
+      emergencyContact: staff.emergencyContact || '',
+      upiId: staff.upiId || '',
       notes: staff.notes || '',
     });
   };
@@ -154,38 +198,34 @@ export default function AdminStaff() {
     }
 
     try {
+      const staffPayload = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim(),
+        role: formData.role,
+        pin: formData.pin.trim(),
+        shift: formData.shift,
+        status: formData.status,
+        joiningDate: formData.joiningDate || getTodayString(),
+        emergencyContact: formData.emergencyContact.trim(),
+        upiId: formData.upiId.trim(),
+        notes: formData.notes.trim(),
+      };
+
       if (editingStaff) {
-        const updateData = {
-          name: formData.name.trim(),
-          phone: formData.phone.trim(),
-          role: formData.role,
-          pin: formData.pin.trim(),
-          shift: formData.shift,
-          status: formData.status,
-          notes: formData.notes.trim(),
-        };
         // Optimistic UI update
         setStaffList((prev) =>
-          prev.map((s) => (s.id === editingStaff.id ? { ...s, ...updateData } : s))
+          prev.map((s) => (s.id === editingStaff.id ? { ...s, ...staffPayload } : s))
         );
-        await updateStaff(editingStaff.id, updateData);
+        await updateStaff(editingStaff.id, staffPayload);
         toast.success('Staff Updated', `${formData.name} updated successfully!`);
         setEditingStaff(null);
       } else {
-        const newStaffData = {
-          name: formData.name.trim(),
-          phone: formData.phone.trim(),
-          role: formData.role,
-          pin: formData.pin.trim(),
-          shift: formData.shift,
-          status: formData.status,
-          notes: formData.notes.trim(),
-        };
-        const newId = await addStaff(newStaffData);
+        const newId = await addStaff(staffPayload);
         // Optimistic UI update
         setStaffList((prev) => [
           ...prev.filter((s) => s.id !== newId),
-          { id: newId, ...newStaffData },
+          { id: newId, ...staffPayload },
         ]);
         toast.success('Staff Added', `🎉 ${formData.name} has been added as ${formData.role}!`);
         setShowAddModal(false);
@@ -228,548 +268,783 @@ export default function AdminStaff() {
     }
   };
 
+  // Copy Handover Shift Closing Summary
+  const handleCopyHandoverSummary = () => {
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
+    const lines = [
+      `🎮 *TS GAMING CAFÉ — DAILY SHIFT HANDOVER REPORT* 🎮`,
+      `📅 *Date:* ${dateStr}`,
+      `⏰ *Generated at:* ${new Date().toLocaleTimeString('en-IN')}`,
+      `─────────────────────────`,
+      `💰 *Total Collected Today:* ${formatINR(overallTotals.todayCollection)}`,
+      `💵 *Cash In Drawer:* ${formatINR(overallTotals.todayCash)}`,
+      `📱 *UPI / Online:* ${formatINR(overallTotals.todayUpi)}`,
+      `🎮 *Gaming Bookings:* ${overallTotals.todayGamingCount || overallTotals.todayCount}`,
+      `🍔 *Cafe POS Sales:* ${overallTotals.todayFoodCount || 0}`,
+      `─────────────────────────`,
+      `*STAFF BREAKDOWN:*`,
+      ...staffSummaryList.map(
+        (s, idx) =>
+          `${idx + 1}. *${s.staff.name}* (${s.staff.role}) — ${formatINR(s.todayCollection)} (Cash: ${formatINR(s.todayCash)}, UPI: ${formatINR(s.todayUpi)})`
+      ),
+      `─────────────────────────`,
+      `_TS Gaming Cafe Management System_`,
+    ];
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    toast.success('Handover Copied', 'Daily handover summary copied to clipboard!');
+  };
+
+  // Print Handover Report
+  const handlePrintReport = () => {
+    window.print();
+  };
+
   // If non-admin logged in and tries to access Staff Management
   if (!isAdmin) {
     return (
-      <div style={{
-        maxWidth: 600,
-        margin: '60px auto',
-        padding: 'var(--space-2xl)',
-        textAlign: 'center',
-      }} className="glass">
-        <div style={{
-          width: 64,
-          height: 64,
-          borderRadius: '50%',
-          background: 'rgba(239, 68, 68, 0.15)',
-          color: 'var(--color-danger)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto var(--space-md)',
-        }}>
+      <div
+        style={{
+          maxWidth: 600,
+          margin: '60px auto',
+          padding: '2.5rem',
+          textAlign: 'center',
+          borderRadius: 20,
+          background: 'linear-gradient(145deg, #0f1422, #07090f)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            background: 'rgba(239, 68, 68, 0.15)',
+            color: '#ef4444',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+          }}
+        >
           <ShieldAlert size={32} />
         </div>
-        <h2 style={{ color: '#fff', marginBottom: 'var(--space-sm)' }}>Access Restricted</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--space-xl)', fontSize: '0.9rem' }}>
-          Staff Management and Collection Analytics are only accessible by the Super Admin / Cafe Owner.
+        <h2 style={{ color: '#fff', marginBottom: '0.75rem', fontFamily: 'var(--font-heading)' }}>
+          Access Restricted
+        </h2>
+        <p style={{ color: '#94a3b8', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: 1.6 }}>
+          Staff Management and Collection Analytics are restricted to the Cafe Owner / Super Admin.
         </p>
-        <Link to="/admin" className="btn btn-primary">
-          ← Back to Bookings & Slots
+        <Link
+          to="/admin"
+          className="btn"
+          style={{
+            background: '#ff5500',
+            color: '#fff',
+            padding: '10px 24px',
+            borderRadius: 8,
+            fontWeight: 700,
+          }}
+        >
+          ← Return to Duty Desk
         </Link>
       </div>
     );
   }
 
-  // Filter staff
+  // Filter staff members
   const filteredStaff = staffList.filter((s) => {
+    const q = searchTerm.toLowerCase();
     const matchesSearch =
-      (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.phone || '').includes(searchTerm) ||
-      (s.role || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.phone || '').includes(q) ||
+      (s.role || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q);
 
-    if (statusFilter === 'active') return matchesSearch && s.status === 'active';
-    if (statusFilter === 'inactive') return matchesSearch && s.status === 'inactive';
-    return matchesSearch;
+    const matchesStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'active'
+        ? s.status === 'active'
+        : s.status === 'inactive';
+
+    const matchesRole = roleFilter === 'all' || s.role === roleFilter;
+
+    const matchesShift =
+      shiftFilter === 'all'
+        ? true
+        : (s.shift || '').toLowerCase().includes(shiftFilter.toLowerCase());
+
+    return matchesSearch && matchesStatus && matchesRole && matchesShift;
   });
 
   const activeCount = staffList.filter((s) => s.status === 'active').length;
   const inactiveCount = staffList.length - activeCount;
 
   return (
-    <div className="admin-staff-page" style={{ maxWidth: 1240, margin: '0 auto' }}>
-      {/* Page Header */}
-      <div className="admin-section-header staff-page-header" style={{ flexWrap: 'wrap', gap: 12, marginBottom: 'var(--space-md)' }}>
+    <div className="admin-staff-page">
+      {/* ── Page Header ── */}
+      <div className="staff-page-header">
         <div className="staff-page-heading">
-          <span className="staff-page-eyebrow">TEAM OVERVIEW</span>
-          <h2 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Users size={24} style={{ color: 'var(--color-primary)' }} />
-            Staff management
+          <span className="staff-page-eyebrow">
+            <Sparkles size={13} /> TEAM & SHIFT MANAGEMENT
+          </span>
+          <h2 className="admin-section-title">
+            <span className="staff-title-icon-wrap">
+              <Users size={22} />
+            </span>
+            Staff & Duty Roster
           </h2>
           <p className="staff-page-description">
-            Manage staff accounts, shifts and login access. Review bookings and payments collected below.
+            Manage staff credentials, PIN access, shift rotations, and live revenue collected from
+            gaming sessions & cafe orders.
           </p>
         </div>
 
-        <div className="staff-page-actions" style={{ display: 'flex', gap: 8 }}>
+        <div className="staff-page-actions">
           {/* Tab Switcher: Cards vs Report Table */}
-          <div className="staff-view-switcher" style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: 3, borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="staff-view-switcher">
             <button
               onClick={() => setViewTab('cards')}
-              aria-pressed={viewTab === 'cards'}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-xs)',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                border: 'none',
-                background: viewTab === 'cards' ? 'var(--color-primary)' : 'transparent',
-                color: viewTab === 'cards' ? '#fff' : 'var(--color-text-dim)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
+              className={viewTab === 'cards' ? 'active' : ''}
+              type="button"
             >
-              <LayoutGrid size={13} /> Staff directory
+              <LayoutGrid size={14} /> Staff Cards ({filteredStaff.length})
             </button>
             <button
               onClick={() => setViewTab('report')}
-              aria-pressed={viewTab === 'report'}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-xs)',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                border: 'none',
-                background: viewTab === 'report' ? 'var(--color-primary)' : 'transparent',
-                color: viewTab === 'report' ? '#fff' : 'var(--color-text-dim)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
+              className={viewTab === 'report' ? 'active' : ''}
+              type="button"
             >
-              <Table size={13} /> Performance report
+              <Table size={14} /> Handover & Performance
             </button>
           </div>
 
           <button
             onClick={handleOpenAdd}
-            className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+            className="btn"
+            style={{
+              background: 'linear-gradient(135deg, #ff5500, #ff7700)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              boxShadow: '0 0 16px rgba(255, 85, 0, 0.4)',
+            }}
           >
-            <UserPlus size={16} /> Add staff member
+            <UserPlus size={16} /> Add Staff Member
           </button>
         </div>
       </div>
 
-      {/* Summary KPI Bar */}
+      {/* ── Top Cyber KPI Grid ── */}
       <div className="staff-summary-grid">
-        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--color-primary-dim)',
-            color: 'var(--color-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
+        {/* Total Staff */}
+        <div className="staff-summary-card">
+          <div
+            className="staff-summary-icon"
+            style={{
+              background: 'rgba(255, 85, 0, 0.15)',
+              color: '#ff5500',
+              border: '1px solid rgba(255, 85, 0, 0.3)',
+            }}
+          >
             <Users size={22} />
           </div>
           <div>
-            <div className="staff-summary-value" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>{staffList.length}</div>
-            <div className="staff-summary-label">Staff members</div>
-            <div className="staff-summary-note">{activeCount} active · {inactiveCount} inactive</div>
+            <div className="staff-summary-value" style={{ color: '#fff' }}>
+              {staffList.length}
+            </div>
+            <div className="staff-summary-label">Total Crew</div>
+            <div className="staff-summary-note">
+              <span style={{ color: '#22c55e', fontWeight: 700 }}>{onDutyCount} On Duty Now</span> · {activeCount} Active
+            </div>
           </div>
         </div>
 
-        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 'var(--radius-md)',
-            background: 'rgba(16, 185, 129, 0.15)',
-            color: '#10b981',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
+        {/* Collected Today */}
+        <div className="staff-summary-card">
+          <div
+            className="staff-summary-icon"
+            style={{
+              background: 'rgba(34, 197, 94, 0.15)',
+              color: '#22c55e',
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+            }}
+          >
             <DollarSign size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>
+            <div className="staff-summary-value" style={{ color: '#22c55e' }}>
               {formatINR(overallTotals.todayCollection)}
             </div>
-            <div className="staff-summary-label">
-              Collected today
+            <div className="staff-summary-label">Collected Today</div>
+            <div className="staff-summary-note">
+              🎮 {overallTotals.todayCount} Sessions · 🍔 {overallTotals.todayFoodCount || 0} Cafe Items
             </div>
-            <div className="staff-summary-note">From {overallTotals.todayCount} bookings</div>
           </div>
         </div>
 
-        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 'var(--radius-md)',
-            background: 'rgba(245, 158, 11, 0.15)',
-            color: '#f59e0b',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
+        {/* Cash vs UPI Today */}
+        <div className="staff-summary-card">
+          <div
+            className="staff-summary-icon"
+            style={{
+              background: 'rgba(245, 158, 11, 0.15)',
+              color: '#f59e0b',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
             <Receipt size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b' }}>
+            <div className="staff-summary-value" style={{ color: '#f59e0b' }}>
               {formatINR(overallTotals.todayCash)}
             </div>
-            <div className="staff-summary-label">Cash received today</div>
-            <div className="staff-summary-note">UPI received: {formatINR(overallTotals.todayUpi)}</div>
+            <div className="staff-summary-label">Cash In Register</div>
+            <div className="staff-summary-note">
+              UPI Collected: <strong style={{ color: '#00e5ff' }}>{formatINR(overallTotals.todayUpi)}</strong>
+            </div>
           </div>
         </div>
 
-        <div className="glass staff-summary-card" style={{ padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 'var(--radius-md)',
-            background: 'rgba(6, 182, 212, 0.15)',
-            color: 'var(--color-accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
+        {/* All Time Collection */}
+        <div className="staff-summary-card">
+          <div
+            className="staff-summary-icon"
+            style={{
+              background: 'rgba(0, 229, 255, 0.15)',
+              color: '#00e5ff',
+              border: '1px solid rgba(0, 229, 255, 0.3)',
+            }}
+          >
             <TrendingUp size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--color-accent)' }}>
+            <div className="staff-summary-value" style={{ color: '#00e5ff' }}>
               {formatINR(overallTotals.allTimeCollection)}
             </div>
-            <div className="staff-summary-label">Collected all time</div>
-            <div className="staff-summary-note">Across {overallTotals.allTimeCount} bookings</div>
+            <div className="staff-summary-label">All-Time Revenue</div>
+            <div className="staff-summary-note">Across {overallTotals.allTimeCount} Orders & Bookings</div>
           </div>
         </div>
       </div>
 
-      {/* ─── VIEW 1: STAFF CARDS VIEW ─── */}
-      {viewTab === 'cards' && (
-        <>
-          {/* Search and Filters */}
-          <div className="glass staff-filter-bar" style={{
-            padding: 'var(--space-md)',
-            marginBottom: 'var(--space-xl)',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}>
-            <div style={{ position: 'relative', flex: '1 1 260px' }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-dim)' }} />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search staff by name, phone or role"
-                className="form-input"
-                style={{ paddingLeft: 38, height: 38, fontSize: '0.85rem' }}
-              />
-            </div>
+      {/* ── Filters & Search Control Bar ── */}
+      <div className="staff-filter-bar">
+        {/* Search */}
+        <div className="staff-search-input-wrap">
+          <Search size={16} className="staff-search-icon" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search staff by name, phone, role..."
+            className="staff-search-input"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
 
-            <div className="staff-status-filters" style={{ display: 'flex', gap: 6 }}>
-              {['all', 'active', 'inactive'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setStatusFilter(tab)}
-                  className="btn btn-sm"
-                  style={{
-                    textTransform: 'capitalize',
-                    background: statusFilter === tab ? 'var(--color-primary)' : 'rgba(255,255,255,0.05)',
-                    color: statusFilter === tab ? '#fff' : 'var(--color-text-dim)',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '0.75rem',
-                  }}
-                >
-                  {tab === 'all' ? 'All Staff' : tab}
-                </button>
-              ))}
-            </div>
+        {/* Filter Groups */}
+        <div className="staff-filter-groups">
+          {/* Role Filter */}
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="staff-filter-select"
+          >
+            <option value="all">All Roles</option>
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+
+          {/* Shift Filter */}
+          <select
+            value={shiftFilter}
+            onChange={(e) => setShiftFilter(e.target.value)}
+            className="staff-filter-select"
+          >
+            <option value="all">All Shifts</option>
+            <option value="morning">Morning Shift</option>
+            <option value="evening">Evening Shift</option>
+            <option value="full day">Full Day</option>
+            <option value="flexible">Flexible</option>
+          </select>
+
+          {/* Status Pills */}
+          <div className="staff-status-pills">
+            {['all', 'active', 'inactive'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setStatusFilter(tab)}
+                className={`staff-status-pill-btn ${statusFilter === tab ? 'active' : ''}`}
+                type="button"
+              >
+                {tab === 'all' ? 'All' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
           </div>
 
-          {/* Staff Grid */}
+          {(searchTerm || roleFilter !== 'all' || shiftFilter !== 'all' || statusFilter !== 'all') && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setRoleFilter('all');
+                setShiftFilter('all');
+                setStatusFilter('all');
+              }}
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '6px 12px',
+                borderRadius: 8,
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── VIEW 1: STAFF CARDS VIEW ── */}
+      {viewTab === 'cards' && (
+        <>
           {loading && (
-            <div className="staff-loading-state" role="status">Loading staff members…</div>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#94a3b8',
+                fontFamily: 'var(--font-heading)',
+              }}
+            >
+              Loading TS Gaming Cafe crew...
+            </div>
           )}
 
-          {!loading && filteredStaff.length > 0 && <div className="staff-card-grid" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: 'var(--space-lg)',
-          }}>
-            {filteredStaff.map((staff) => {
-              const isActive = staff.status === 'active';
-              const isPinVisible = showPins[staff.id];
-              const stats = calculateStaffStats(staff.id, staff.name, bookings, foodSales);
+          {!loading && filteredStaff.length > 0 && (
+            <div className="staff-card-grid">
+              {filteredStaff.map((staff) => {
+                const isActive = staff.status === 'active';
+                const isPinVisible = showPins[staff.id];
+                const stats = calculateStaffStats(staff.id, staff.name, bookings, foodSales);
+                const isOnDuty = isStaffCurrentlyOnShift(staff.shift, staff.status);
+                const waCredsMsg = generateStaffCredentialsMessage(staff);
 
-              return (
-                <div
-                  key={staff.id}
-                  className={`glass staff-card ${isActive ? 'staff-card--active' : 'staff-card--inactive'}`}
-                  style={{
-                    padding: 'var(--space-lg)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: isActive
-                      ? '1px solid rgba(147, 51, 234, 0.25)'
-                      : '1px solid rgba(239, 68, 68, 0.2)',
-                    position: 'relative',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    gap: 14,
-                    boxShadow: isActive ? '0 4px 20px rgba(0,0,0,0.3)' : 'none',
-                    opacity: isActive ? 1 : 0.75,
-                  }}
-                >
-                  <div>
-                    {/* Header with avatar, name and status */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: '50%',
-                          background: isActive
-                            ? 'linear-gradient(135deg, var(--color-primary), var(--color-accent))'
-                            : '#334155',
-                          color: '#fff',
+                return (
+                  <div
+                    key={staff.id}
+                    className={`staff-card ${!isActive ? 'staff-card--inactive' : ''}`}
+                  >
+                    <div>
+                      {/* Top Row: Avatar, Name, Role & Live Duty Badge */}
+                      <div
+                        style={{
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '1.2rem',
-                          fontWeight: 800,
-                          boxShadow: isActive ? '0 0 12px rgba(147,51,234,0.4)' : 'none',
-                          flexShrink: 0,
-                        }}>
-                          {(staff.name || 'S')[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', marginBottom: 2 }}>
-                            {staff.name}
-                          </h3>
-                          <span style={{
-                            display: 'inline-block',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: 12,
-                            background: 'rgba(147, 51, 234, 0.15)',
-                            color: 'var(--color-primary-light)',
-                            border: '1px solid rgba(147, 51, 234, 0.3)',
-                          }}>
-                            {staff.role || 'Staff Member'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Status badge */}
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: 12,
-                        background: isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                        color: isActive ? '#10b981' : '#ef4444',
-                        border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                      }}>
-                        <span style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: isActive ? '#10b981' : '#ef4444',
-                        }} />
-                        {isActive ? 'ACTIVE' : 'INACTIVE'}
-                      </span>
-                    </div>
-
-                    {/* Details Section */}
-                    <div style={{
-                      marginTop: 'var(--space-md)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                      fontSize: '0.8rem',
-                      color: 'var(--color-text-dim)',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                    }}>
-                      {/* Phone with 1-Tap Mobile Call & WhatsApp */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Phone size={13} style={{ color: 'var(--color-primary)' }} /> Phone
-                        </span>
-                        {staff.phone ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.82rem' }}>
-                              {formatPhoneNumber(staff.phone)}
-                            </span>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <a
-                                href={`tel:+91${getClean10Phone(staff.phone)}`}
-                                className="staff-phone-action-btn staff-phone-call"
-                                title={`Call ${staff.name}`}
-                              >
-                                <Phone size={12} />
-                              </a>
-                              <a
-                                href={`https://wa.me/91${getClean10Phone(staff.phone)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="staff-phone-action-btn staff-phone-wa"
-                                title={`WhatsApp message to ${staff.name}`}
-                              >
-                                <MessageSquare size={12} />
-                              </a>
-                            </div>
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div className={`staff-avatar ${!isActive ? 'staff-avatar--inactive' : ''}`}>
+                            {(staff.name || 'S')[0].toUpperCase()}
                           </div>
+                          <div>
+                            <h3
+                              style={{
+                                fontSize: '1.1rem',
+                                fontWeight: 800,
+                                color: '#fff',
+                                margin: '0 0 4px',
+                                letterSpacing: '0.02em',
+                              }}
+                            >
+                              {staff.name}
+                            </h3>
+                            <span className="staff-role-pill">
+                              <Zap size={10} /> {staff.role || 'Staff Member'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Duty Status Badge */}
+                        {isActive ? (
+                          isOnDuty ? (
+                            <span className="staff-duty-badge staff-duty-badge--live" title="Shift active right now">
+                              <span className="staff-duty-radar" /> ON DUTY
+                            </span>
+                          ) : (
+                            <span className="staff-duty-badge staff-duty-badge--off" title="Off duty currently">
+                              OFF-DUTY
+                            </span>
+                          )
                         ) : (
-                          <span style={{ color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: '0.75rem' }}>Not provided</span>
+                          <span className="staff-duty-badge staff-duty-badge--inactive">
+                            DEACTIVATED
+                          </span>
                         )}
                       </div>
 
-                      {/* Shift */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Clock size={13} style={{ color: 'var(--color-secondary)' }} /> Work shift
-                        </span>
-                        <span style={{ color: '#fff', fontWeight: 600 }}>{staff.shift || 'Flexible'}</span>
-                      </div>
-
-                      {/* Security PIN */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <KeyRound size={13} style={{ color: '#f59e0b' }} /> Login PIN
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{
-                            fontFamily: 'monospace',
-                            fontWeight: 700,
-                            fontSize: '0.9rem',
-                            color: '#f59e0b',
-                            letterSpacing: isPinVisible ? 'normal' : '0.2em',
-                            background: 'rgba(245, 158, 11, 0.1)',
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                          }}>
-                            {isPinVisible ? staff.pin : '••••'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => togglePinVisibility(staff.id)}
-                            className="btn btn-icon btn-ghost btn-xs"
-                            style={{ padding: 2, height: 24, width: 24 }}
-                            title={isPinVisible ? 'Hide PIN' : 'View PIN'}
-                          >
-                            {isPinVisible ? <EyeOff size={13} /> : <Eye size={13} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Staff Live Collection & Bookings Performance Strip */}
-                      <div style={{
-                        marginTop: 4,
-                        padding: '10px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(16, 185, 129, 0.08))',
-                        border: '1px solid rgba(147, 51, 234, 0.25)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                          <span style={{ color: 'var(--color-primary-light)', fontWeight: 700 }}>
-                            Today
-                          </span>
-                          <span style={{ color: '#fff', fontWeight: 800 }}>
-                            {stats.todayCount} bookings · <span style={{ color: '#10b981' }}>{formatINR(stats.todayCollection)}</span>
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--color-text-dim)' }}>
-                          <span>Cash: <strong style={{ color: '#f59e0b' }}>{formatINR(stats.todayCash)}</strong></span>
-                          <span>UPI: <strong style={{ color: 'var(--color-accent)' }}>{formatINR(stats.todayUpi)}</strong></span>
-                        </div>
-
-                        <div style={{
-                          borderTop: '1px dashed rgba(255,255,255,0.08)',
-                          paddingTop: 5,
+                      {/* Staff Meta Box */}
+                      <div
+                        style={{
+                          marginTop: '1rem',
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          borderRadius: 12,
+                          padding: '12px 14px',
                           display: 'flex',
-                          justifyContent: 'space-between',
-                          fontSize: '0.72rem',
-                        }}>
-                          <span style={{ color: 'var(--color-text-dim)' }}>All-time total</span>
-                          <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
-                            {stats.allTimeCount} bookings · {formatINR(stats.allTimeCollection)}
+                          flexDirection: 'column',
+                          gap: 10,
+                          fontSize: '0.82rem',
+                        }}
+                      >
+                        {/* Phone + Action Buttons */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 8,
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+                            <Phone size={13} style={{ color: '#00e5ff' }} /> Phone
                           </span>
+                          {staff.phone ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ color: '#fff', fontWeight: 600 }}>
+                                {formatPhoneNumber(staff.phone)}
+                              </span>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                {/* Call */}
+                                <a
+                                  href={`tel:+91${getClean10Phone(staff.phone)}`}
+                                  className="staff-phone-action-btn staff-phone-call"
+                                  title={`Call ${staff.name}`}
+                                >
+                                  <Phone size={12} />
+                                </a>
+                                {/* WhatsApp General */}
+                                <a
+                                  href={`https://wa.me/91${getClean10Phone(staff.phone)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="staff-phone-action-btn staff-phone-wa"
+                                  title={`Chat on WhatsApp with ${staff.name}`}
+                                >
+                                  <MessageSquare size={12} />
+                                </a>
+                                {/* Share Login Credentials via WhatsApp */}
+                                <a
+                                  href={`https://wa.me/91${getClean10Phone(staff.phone)}?text=${encodeURIComponent(waCredsMsg)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="staff-phone-action-btn staff-share-cred-btn"
+                                  title="Send Portal Login Credentials to WhatsApp"
+                                >
+                                  <Share2 size={12} />
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#64748b', fontStyle: 'italic' }}>Not provided</span>
+                          )}
                         </div>
-                      </div>
 
-                      {staff.notes && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
-                          📝 {staff.notes}
+                        {/* Shift */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+                            <Clock size={13} style={{ color: '#ff5500' }} /> Work Shift
+                          </span>
+                          <span style={{ color: '#fff', fontWeight: 600 }}>{staff.shift || 'Flexible'}</span>
                         </div>
-                      )}
+
+                        {/* Security PIN with Copy & Toggle */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+                            <KeyRound size={13} style={{ color: '#ff7700' }} /> Login PIN
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="staff-pin-chip">
+                              {isPinVisible ? staff.pin : '••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => togglePinVisibility(staff.id)}
+                              className="staff-phone-action-btn"
+                              style={{ background: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}
+                              title={isPinVisible ? 'Hide PIN' : 'View PIN'}
+                            >
+                              {isPinVisible ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPin(staff)}
+                              className="staff-phone-action-btn staff-copy-pin-btn"
+                              title="Copy PIN to clipboard"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Revenue Performance Strip */}
+                        <div className="staff-perf-strip">
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            <span style={{ color: '#ff5500', fontWeight: 800 }}>TODAY'S TOTAL</span>
+                            <span style={{ color: '#22c55e', fontWeight: 800, fontSize: '0.95rem' }}>
+                              {formatINR(stats.todayCollection)}
+                            </span>
+                          </div>
+
+                          {/* Split: Gaming Sessions vs Food POS */}
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <span className="staff-perf-stream-tag staff-perf-stream--gaming">
+                              <Gamepad2 size={12} /> Gaming: {formatINR(stats.todayGamingCollection)}
+                            </span>
+                            <span className="staff-perf-stream-tag staff-perf-stream--food">
+                              <Coffee size={12} /> Cafe: {formatINR(stats.todayFoodCollection)}
+                            </span>
+                          </div>
+
+                          {/* Cash & UPI breakdown */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: '0.72rem',
+                              color: '#94a3b8',
+                              borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
+                              paddingTop: 6,
+                            }}
+                          >
+                            <span>
+                              Cash: <strong style={{ color: '#f59e0b' }}>{formatINR(stats.todayCash)}</strong>
+                            </span>
+                            <span>
+                              UPI: <strong style={{ color: '#00e5ff' }}>{formatINR(stats.todayUpi)}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Notes if any */}
+                        {staff.notes && (
+                          <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>
+                            📝 {staff.notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Actions Footer */}
+                    <div className="staff-card-footer">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(staff)}
+                        className="btn"
+                        style={{
+                          flex: 1,
+                          fontSize: '0.75rem',
+                          height: 34,
+                          borderRadius: 8,
+                          fontWeight: 700,
+                          background: isActive ? 'rgba(255, 255, 255, 0.06)' : 'rgba(34, 197, 94, 0.2)',
+                          color: isActive ? '#94a3b8' : '#22c55e',
+                          border: `1px solid ${isActive ? 'rgba(255, 255, 255, 0.1)' : 'rgba(34, 197, 94, 0.4)'}`,
+                        }}
+                      >
+                        {isActive ? 'Deactivate' : 'Activate Access'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCredentials(staff)}
+                        className="btn"
+                        style={{
+                          fontSize: '0.75rem',
+                          height: 34,
+                          padding: '0 10px',
+                          borderRadius: 8,
+                          background: 'rgba(255, 85, 0, 0.12)',
+                          color: '#ff5500',
+                          border: '1px solid rgba(255, 85, 0, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                        title="Copy full login credentials text"
+                      >
+                        <Copy size={13} /> Share
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(staff)}
+                        className="btn"
+                        style={{
+                          fontSize: '0.75rem',
+                          height: 34,
+                          padding: '0 10px',
+                          borderRadius: 8,
+                          background: 'rgba(0, 229, 255, 0.12)',
+                          color: '#00e5ff',
+                          border: '1px solid rgba(0, 229, 255, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                        title="Edit staff details"
+                      >
+                        <Edit2 size={13} /> Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(staff)}
+                        className="btn"
+                        style={{
+                          fontSize: '0.75rem',
+                          height: 34,
+                          padding: '0 10px',
+                          borderRadius: 8,
+                          background: 'rgba(239, 68, 68, 0.12)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title="Delete staff"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                    paddingTop: 12,
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(staff)}
-                      className={`btn btn-sm ${isActive ? 'btn-ghost' : 'btn-primary'}`}
-                      style={{
-                        flex: 1,
-                        fontSize: '0.75rem',
-                        height: 32,
-                        borderColor: isActive ? 'rgba(255,255,255,0.1)' : undefined,
-                      }}
-                    >
-                      {isActive ? 'Deactivate' : 'Activate Staff'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(staff)}
-                      className="btn btn-sm btn-ghost"
-                      style={{ fontSize: '0.75rem', height: 32, padding: '0 10px' }}
-                      title="Edit staff details"
-                    >
-                      <Edit2 size={13} /> Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(staff)}
-                      className="btn btn-sm btn-ghost"
-                      style={{ fontSize: '0.75rem', height: 32, padding: '0 10px', color: 'var(--color-danger)' }}
-                      title="Delete staff"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>}
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
-      {/* ─── VIEW 2: STAFF PERFORMANCE & COLLECTION REPORT TABLE ─── */}
+      {/* ── VIEW 2: STAFF PERFORMANCE & HANDOVER REPORT TABLE ── */}
       {viewTab === 'report' && (
-        <div className="glass admin-table-wrap staff-report" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div className="staff-report">
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-                Staff performance and collection
+              <h3
+                style={{
+                  fontSize: '1.15rem',
+                  fontWeight: 800,
+                  color: '#fff',
+                  margin: 0,
+                  fontFamily: 'var(--font-heading)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <Receipt size={18} style={{ color: '#ff5500' }} />
+                Shift Closing & Daily Handover Report
               </h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', margin: '3px 0 0' }}>
-                Compare each staff member’s bookings and payments collected today with their all-time totals.
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '4px 0 0' }}>
+                Summary of all gaming sessions and cafe food counter collections logged by each staff member.
               </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleCopyHandoverSummary}
+                className="btn"
+                style={{
+                  background: 'rgba(255, 85, 0, 0.15)',
+                  color: '#ff5500',
+                  border: '1px solid rgba(255, 85, 0, 0.3)',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Copy size={14} /> Copy Handover Summary
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="btn"
+                style={{
+                  background: 'rgba(0, 229, 255, 0.15)',
+                  color: '#00e5ff',
+                  border: '1px solid rgba(0, 229, 255, 0.3)',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Printer size={14} /> Print Report
+              </button>
             </div>
           </div>
 
@@ -780,126 +1055,179 @@ export default function AdminStaff() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Staff member</th>
-                <th>Work shift</th>
-                <th>Bookings today</th>
-                <th>Cash today</th>
-                <th>UPI today</th>
-                <th>Total collected today</th>
-                <th>Bookings all time</th>
-                <th>Total collected all time</th>
+                <th>Staff Member</th>
+                <th>Shift / Status</th>
+                <th>Today Gaming</th>
+                <th>Today Food</th>
+                <th>Today Cash</th>
+                <th>Today UPI</th>
+                <th>Total Today</th>
+                <th>All-Time Revenue</th>
               </tr>
             </thead>
             <tbody>
-              {staffSummaryList.map(({ staff, todayCount, todayCash, todayUpi, todayCollection, allTimeCount, allTimeCollection }) => (
-                <tr key={staff.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.8rem',
-                      }}>
-                        {(staff.name || 'S')[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.88rem' }}>{staff.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>{staff.role}</div>
-                      </div>
-                    </div>
-                  </td>
+              {staffSummaryList.map(
+                ({
+                  staff,
+                  todayGamingCollection,
+                  todayFoodCollection,
+                  todayCash,
+                  todayUpi,
+                  todayCollection,
+                  todayCount,
+                  allTimeCollection,
+                  allTimeCount,
+                }) => {
+                  const onDuty = isStaffCurrentlyOnShift(staff.shift, staff.status);
+                  return (
+                    <tr key={staff.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 8,
+                              background: 'linear-gradient(135deg, #ff5500, #ff7700)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 800,
+                              fontSize: '0.85rem',
+                              fontFamily: 'var(--font-display)',
+                            }}
+                          >
+                            {(staff.name || 'S')[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>
+                              {staff.name}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                              {staff.role}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
 
-                  <td style={{ fontSize: '0.8rem', color: 'var(--color-text-dim)' }}>
-                    {staff.shift || 'Flexible'}
-                  </td>
+                      <td>
+                        <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                          {staff.shift || 'Flexible'}
+                        </div>
+                        {staff.status === 'active' ? (
+                          onDuty ? (
+                            <span style={{ fontSize: '0.68rem', color: '#22c55e', fontWeight: 700 }}>
+                              ● On Duty Now
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                              ○ Off Shift
+                            </span>
+                          )
+                        ) : (
+                          <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 700 }}>
+                            ✕ Inactive
+                          </span>
+                        )}
+                      </td>
 
-                  <td>
-                    <span style={{
-                      fontWeight: 800,
-                      fontSize: '0.95rem',
-                      color: todayCount > 0 ? 'var(--color-primary-light)' : 'var(--color-text-dim)',
-                    }}>
-                      {todayCount}
-                    </span>
-                  </td>
+                      {/* Gaming Revenue Today */}
+                      <td>
+                        <span style={{ color: '#00e5ff', fontWeight: 700 }}>
+                          {formatINR(todayGamingCollection)}
+                        </span>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          {todayCount} bookings
+                        </div>
+                      </td>
 
-                  <td>
-                    <span style={{ color: '#f59e0b', fontWeight: 700 }}>{formatINR(todayCash)}</span>
-                  </td>
+                      {/* Food Revenue Today */}
+                      <td>
+                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                          {formatINR(todayFoodCollection)}
+                        </span>
+                      </td>
 
-                  <td>
-                    <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>{formatINR(todayUpi)}</span>
-                  </td>
+                      {/* Cash Received Today */}
+                      <td>
+                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                          {formatINR(todayCash)}
+                        </span>
+                      </td>
 
-                  <td>
-                    <span style={{
-                      color: '#10b981',
-                      fontWeight: 800,
-                      fontSize: '0.95rem',
-                      padding: '2px 8px',
-                      borderRadius: 6,
-                      background: todayCollection > 0 ? 'rgba(16,185,129,0.12)' : 'transparent',
-                    }}>
-                      {formatINR(todayCollection)}
-                    </span>
-                  </td>
+                      {/* UPI Received Today */}
+                      <td>
+                        <span style={{ color: '#00e5ff', fontWeight: 700 }}>
+                          {formatINR(todayUpi)}
+                        </span>
+                      </td>
 
-                  <td style={{ fontSize: '0.85rem', color: 'var(--color-text-dim)' }}>
-                    {allTimeCount}
-                  </td>
+                      {/* Total Today */}
+                      <td>
+                        <span
+                          style={{
+                            color: '#22c55e',
+                            fontWeight: 800,
+                            fontSize: '0.95rem',
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: todayCollection > 0 ? 'rgba(34, 197, 94, 0.12)' : 'transparent',
+                          }}
+                        >
+                          {formatINR(todayCollection)}
+                        </span>
+                      </td>
 
-                  <td>
-                    <strong style={{ color: '#fff' }}>{formatINR(allTimeCollection)}</strong>
-                  </td>
-                </tr>
-              ))}
+                      {/* All Time Total */}
+                      <td>
+                        <strong style={{ color: '#fff', fontSize: '0.9rem' }}>
+                          {formatINR(allTimeCollection)}
+                        </strong>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          {allTimeCount} items/slots
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+              )}
 
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ color: 'var(--color-text-dim)', textAlign: 'center' }}>
-                    Loading staff report…
+                  <td colSpan={8} style={{ color: '#94a3b8', textAlign: 'center', padding: '24px' }}>
+                    Loading staff report...
                   </td>
                 </tr>
               ) : staffSummaryList.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ color: 'var(--color-text-dim)', textAlign: 'center' }}>
+                  <td colSpan={8} style={{ color: '#94a3b8', textAlign: 'center', padding: '24px' }}>
                     No staff members to report yet.
                   </td>
                 </tr>
               ) : null}
 
               {/* Cafe Total Row */}
-              <tr style={{
-                background: 'rgba(147, 51, 234, 0.12)',
-                borderTop: '2px solid rgba(147, 51, 234, 0.3)',
-                fontWeight: 800,
-              }}>
-                <td colSpan={2} style={{ color: '#fff', fontSize: '0.9rem' }}>
-                  Cafe total
+              <tr className="staff-report-total-row">
+                <td colSpan={2} style={{ color: '#fff', fontSize: '0.95rem' }}>
+                  TS Gaming Cafe Total Handover
                 </td>
-                <td style={{ color: 'var(--color-primary-light)', fontSize: '1rem' }}>
-                  {overallTotals.todayCount}
+                <td style={{ color: '#00e5ff' }}>
+                  {formatINR(overallTotals.todayGamingCollection || overallTotals.todayCash + overallTotals.todayUpi - (overallTotals.todayFoodCollection || 0))}
                 </td>
-                <td style={{ color: '#f59e0b', fontSize: '0.95rem' }}>
+                <td style={{ color: '#f59e0b' }}>
+                  {formatINR(overallTotals.todayFoodCollection || 0)}
+                </td>
+                <td style={{ color: '#f59e0b', fontSize: '1rem' }}>
                   {formatINR(overallTotals.todayCash)}
                 </td>
-                <td style={{ color: 'var(--color-accent)', fontSize: '0.95rem' }}>
+                <td style={{ color: '#00e5ff', fontSize: '1rem' }}>
                   {formatINR(overallTotals.todayUpi)}
                 </td>
-                <td style={{ color: '#10b981', fontSize: '1.05rem' }}>
+                <td style={{ color: '#22c55e', fontSize: '1.1rem' }}>
                   {formatINR(overallTotals.todayCollection)}
                 </td>
-                <td style={{ color: '#fff' }}>
-                  {overallTotals.allTimeCount}
-                </td>
-                <td style={{ color: 'var(--color-primary-light)', fontSize: '1rem' }}>
+                <td style={{ color: '#ff5500', fontSize: '1.05rem' }}>
                   {formatINR(overallTotals.allTimeCollection)}
                 </td>
               </tr>
@@ -908,131 +1236,316 @@ export default function AdminStaff() {
         </div>
       )}
 
-      {/* Empty State */}
+      {/* ── Empty State ── */}
       {viewTab === 'cards' && !loading && filteredStaff.length === 0 && (
-        <div className="glass staff-empty-state" style={{
-          textAlign: 'center',
-          padding: '60px 20px',
-          borderRadius: 'var(--radius-lg)',
-          marginTop: 'var(--space-xl)',
-        }}>
-          <Users size={48} style={{ color: 'var(--color-text-dim)', marginBottom: 12 }} />
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            borderRadius: 18,
+            background: 'linear-gradient(145deg, #0f1422, #07090f)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            marginTop: '1.5rem',
+          }}
+        >
+          <Users size={48} style={{ color: '#64748b', marginBottom: 12 }} />
           <h3 style={{ color: '#fff', marginBottom: 6 }}>
-            {staffList.length === 0 ? 'No staff members yet' : 'No staff match your search'}
+            {staffList.length === 0 ? 'No Staff Members Registered' : 'No Crew Matches Filters'}
           </h3>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginBottom: 16 }}>
+          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: 20 }}>
             {staffList.length === 0
-              ? 'Add a staff member to give them a shift and login access.'
-              : 'Try another name or change the status filter.'}
+              ? 'Add your first staff member to give them shift access and login credentials.'
+              : 'Try clearing your search keyword or switching shift/role filters.'}
           </p>
           <button
-            onClick={staffList.length === 0 ? handleOpenAdd : () => { setSearchTerm(''); setStatusFilter('all'); }}
-            className="btn btn-primary btn-sm"
+            onClick={
+              staffList.length === 0
+                ? handleOpenAdd
+                : () => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setRoleFilter('all');
+                    setShiftFilter('all');
+                  }
+            }
+            className="btn"
+            style={{
+              background: '#ff5500',
+              color: '#fff',
+              padding: '8px 20px',
+              borderRadius: 8,
+              fontWeight: 700,
+            }}
           >
-            {staffList.length === 0 ? <><UserPlus size={14} /> Add first staff member</> : 'Clear search and filters'}
+            {staffList.length === 0 ? '+ Add First Staff Member' : 'Clear All Filters'}
           </button>
         </div>
       )}
 
-      {/* ─── ADD / EDIT MODAL ─── */}
+      {/* ── ADD / EDIT MODAL ── */}
       {(showAddModal || editingStaff) && (
-        <div className="modal-backdrop" onClick={() => { setShowAddModal(false); setEditingStaff(null); }}>
+        <div
+          className="staff-modal-backdrop"
+          onClick={() => {
+            setShowAddModal(false);
+            setEditingStaff(null);
+          }}
+        >
           <div
-            className="modal-box glass-strong"
+            className="staff-modal-box"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 500, width: '100%' }}
+            style={{ maxWidth: 540, width: '100%' }}
           >
-            <div className="modal-header">
-              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {editingStaff ? <Edit2 size={18} /> : <UserPlus size={18} />}
-                {editingStaff ? 'Edit staff member' : 'Add staff member'}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                paddingBottom: 14,
+                marginBottom: 16,
+              }}
+            >
+              <h3
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  margin: 0,
+                  color: '#fff',
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.25rem',
+                }}
+              >
+                {editingStaff ? <Edit2 size={18} style={{ color: '#00e5ff' }} /> : <UserPlus size={18} style={{ color: '#ff5500' }} />}
+                {editingStaff ? `Edit ${editingStaff.name}` : 'Add Staff Member'}
               </h3>
               <button
-                className="btn-close"
-                onClick={() => { setShowAddModal(false); setEditingStaff(null); }}
+                type="button"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingStaff(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4,
+                }}
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Full Name */}
               <div className="form-group">
-                <label className="form-label">Full name *</label>
+                <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                  Full Name *
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Staff name"
+                  placeholder="e.g. Rahul Sharma"
                   className="form-input"
+                  style={{
+                    background: '#070a12',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: 8,
+                    height: 42,
+                    color: '#fff',
+                    padding: '0 12px',
+                  }}
                   required
                   autoFocus
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              {/* Phone & PIN */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                 <div className="form-group">
-                  <label className="form-label">Phone number</label>
+                  <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                    Phone Number (for WhatsApp) *
+                  </label>
                   <input
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="Phone number"
+                    placeholder="10-digit mobile"
                     className="form-input"
+                    style={{
+                      background: '#070a12',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 8,
+                      height: 42,
+                      color: '#fff',
+                      padding: '0 12px',
+                    }}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Login PIN *</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                      Login PIN *
+                    </label>
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, pin: String(Math.floor(1000 + Math.random() * 9000)) })}
-                      style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '0.7rem', cursor: 'pointer' }}
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          pin: String(Math.floor(1000 + Math.random() * 9000)),
+                        })
+                      }
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ff5500',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
                     >
-                      Generate PIN
+                      🎲 Generate PIN
                     </button>
-                  </label>
+                  </div>
                   <input
                     type="text"
                     value={formData.pin}
                     onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
-                    placeholder="PIN"                    className="form-input"
-                    style={{ fontWeight: 700, letterSpacing: '0.15em' }}
+                    placeholder="4-digit PIN"
+                    className="form-input"
+                    style={{
+                      background: '#070a12',
+                      border: '1px solid rgba(255, 85, 0, 0.4)',
+                      borderRadius: 8,
+                      height: 42,
+                      color: '#ff7700',
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 800,
+                      letterSpacing: '0.18em',
+                      padding: '0 12px',
+                    }}
                     required
                   />
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Role</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="form-input"
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
+              {/* Role & Shift */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                    Role
+                  </label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="form-input"
+                    style={{
+                      background: '#070a12',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 8,
+                      height: 42,
+                      color: '#fff',
+                      padding: '0 12px',
+                    }}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                    Work Shift
+                  </label>
+                  <select
+                    value={formData.shift}
+                    onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
+                    className="form-input"
+                    style={{
+                      background: '#070a12',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 8,
+                      height: 42,
+                      color: '#fff',
+                      padding: '0 12px',
+                    }}
+                  >
+                    {SHIFTS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Work shift</label>
-                <select
-                  value={formData.shift}
-                  onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
-                  className="form-input"
-                >
-                  {SHIFTS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+              {/* Optional UPI ID & Emergency Contact */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                    Salary UPI ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.upiId}
+                    onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
+                    placeholder="e.g. name@okhdfcbank"
+                    className="form-input"
+                    style={{
+                      background: '#070a12',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 8,
+                      height: 42,
+                      color: '#fff',
+                      padding: '0 12px',
+                    }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                    Emergency Contact (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.emergencyContact}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                    placeholder="Family/guardian number"
+                    className="form-input"
+                    style={{
+                      background: '#070a12',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 8,
+                      height: 42,
+                      color: '#fff',
+                      padding: '0 12px',
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Login Access Radio */}
               <div className="form-group">
-                <label className="form-label">Login access</label>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
+                <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                  Portal Login Access
+                </label>
+                <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
                     <input
                       type="radio"
                       name="status"
@@ -1040,9 +1553,18 @@ export default function AdminStaff() {
                       checked={formData.status === 'active'}
                       onChange={() => setFormData({ ...formData, status: 'active' })}
                     />
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>Active — can log in</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700 }}>Active (Can login to counter)</span>
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
                     <input
                       type="radio"
                       name="status"
@@ -1050,37 +1572,67 @@ export default function AdminStaff() {
                       checked={formData.status === 'inactive'}
                       onChange={() => setFormData({ ...formData, status: 'inactive' })}
                     />
-                    <span style={{ color: '#ef4444', fontWeight: 600 }}>Inactive — sign-in disabled</span>
+                    <span style={{ color: '#ef4444', fontWeight: 700 }}>Deactivated (Access blocked)</span>
                   </label>
                 </div>
               </div>
 
+              {/* Notes */}
               <div className="form-group">
-                <label className="form-label">Notes (optional)</label>
+                <label className="form-label" style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 700 }}>
+                  Notes / Responsibilities (Optional)
+                </label>
                 <input
                   type="text"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Shift notes or duties"
+                  placeholder="e.g. Opens cafe at 9 AM, handles PS5 controller repairs"
                   className="form-input"
+                  style={{
+                    background: '#070a12',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: 8,
+                    height: 42,
+                    color: '#fff',
+                    padding: '0 12px',
+                  }}
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
                 <button
                   type="button"
-                  className="btn btn-ghost"
-                  style={{ flex: 1 }}
-                  onClick={() => { setShowAddModal(false); setEditingStaff(null); }}
+                  className="btn"
+                  style={{
+                    flex: 1,
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: '#cbd5e1',
+                    borderRadius: 8,
+                    height: 42,
+                    fontWeight: 700,
+                  }}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingStaff(null);
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
-                  style={{ flex: 1 }}
+                  className="btn"
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #ff5500, #ff7700)',
+                    color: '#fff',
+                    borderRadius: 8,
+                    height: 42,
+                    fontWeight: 800,
+                    boxShadow: '0 0 16px rgba(255, 85, 0, 0.4)',
+                  }}
                 >
-                  {editingStaff ? 'Save changes' : 'Add staff member'}
+                  {editingStaff ? 'Save Changes' : 'Create Staff Account'}
                 </button>
               </div>
             </form>
@@ -1088,37 +1640,49 @@ export default function AdminStaff() {
         </div>
       )}
 
-      {/* ─── DELETE CONFIRM MODAL ─── */}
+      {/* ── DELETE CONFIRMATION MODAL ── */}
       {deleteTarget && (
-        <div className="modal-backdrop" onClick={() => setDeleteTarget(null)}>
+        <div className="staff-modal-backdrop" onClick={() => setDeleteTarget(null)}>
           <div
-            className="modal-box glass-strong"
+            className="staff-modal-box"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 420, textAlign: 'center' }}
+            style={{ maxWidth: 440, textAlign: 'center' }}
           >
-            <div style={{
-              width: 50,
-              height: 50,
-              borderRadius: '50%',
-              background: 'rgba(239, 68, 68, 0.15)',
-              color: 'var(--color-danger)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto var(--space-md)',
-            }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: '50%',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}
+            >
               <Trash2 size={24} />
             </div>
-            <h3 style={{ color: '#fff', marginBottom: 6 }}>Delete Staff Member?</h3>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginBottom: 20 }}>
-              Are you sure you want to remove <strong>"{deleteTarget.name}"</strong>?
-              They will no longer be able to log in to the staff duty portal.
+            <h3 style={{ color: '#fff', marginBottom: 8, fontFamily: 'var(--font-heading)' }}>
+              Remove Crew Member?
+            </h3>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: 24, lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong>"{deleteTarget.name}"</strong>? Their PIN will be
+              revoked immediately and they will no longer be able to log into the counter duty desk.
             </p>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 12 }}>
               <button
                 type="button"
-                className="btn btn-ghost"
-                style={{ flex: 1 }}
+                className="btn"
+                style={{
+                  flex: 1,
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#cbd5e1',
+                  borderRadius: 8,
+                  height: 40,
+                  fontWeight: 700,
+                }}
                 onClick={() => setDeleteTarget(null)}
               >
                 Cancel
@@ -1126,10 +1690,17 @@ export default function AdminStaff() {
               <button
                 type="button"
                 className="btn"
-                style={{ flex: 1, background: '#ef4444', color: '#fff' }}
+                style={{
+                  flex: 1,
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: 8,
+                  height: 40,
+                  fontWeight: 800,
+                }}
                 onClick={handleDeleteStaff}
               >
-                Yes, Delete
+                Yes, Delete Staff
               </button>
             </div>
           </div>

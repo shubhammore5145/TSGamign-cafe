@@ -1,10 +1,25 @@
+/* ============================================================
+   TS GAMING CAFÉ — STAFF MANAGEMENT (CYBERPUNK THEME)
+   Vibrant Orange (#ff5500) & Electric Cyan (#00e5ff) Neon Design
+   ============================================================ */
+
 .admin-staff-page {
-  color: var(--color-text);
+  color: var(--color-text, #f1f5f9);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-bottom: 2.5rem;
 }
 
+/* ── Page Header ── */
 .staff-page-header {
+  display: flex;
   align-items: flex-end;
-  margin-bottom: 1.25rem !important;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem !important;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .staff-page-heading {
@@ -12,216 +27,630 @@
 }
 
 .staff-page-eyebrow {
-  display: block;
-  margin-bottom: 0.4rem;
-  color: var(--color-primary-light);
-  font-size: 0.68rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0.35rem;
+  color: #ff5500;
+  font-family: var(--font-display, 'Orbitron', monospace);
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .staff-page-header .admin-section-title {
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-family: var(--font-heading, 'Rajdhani', sans-serif);
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.staff-title-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 85, 0, 0.25), rgba(0, 229, 255, 0.15));
+  border: 1px solid rgba(255, 85, 0, 0.4);
+  color: #ff5500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(255, 85, 0, 0.3);
 }
 
 .staff-page-description {
-  max-width: 620px;
-  margin-top: 0.45rem;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  line-height: 1.55;
+  max-width: 680px;
+  margin-top: 0.4rem;
+  color: #94a3b8;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 .staff-page-actions {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  gap: 10px;
 }
 
+/* ── View Switcher: Cards vs Report Table ── */
 .staff-view-switcher {
-  min-height: 40px;
+  display: inline-flex;
+  background: rgba(13, 18, 31, 0.85);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .staff-view-switcher button {
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
+.staff-view-switcher button.active {
+  background: linear-gradient(135deg, #ff5500, #ff7700);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(255, 85, 0, 0.45);
+}
+
+.staff-view-switcher button:not(.active) {
+  background: transparent;
+  color: #94a3b8;
+}
+
+.staff-view-switcher button:not(.active):hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Top Cyber KPI Grid ── */
 .staff-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-md);
-  margin-bottom: var(--space-lg);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .staff-summary-card {
   min-width: 0;
-  border: 1px solid var(--color-border);
-  transition: border-color var(--transition-fast), transform var(--transition-fast);
+  background: linear-gradient(145deg, rgba(13, 18, 31, 0.85), rgba(9, 12, 21, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.staff-summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
 }
 
 .staff-summary-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(147, 51, 234, 0.35);
+  transform: translateY(-3px);
+  border-color: rgba(0, 229, 255, 0.35);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 229, 255, 0.15);
+}
+
+.staff-summary-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .staff-summary-value {
-  line-height: 1.2;
+  font-family: var(--font-display, 'Orbitron', monospace);
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .staff-summary-label {
   margin-top: 0.2rem;
-  color: var(--color-text-muted);
+  color: #94a3b8;
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .staff-summary-note {
-  margin-top: 0.2rem;
-  color: var(--color-text-dim);
+  margin-top: 0.25rem;
+  color: #64748b;
   font-size: 0.72rem;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
+/* ── Filter & Search Control Bar ── */
 .staff-filter-bar {
-  align-items: center;
-  border: 1px solid var(--color-border);
-}
-
-.staff-status-filters {
+  background: linear-gradient(145deg, rgba(13, 18, 31, 0.8), rgba(9, 12, 21, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
+.staff-search-input-wrap {
+  position: relative;
+  flex: 1 1 280px;
+}
+
+.staff-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+}
+
+.staff-search-input {
+  width: 100%;
+  height: 42px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 14px 0 42px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.staff-search-input:focus {
+  outline: none;
+  border-color: #ff5500;
+  box-shadow: 0 0 14px rgba(255, 85, 0, 0.35);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.staff-filter-groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-filter-select {
+  height: 42px;
+  background: rgba(13, 18, 31, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.staff-filter-select:focus {
+  outline: none;
+  border-color: #00e5ff;
+}
+
+.staff-status-pills {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.staff-status-pill-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.staff-status-pill-btn.active {
+  background: #ff5500;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(255, 85, 0, 0.4);
+}
+
+/* ── Staff Cards Grid ── */
 .staff-card-grid {
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 1.25rem;
 }
 
 .staff-card {
-  min-width: 0;
-  border-color: rgba(147, 51, 234, 0.24);
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  background: linear-gradient(155deg, rgba(16, 22, 38, 0.88), rgba(9, 12, 21, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.staff-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff5500, #00e5ff);
+  opacity: 0.6;
+  transition: opacity 0.25s ease;
 }
 
 .staff-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(147, 51, 234, 0.5);
+  transform: translateY(-4px);
+  border-color: rgba(255, 85, 0, 0.4);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7), 0 0 25px rgba(255, 85, 0, 0.2);
 }
 
-.staff-card--inactive:hover {
-  border-color: rgba(239, 68, 68, 0.4);
+.staff-card:hover::before {
+  opacity: 1;
 }
 
-.staff-card h3 {
-  overflow-wrap: anywhere;
+.staff-card--inactive {
+  opacity: 0.72;
+  border-color: rgba(239, 68, 68, 0.25);
 }
 
-.staff-card a:hover {
-  color: var(--color-accent) !important;
+.staff-card--inactive::before {
+  background: #ef4444;
 }
 
-.staff-loading-state,
-.staff-empty-state {
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
+/* ── Live Duty Radar Pulse ── */
+.staff-duty-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.staff-loading-state {
-  padding: 2rem 1rem;
-  text-align: center;
+.staff-duty-badge--live {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
 }
 
-.staff-report {
-  overflow-x: auto !important;
-  border-color: var(--color-border);
+.staff-duty-radar {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  position: relative;
 }
 
-.staff-report .admin-table {
-  min-width: 930px;
+.staff-duty-radar::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid #22c55e;
+  animation: duty-radar-pulse 1.8s infinite;
 }
 
-.staff-report .admin-table th {
-  white-space: normal;
-  line-height: 1.4;
+@keyframes duty-radar-pulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
 }
 
-/* ── Quick Phone Call & WhatsApp Action Buttons ── */
+.staff-duty-badge--off {
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.staff-duty-badge--inactive {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* ── Staff Role Tag ── */
+.staff-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.1);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.25);
+}
+
+/* ── Staff Card Avatar ── */
+.staff-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff5500, #ff7700);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display, 'Orbitron', monospace);
+  font-size: 1.3rem;
+  font-weight: 800;
+  box-shadow: 0 0 16px rgba(255, 85, 0, 0.4);
+  flex-shrink: 0;
+}
+
+.staff-avatar--inactive {
+  background: #334155;
+  box-shadow: none;
+  color: #94a3b8;
+}
+
+/* ── Performance Live Revenue Strip ── */
+.staff-perf-strip {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 85, 0, 0.08), rgba(0, 229, 255, 0.06));
+  border: 1px solid rgba(255, 85, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.staff-perf-stream-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.staff-perf-stream--gaming {
+  background: rgba(0, 229, 255, 0.12);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+.staff-perf-stream--food {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* ── Quick Action Buttons: Call, WhatsApp, Share, PIN ── */
 .staff-phone-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   text-decoration: none;
-  transition: all var(--transition-fast);
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
 }
 
 .staff-phone-call {
-  background: rgba(6, 182, 212, 0.15);
-  color: var(--color-accent);
-  border: 1px solid rgba(6, 182, 212, 0.35);
+  background: rgba(0, 229, 255, 0.12);
+  color: #00e5ff;
+  border-color: rgba(0, 229, 255, 0.3);
 }
 
-.staff-phone-call:hover,
-.staff-phone-call:active {
-  background: var(--color-accent);
-  color: #0d111c;
-  transform: scale(1.05);
+.staff-phone-call:hover {
+  background: #00e5ff;
+  color: #07080b;
+  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
 }
 
 .staff-phone-wa {
   background: rgba(37, 211, 102, 0.15);
   color: #25D366;
-  border: 1px solid rgba(37, 211, 102, 0.35);
+  border-color: rgba(37, 211, 102, 0.35);
 }
 
-.staff-phone-wa:hover,
-.staff-phone-wa:active {
+.staff-phone-wa:hover {
   background: #25D366;
   color: #fff;
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(37, 211, 102, 0.5);
 }
 
-/* ── Modal Backdrop & Modal Box ── */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 1000;
+.staff-share-cred-btn {
+  background: rgba(255, 85, 0, 0.12);
+  color: #ff5500;
+  border-color: rgba(255, 85, 0, 0.3);
+}
+
+.staff-share-cred-btn:hover {
+  background: #ff5500;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(255, 85, 0, 0.5);
+}
+
+.staff-copy-pin-btn {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.staff-copy-pin-btn:hover {
+  background: #f59e0b;
+  color: #07080b;
+  transform: translateY(-2px);
+}
+
+/* ── PIN Box ── */
+.staff-pin-chip {
+  font-family: var(--font-display, 'Orbitron', monospace);
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: #ff7700;
+  background: rgba(255, 85, 0, 0.1);
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 85, 0, 0.25);
+}
+
+/* ── Card Action Footer ── */
+.staff-card-footer {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
-  animation: fade-in 0.2s ease-out;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
 }
 
-.modal-box {
-  background: #0f1420;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(147, 51, 234, 0.25);
-  padding: 24px;
-  position: relative;
-  max-height: 90vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  animation: slide-up 0.25s ease-out;
+/* ── Performance Report Table ── */
+.staff-report {
+  background: linear-gradient(155deg, rgba(13, 18, 31, 0.9), rgba(9, 12, 21, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  overflow-x: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.staff-report .admin-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+}
+
+.staff-report th {
+  background: rgba(255, 85, 0, 0.08);
+  color: #ff5500;
+  font-family: var(--font-display, 'Orbitron', monospace);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 85, 0, 0.25);
+  text-align: left;
+}
+
+.staff-report td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.85rem;
+}
+
+.staff-report tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.staff-report-total-row {
+  background: linear-gradient(90deg, rgba(255, 85, 0, 0.15), rgba(0, 229, 255, 0.1)) !important;
+  border-top: 2px solid #ff5500 !important;
+  font-weight: 800;
 }
 
 .staff-table-scroll-hint {
   display: none;
   font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-accent);
-  background: rgba(6, 182, 212, 0.08);
-  border: 1px dashed rgba(6, 182, 212, 0.25);
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 8px;
+  font-weight: 700;
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px dashed rgba(0, 229, 255, 0.3);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
   text-align: center;
 }
 
+/* ── Modal & Backdrop ── */
+.staff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: staff-fade-in 0.2s ease-out;
+}
+
+.staff-modal-box {
+  background: #0d121f;
+  border: 1px solid rgba(255, 85, 0, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 85, 0, 0.2);
+  padding: 24px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: staff-slide-up 0.25s ease-out;
+}
+
+@keyframes staff-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes staff-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Responsive Media Queries ── */
 @media (max-width: 1100px) {
   .staff-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -231,6 +660,11 @@
 @media (max-width: 768px) {
   .staff-table-scroll-hint {
     display: block;
+  }
+
+  .staff-page-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .staff-page-actions {
@@ -245,37 +679,29 @@
   .staff-view-switcher button {
     flex: 1;
     justify-content: center;
-    padding: 7px 8px !important;
-    font-size: 0.72rem !important;
-  }
-
-  .staff-page-actions > .btn {
-    justify-content: center;
   }
 }
 
 @media (max-width: 600px) {
-  .modal-backdrop {
+  .staff-modal-backdrop {
     padding: 0;
     align-items: flex-end;
   }
 
-  .modal-box {
+  .staff-modal-box {
     width: 100% !important;
     max-width: 100% !important;
-    border-radius: 20px 20px 0 0 !important;
+    border-radius: 22px 22px 0 0 !important;
     max-height: 88vh !important;
-    padding: 18px 16px 32px !important;
+    padding: 20px 16px 36px !important;
     border-bottom: none !important;
   }
 }
 
 @media (max-width: 560px) {
-  /* Crisp 2x2 Summary Dashboard on Phones instead of Stacking 4 Cards Vertically */
   .staff-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 8px !important;
-    margin-bottom: var(--space-md) !important;
   }
 
   .staff-summary-card {
@@ -283,68 +709,21 @@
     gap: 8px !important;
   }
 
-  .staff-summary-card > div:first-child {
-    width: 34px !important;
-    height: 34px !important;
-    min-width: 34px !important;
-    border-radius: var(--radius-sm) !important;
-  }
-
-  .staff-summary-card > div:first-child svg {
-    width: 18px !important;
-    height: 18px !important;
+  .staff-summary-icon {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
   }
 
   .staff-summary-value {
-    font-size: 1.12rem !important;
+    font-size: 1.15rem !important;
   }
 
   .staff-summary-label {
-    font-size: 0.7rem !important;
-  }
-
-  .staff-summary-note {
-    font-size: 0.64rem !important;
-    line-height: 1.25 !important;
-  }
-
-  .staff-page-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px !important;
-  }
-
-  .staff-view-switcher {
-    width: 100%;
-  }
-
-  .staff-filter-bar {
-    align-items: stretch !important;
-    padding: 10px !important;
-    gap: 8px !important;
-  }
-
-  .staff-status-filters {
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  .staff-status-filters button {
-    flex: 1;
-    text-align: center;
-    padding: 6px 4px !important;
+    font-size: 0.68rem !important;
   }
 
   .staff-card-grid {
     grid-template-columns: minmax(0, 1fr) !important;
-    gap: 12px !important;
-  }
-
-  .staff-card {
-    padding: 14px 12px !important;
-  }
-
-  .staff-card-actions {
-    flex-wrap: wrap;
   }
 }

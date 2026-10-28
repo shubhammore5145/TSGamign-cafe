@@ -37,14 +37,15 @@
 .gallery-tab-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--color-text-primary);
-  border-color: rgba(255, 85, 0, 0.4);
+  border-color: rgba(0, 255, 102, 0.45);
 }
 
 .gallery-tab-btn--active {
-  background: var(--gradient-primary);
-  color: #fff;
+  background: linear-gradient(135deg, #00ff66, #059669);
+  color: #040806;
+  font-weight: 800;
   border-color: transparent;
-  box-shadow: 0 0 16px rgba(255, 85, 0, 0.35);
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.4);
 }
 
 /* Grid */
@@ -157,9 +158,9 @@
   letter-spacing: 0.08em;
   padding: 2px 8px;
   border-radius: var(--radius-full);
-  background: rgba(255, 85, 0, 0.2);
-  border: 1px solid rgba(255, 85, 0, 0.4);
-  color: #ff7733;
+  background: rgba(0, 255, 102, 0.18);
+  border: 1px solid rgba(0, 255, 102, 0.4);
+  color: #00ff66;
 }
 
 .gallery-item__label {

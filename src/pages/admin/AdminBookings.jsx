@@ -45,6 +45,7 @@ import {
   Receipt,
   Sparkles,
   Target,
+  RefreshCw,
 } from 'lucide-react';
 import ClockTimePicker from '../../components/ClockTimePicker';
 import './AdminBookings.css';
@@ -272,13 +273,88 @@ function getFormattedDateTitle(dateStr) {
   return formatted;
 }
 
+
+export function getSetupLiveStatus(setupId, setups = [], activeSessions = [], bookings = []) {
+  if (!setupId) return { isBusy: false, freeTime12h: 'Now', freeTime24: null, minsLeft: 0, user: null };
+
+  const todayStr = getTodayString();
+  const now = new Date();
+  const current24 = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // 1. Check live activeSessions
+  const activeSess = activeSessions.find(ses => ses.setupId === setupId && ses.status !== 'completed');
+  if (activeSess) {
+    const endDate = activeSess.sessionEndTime?.toDate
+      ? activeSess.sessionEndTime.toDate()
+      : new Date(activeSess.sessionEndTime);
+    const endH = String(endDate.getHours()).padStart(2, '0');
+    const endM = String(endDate.getMinutes()).padStart(2, '0');
+    const end24 = `${endH}:${endM}`;
+    const minsLeft = Math.max(0, Math.round((endDate.getTime() - now.getTime()) / 60000));
+
+    return {
+      isBusy: true,
+      user: activeSess.userName || 'Gamer',
+      freeTime24: end24,
+      freeTime12h: formatTime12h(end24),
+      minsLeft,
+      reason: 'Live Session',
+    };
+  }
+
+  // 2. Check bookings for today that are active or overlapping current time
+  const currentBooking = bookings.find(b => {
+    if (b.setupId !== setupId) return false;
+    if (b.date !== todayStr) return false;
+    if (b.status === 'cancelled' || b.status === 'completed') return false;
+    return b.status === 'active' || (b.startTime <= current24 && current24 < b.endTime);
+  });
+
+  if (currentBooking) {
+    const [endH, endM] = currentBooking.endTime.split(':').map(Number);
+    const endDate = new Date();
+    endDate.setHours(endH || 0, endM || 0, 0, 0);
+    const minsLeft = Math.max(0, Math.round((endDate.getTime() - now.getTime()) / 60000));
+
+    return {
+      isBusy: true,
+      user: currentBooking.userName || 'Gamer',
+      freeTime24: currentBooking.endTime,
+      freeTime12h: formatTime12h(currentBooking.endTime),
+      minsLeft,
+      reason: 'Active Booking',
+    };
+  }
+
+  // 3. Check setups table status flag if manually marked occupied
+  const setupDoc = setups.find(s => s.id === setupId);
+  if (setupDoc && setupDoc.status === 'occupied') {
+    return {
+      isBusy: true,
+      user: 'Gamer',
+      freeTime24: null,
+      freeTime12h: 'Soon',
+      minsLeft: 0,
+      reason: 'Occupied',
+    };
+  }
+
+  return {
+    isBusy: false,
+    user: null,
+    freeTime24: null,
+    freeTime12h: 'Now',
+    minsLeft: 0,
+  };
+}
+
 export default function AdminBookings() {
   const [bookings, setBookings] = useState([]);
   const [setups, setSetups] = useState([]);
   const [activeSessions, setActiveSessions] = useState([]);
 
-  // View Mode: 'board' (Slot Grid Timeline) or 'table' (List view)
-  const [viewMode, setViewMode] = useState('table');
+  // View Mode: 'counter' (⚡ Staff Fast Counter), 'table' (List view), or 'board' (Slot Grid)
+  const [viewMode, setViewMode] = useState('counter');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -308,7 +384,7 @@ export default function AdminBookings() {
 
   // Unified Essential Booking Form State (Only what is necessary!)
   const [bookingForm, setBookingForm] = useState({
-    userName: '',
+    userName: 'Walk-in Gamer',
     userPhone: '',
     setupId: '',
     setupName: '',
@@ -367,20 +443,48 @@ export default function AdminBookings() {
     return calculateStaffStats(currentStaffUser.id, currentStaffUser.name, bookings);
   }, [currentStaffUser, bookings]);
 
-  // When setups load, auto-select first available console
+  // Auto-select free console and switch if current console becomes busy in real-time
   useEffect(() => {
-    if (setups.length > 0 && !formData.setupId) {
-      const firstAvailable = setups.find(s => s.status === 'available') || setups[0];
-      const rate = firstAvailable.pricePerHour || 100;
-      setFormData(prev => ({
-        ...prev,
-        setupId: firstAvailable.id,
-        setupName: firstAvailable.name,
-        hourlyRate: rate,
-        totalAmount: rate * prev.duration,
-      }));
+    if (setups.length > 0) {
+      const freeSetup = setups.find(s => {
+        const st = getSetupLiveStatus(s.id, setups, activeSessions, bookings);
+        return !st.isBusy;
+      });
+
+      const currentStatus = bookingForm.setupId
+        ? getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings)
+        : null;
+
+      if (!bookingForm.setupId || currentStatus?.isBusy) {
+        const target = freeSetup || setups[0];
+        const rate = Number(target.pricePerHour) || 100;
+        const p30 = Number(target.pricePer30Min) || Math.round(rate * 0.6);
+        const dur = bookingForm.durationMins || 60;
+        const price = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+
+        setBookingForm(prev => ({
+          ...prev,
+          setupId: target.id,
+          setupName: target.name,
+          hourlyRate: rate,
+          pricePer30Min: p30,
+          totalAmount: price,
+        }));
+      }
+
+      if (!formData.setupId) {
+        const target = freeSetup || setups[0];
+        const rate = Number(target.pricePerHour) || 100;
+        setFormData(prev => ({
+          ...prev,
+          setupId: target.id,
+          setupName: target.name,
+          hourlyRate: rate,
+          totalAmount: rate * prev.duration,
+        }));
+      }
     }
-  }, [setups]);
+  }, [setups, activeSessions, bookings, bookingForm.setupId, formData.setupId]);
 
   // Active Time Section for Matrix Board
   const [activeTimeRange, setActiveTimeRange] = useState('all');
@@ -541,6 +645,7 @@ export default function AdminBookings() {
     initialSetup = null,
     initialSlot = null,
     initialDate = null,
+    initialStartTime = null,
     durationMins = 60,
   } = {}) => {
     const curTime = getCurrentTime24();
@@ -551,7 +656,9 @@ export default function AdminBookings() {
     const rate30 = targetSetup?.pricePer30Min || Math.round(rate * 0.6);
 
     let start = curTime;
-    if (initialSlot?.start) {
+    if (initialStartTime) {
+      start = initialStartTime;
+    } else if (initialSlot?.start) {
       start = initialSlot.start;
     } else if (!startSessionNow) {
       const defaultSlot =
@@ -730,6 +837,119 @@ export default function AdminBookings() {
       toast.error('Booking Error', err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ⚡ Fast Staff Booking Counter Submission (0 modal dialog, 1-click execution!)
+  const handleFastCounterStart = async () => {
+    if (!bookingForm.setupId) {
+      return toast.error('Validation Error', 'Please select a PlayStation Setup first.');
+    }
+    const currentLiveStatus = getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings);
+    if (currentLiveStatus.isBusy) {
+      return toast.error(
+        'Console Already In Use!',
+        `🚫 ${bookingForm.setupName} is currently in use until ${currentLiveStatus.freeTime12h}. Double-booking is blocked! Please select another console.`
+      );
+    }
+    const customerName = bookingForm.userName.trim() || 'Walk-in Gamer';
+    setSubmitting(true);
+    try {
+      const setup = setups.find(s => s.id === bookingForm.setupId);
+      const now = new Date();
+      const startFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const computedEndTime = addMinutesToTime(startFormatted, bookingForm.durationMins);
+      const durHours = Math.round((Number(bookingForm.durationMins) / 60) * 100) / 100;
+
+      const staffNameToSave = isStaff ? (currentStaffUser?.name || 'Staff') : 'Super Admin';
+      const staffIdToSave = isStaff ? (currentStaffUser?.id || 'staff') : 'admin';
+
+      const payload = {
+        userId: 'admin-walkin',
+        userName: customerName,
+        userPhone: bookingForm.userPhone.trim(),
+        userEmail: '',
+        setupId: bookingForm.setupId,
+        setupName: bookingForm.setupName || setup?.name || 'PlayStation Console',
+        date: getTodayString(),
+        startTime: startFormatted,
+        endTime: computedEndTime,
+        actualStartTime: startFormatted,
+        actualEndTime: computedEndTime,
+        duration: durHours,
+        durationMins: Number(bookingForm.durationMins),
+        hourlyRate: Number(bookingForm.hourlyRate),
+        totalAmount: Number(bookingForm.totalAmount),
+        paymentStatus: bookingForm.paymentStatus,
+        status: 'active',
+        isWalkIn: true,
+        bookingTypeLabel: '⚡ Live Walk-In',
+        staffId: staffIdToSave,
+        staffName: staffNameToSave,
+        handledByStaffId: staffIdToSave,
+        createdBy: staffNameToSave,
+        handledBy: staffNameToSave,
+      };
+
+      const docRef = await createBooking(payload);
+
+      const endDate = new Date(now.getTime() + Number(bookingForm.durationMins) * 60000);
+      await createSession({
+        bookingId: docRef.id,
+        userId: 'admin-walkin',
+        userName: customerName,
+        userPhone: bookingForm.userPhone.trim(),
+        userImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=00ff66&color=040806`,
+        setupId: bookingForm.setupId,
+        setupName: payload.setupName,
+        sessionStartTime: toFirestoreTimestamp(now),
+        sessionEndTime: toFirestoreTimestamp(endDate),
+        duration: durHours,
+        handledBy: staffNameToSave,
+      });
+
+      await updateSetup(bookingForm.setupId, { status: 'occupied' });
+
+      toast.success(
+        '⚡ Live Session Started!',
+        `🎮 ${customerName} started on ${payload.setupName} (${bookingForm.durationMins} min) • ₹${bookingForm.totalAmount}`
+      );
+
+      // Auto-select another available console for next walk-in
+      const nextAvail = setups.find(s => s.id !== bookingForm.setupId && s.status === 'available') || setups[0];
+      setBookingForm(prev => ({
+        ...prev,
+        userName: 'Walk-in Gamer',
+        userPhone: '',
+        setupId: nextAvail?.id || prev.setupId,
+        setupName: nextAvail?.name || prev.setupName,
+      }));
+    } catch (err) {
+      toast.error('Failed to start session', err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleExtendSessionQuick = async (session, mins = 15) => {
+    try {
+      const currentEnd = session.sessionEndTime?.toDate ? session.sessionEndTime.toDate() : new Date(session.sessionEndTime);
+      const newEnd = new Date(currentEnd.getTime() + mins * 60000);
+      await updateSession(session.id, { sessionEndTime: toFirestoreTimestamp(newEnd) });
+      toast.success('Time Extended', `Session on ${session.setupName} extended by ${mins} mins.`);
+    } catch (err) {
+      toast.error('Extend failed', err.message);
+    }
+  };
+
+  const handleEndSessionQuick = async (session) => {
+    if (!window.confirm(`End session for ${session.userName} on ${session.setupName}?`)) return;
+    try {
+      await updateSession(session.id, { status: 'completed' });
+      await updateSetup(session.setupId, { status: 'available' });
+      toast.success('Session Ended', `Session on ${session.setupName} completed.`);
+    } catch (err) {
+      toast.error('End failed', err.message);
     }
   };
 
@@ -928,212 +1148,318 @@ export default function AdminBookings() {
 
   return (
     <div className="bookings-page-container">
-      {/* ── 1. Top Executive Header Bar ── */}
-      <div className="bookings-hero-header">
-        <div className="bookings-hero-left">
-          <div className="bookings-hero-title-row">
-            <h2 className="bookings-hero-title">
-              <Gamepad2 size={24} style={{ color: 'var(--color-primary)' }} />
-              PlayStation Bookings Desk
-            </h2>
-            {activeBookingsCount > 0 && (
-              <span className="bookings-live-pill">
-                <span className="live-pulse-dot" />
-                {activeBookingsCount} Live Playing
-              </span>
-            )}
-          </div>
-          <div className="bookings-hero-stats-row">
-            <span>Today: <strong>{todayBookings.length} Bookings</strong></span>
-            <span>•</span>
-            <span className="bookings-revenue-stat">₹{todayRevenue} Total</span>
-            <span>•</span>
-            <span style={{ color: 'var(--color-text-dim)' }}>
-              🟢 Free · 🔴 Booked · ⚪ N/A
-            </span>
-          </div>
+      {/* ── Minimal Desk Top Bar ── */}
+      <div className="minimal-desk-header">
+        <div className="minimal-desk-brand">
+          <Gamepad2 size={20} className="minimal-desk-icon" />
+          <span className="minimal-desk-title">PlayStation Desk</span>
+          <span className="minimal-desk-stats">Today: {todayBookings.length} · ₹{todayRevenue}</span>
         </div>
 
-        {/* 2 Primary Action Buttons */}
-        <div className="bookings-hero-actions">
+        <div className="minimal-desk-tabs">
           <button
             type="button"
-            className="booking-action-btn booking-action-btn--walkin"
-            onClick={() => openBookingModal({ startSessionNow: true, initialDate: getTodayString() })}
-            id="admin-ontime-booking-btn"
-            title="Fast counter walk-in live session"
+            className={`minimal-desk-tab ${viewMode === 'counter' ? 'active' : ''}`}
+            onClick={() => setViewMode('counter')}
           >
-            <Zap size={16} style={{ color: '#ffea79' }} />
-            <span>⚡ Play Live Now</span>
+            <Zap size={14} /> Quick Book
           </button>
-
           <button
             type="button"
-            className="booking-action-btn booking-action-btn--add"
-            onClick={() => openBookingModal({ startSessionNow: false })}
-            id="admin-new-booking-btn"
-            title="Reserve advance PlayStation slot"
+            className={`minimal-desk-tab ${viewMode === 'table' ? 'active' : ''}`}
+            onClick={() => setViewMode('table')}
           >
-            <Calendar size={16} />
-            <span>+ Reserve Slot</span>
+            <List size={14} /> All Bookings ({bookings.length})
           </button>
         </div>
       </div>
 
-      {/* ── 2. Staff Duty & Collection Banner (Compact) ── */}
-      {isStaff && myStaffStats && (
-        <div className="bookings-staff-strip">
-          <div className="staff-strip-info">
-            <div className="staff-strip-avatar">👤</div>
-            <div>
-              <strong>{currentStaffUser?.name}</strong>{' '}
-              <span style={{ opacity: 0.8, fontSize: '0.75rem' }}>({currentStaffUser?.role || 'Staff'})</span>
+      {/* ── ⚡ Minimal 1-Tap Counter (Only in Quick Book) ── */}
+      {viewMode === 'counter' && (
+        <div className="minimal-counter">
+          {/* 1. Consoles: Sleek & Clean Cards with Live Busy/Free Times */}
+          <div className="minimal-card">
+            <div className="minimal-label">1. Choose PlayStation</div>
+            <div className="minimal-consoles">
+              {setups.map(s => {
+                const liveStatus = getSetupLiveStatus(s.id, setups, activeSessions, bookings);
+                const isSelected = bookingForm.setupId === s.id;
+                const isBusy = liveStatus.isBusy;
+                const rate = Number(s.pricePerHour) || 100;
+                const p30 = Number(s.pricePer30Min) || Math.round(rate * 0.6);
+
+                return (
+                  <div
+                    key={s.id}
+                    className={`minimal-console ${isSelected ? 'selected' : ''} ${isBusy ? 'busy' : 'free'}`}
+                    onClick={() => {
+                      if (isBusy) {
+                        return toast.warning('Console Busy', `${s.name} is playing until ${liveStatus.freeTime12h}. Next slot opens at ${liveStatus.freeTime12h}!`);
+                      }
+                      const dur = bookingForm.durationMins;
+                      const price = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+                      setBookingForm(prev => ({
+                        ...prev,
+                        setupId: s.id,
+                        setupName: s.name,
+                        hourlyRate: rate,
+                        pricePer30Min: p30,
+                        totalAmount: price,
+                      }));
+                    }}
+                  >
+                    <div className="console-title">{s.name}</div>
+                    <div className="console-sub">
+                      <span className={`status-dot ${isBusy ? 'dot-busy' : 'dot-free'}`} />
+                      {isBusy ? (
+                        <span className="busy-text">
+                          Busy · Free at <strong>{liveStatus.freeTime12h}</strong> {liveStatus.minsLeft > 0 ? `(${liveStatus.minsLeft}m)` : ''}
+                        </span>
+                      ) : (
+                        <span className="free-text">
+                          ₹{rate}/h · Free Now
+                        </span>
+                      )}
+                    </div>
+                    {isBusy && liveStatus.freeTime24 && (
+                      <button
+                        type="button"
+                        className="console-next-slot-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBookingModal({
+                            startSessionNow: false,
+                            initialSetup: s,
+                            initialDate: getTodayString(),
+                            initialStartTime: liveStatus.freeTime24,
+                          });
+                        }}
+                        title={`Book next slot from ${liveStatus.freeTime12h}`}
+                      >
+                        <Calendar size={11} /> Next: Book from {liveStatus.freeTime12h}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="staff-strip-metrics">
-              <span>My Today: <strong>{myStaffStats.todayCount} Slots</strong></span>
-              <span>•</span>
-              <span>Total: <strong>₹{myStaffStats.todayCollection}</strong> (₹{myStaffStats.todayCash} Cash / ₹{myStaffStats.todayUpi} UPI)</span>
+          </div>
+
+          {/* 2. Duration & Payment in 1 sleek card */}
+          <div className="minimal-card">
+            <div className="minimal-two-col">
+              {/* Duration */}
+              <div>
+                <div className="minimal-label">2. Duration</div>
+                <div className="minimal-pills">
+                  {[
+                    { label: '30m', mins: 30 },
+                    { label: '1 hour', mins: 60 },
+                    { label: '2 hours', mins: 120 },
+                  ].map(opt => {
+                    const rate = bookingForm.hourlyRate || 100;
+                    const p30 = bookingForm.pricePer30Min || Math.round(rate * 0.6);
+                    const price = opt.mins <= 30 ? p30 : Math.round((opt.mins / 60) * rate);
+                    const isSel = bookingForm.durationMins === opt.mins;
+
+                    return (
+                      <button
+                        key={opt.mins}
+                        type="button"
+                        className={`minimal-pill ${isSel ? 'active' : ''}`}
+                        onClick={() => setBookingForm(prev => ({
+                          ...prev,
+                          durationMins: opt.mins,
+                          totalAmount: price,
+                        }))}
+                      >
+                        <span className="pill-main">{opt.label}</span>
+                        <span className="pill-cost">₹{price}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Payment */}
+              <div>
+                <div className="minimal-label">3. Payment</div>
+                <div className="minimal-pills">
+                  {[
+                    { id: 'paid_cash', label: '💵 Cash' },
+                    { id: 'paid_upi', label: '📱 UPI' },
+                    { id: 'pending', label: '⏳ Later' },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`minimal-pill ${bookingForm.paymentStatus === p.id ? 'active' : ''}`}
+                      onClick={() => setBookingForm(prev => ({ ...prev, paymentStatus: p.id }))}
+                    >
+                      <span className="pill-main">{p.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Gamer Name (Clean & simple) */}
+            <div style={{ marginTop: 14 }}>
+              <div className="minimal-label">Customer Name (Optional)</div>
+              <input
+                type="text"
+                className="minimal-text-input"
+                value={bookingForm.userName}
+                placeholder="Walk-in Gamer"
+                onChange={e => setBookingForm(prev => ({ ...prev, userName: e.target.value }))}
+              />
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              type="button"
-              onClick={() => setStaffFilter('all')}
-              className={`staff-pill-btn ${staffFilter === 'all' ? 'active' : ''}`}
-            >
-              All Bookings
-            </button>
-            <button
-              type="button"
-              onClick={() => setStaffFilter('my')}
-              className={`staff-pill-btn ${staffFilter === 'my' ? 'active' : ''}`}
-            >
-              🎯 Only Mine ({myStaffStats.todayCount})
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Admin Staff Filter Strip ── */}
-      {isAdmin && (
-        <div className="bookings-staff-strip">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ffffff', fontWeight: 700, fontSize: '0.78rem' }}>
-            <span>👥 Staff Filter:</span>
-          </div>
-          <div className="staff-filter-pills">
-            <button
-              type="button"
-              onClick={() => setStaffFilter('all')}
-              className={`staff-pill-btn ${staffFilter === 'all' ? 'active' : ''}`}
-            >
-              All Staff ({todayBookings.length} • ₹{todayRevenue})
-            </button>
-            {staffList.map(s => {
-              const sStats = calculateStaffStats(s.id, s.name, bookings);
-              const isSelected = staffFilter === s.id;
-              return (
-                <button
-                  type="button"
-                  key={s.id}
-                  onClick={() => setStaffFilter(isSelected ? 'all' : s.id)}
-                  className={`staff-pill-btn ${isSelected ? 'active' : ''}`}
-                >
-                  <span>👤 {s.name}</span>
-                  <span style={{ fontSize: '0.68rem', opacity: 0.9 }}>
-                    ({sStats.todayCount} • ₹{sStats.todayCollection})
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── 3. Unified Control Deck (Date + Live Search + View Switcher) ── */}
-      <div className="bookings-control-deck">
-        <div className="bookings-deck-row">
-          {/* Date Navigator */}
-          <div className="bookings-date-nav">
-            <button
-              type="button"
-              className="date-nav-btn"
-              onClick={handlePrevDay}
-              title="Previous Day"
-            >
-              <ChevronLeft size={15} /> Back
-            </button>
-            <button
-              type="button"
-              className={`date-nav-btn ${dateFilter === todayStr ? 'active' : ''}`}
-              onClick={handleToday}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className="date-nav-btn"
-              onClick={handleNextDay}
-              title="Next Day"
-            >
-              Next <ChevronRight size={15} />
-            </button>
-
-            <input
-              type="date"
-              className="date-native-picker"
-              value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
-            />
-
-            <span className="date-display-badge">
-              📅 {getFormattedDateTitle(dateFilter)}
-            </span>
-          </div>
-
-          {/* Search Box */}
-          <div className="bookings-search-wrap">
-            <Search size={14} className="bookings-search-icon" />
-            <input
-              type="text"
-              className="bookings-search-input"
-              placeholder="Search gamer, phone, console..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
+          {/* 3. Big Clean Start CTA (Blocked if selected console is busy) */}
+          {(() => {
+            const currentSelectedStatus = getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings);
+            const isSelectedBusy = currentSelectedStatus.isBusy;
+            return (
               <button
                 type="button"
-                className="bookings-search-clear"
-                onClick={() => setSearch('')}
-                title="Clear Search"
+                className={`minimal-start-btn ${isSelectedBusy ? 'disabled-busy' : ''}`}
+                disabled={submitting || !bookingForm.setupId || isSelectedBusy}
+                onClick={handleFastCounterStart}
               >
-                <X size={14} />
+                {submitting ? (
+                  'Starting Session...'
+                ) : isSelectedBusy ? (
+                  `🚫 ${bookingForm.setupName} is Busy (Free at ${currentSelectedStatus.freeTime12h})`
+                ) : (
+                  `▶ Start Session • ${bookingForm.setupName || 'Console'} (₹${bookingForm.totalAmount})`
+                )}
               </button>
-            )}
-          </div>
+            );
+          })()}
 
-          {/* View Mode Switcher */}
-          <div className="bookings-view-toggle">
+          {/* 4. Active Sessions (Quiet & clean) */}
+          {activeSessions.length > 0 && (
+            <div className="minimal-live-strip">
+              <div className="minimal-live-title">
+                <span className="live-pulse-dot" /> Live Playing ({activeSessions.length})
+              </div>
+              <div className="minimal-live-chips">
+                {activeSessions.map(ses => {
+                  const end = ses.sessionEndTime?.toDate ? ses.sessionEndTime.toDate() : new Date(ses.sessionEndTime);
+                  const minsLeft = Math.max(0, Math.round((end - new Date()) / 60000));
+                  return (
+                    <div key={ses.id} className="minimal-live-item">
+                      <span><strong>{ses.setupName}</strong> · {ses.userName}</span>
+                      <span className="live-timer-text">⏱ {minsLeft}m left</span>
+                      <button
+                        type="button"
+                        className="live-mini-btn"
+                        onClick={() => handleExtendSessionQuick(ses, 15)}
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        className="live-mini-btn live-mini-btn--danger"
+                        onClick={() => handleEndSessionQuick(ses)}
+                      >
+                        End
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Advance booking subtle trigger */}
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
             <button
               type="button"
-              className={`view-toggle-btn ${viewMode === 'board' ? 'active' : ''}`}
-              onClick={() => setViewMode('board')}
+              className="minimal-ghost-link"
+              onClick={() => openBookingModal({ startSessionNow: false })}
             >
-              <LayoutGrid size={13} />
-              <span>Timeline Grid</span>
-            </button>
-            <button
-              type="button"
-              className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
-              onClick={() => setViewMode('table')}
-            >
-              <List size={13} />
-              <span>Bookings List ({filteredBookings.length})</span>
+              📅 Reserve advance slot for tomorrow/future date
             </button>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Control Deck (Shown ONLY in All Bookings List) ── */}
+      {viewMode !== 'counter' && (
+        <div className="bookings-control-deck">
+          <div className="bookings-deck-row">
+            {/* Date Navigator */}
+            <div className="bookings-date-nav">
+              <button
+                type="button"
+                className="date-nav-btn"
+                onClick={handlePrevDay}
+                title="Previous Day"
+              >
+                <ChevronLeft size={15} /> Back
+              </button>
+              <button
+                type="button"
+                className={`date-nav-btn ${dateFilter === todayStr ? 'active' : ''}`}
+                onClick={handleToday}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className="date-nav-btn"
+                onClick={handleNextDay}
+                title="Next Day"
+              >
+                Next <ChevronRight size={15} />
+              </button>
+              <button
+                type="button"
+                className={`date-nav-btn date-nav-all ${!dateFilter ? 'active' : ''}`}
+                onClick={() => setDateFilter('')}
+                title="Show all bookings across all dates"
+              >
+                📅 All Dates ({bookings.length})
+              </button>
+
+              <input
+                type="date"
+                className="date-native-picker"
+                value={dateFilter}
+                onChange={e => setDateFilter(e.target.value)}
+              />
+
+              <span className="date-display-badge">
+                📅 {getFormattedDateTitle(dateFilter)}
+              </span>
+            </div>
+
+            {/* Search Box */}
+            <div className="bookings-search-wrap">
+              <Search size={14} className="bookings-search-icon" />
+              <input
+                type="text"
+                className="bookings-search-input"
+                placeholder="Search gamer, phone, console..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="bookings-search-clear"
+                  onClick={() => setSearch('')}
+                  title="Clear Search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═════════════════════════════════════════════════════════════
           MODE 1: 1-HOUR LIVE SLOT TIMELINE GRID (BOARD)
@@ -1716,17 +2042,49 @@ export default function AdminBookings() {
 
           {/* Empty State */}
           {filteredBookings.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 'var(--space-3xl)', color: 'var(--color-text-muted)' }}>
-              <Gamepad2 size={44} style={{ margin: '0 auto var(--space-md)', color: 'var(--color-text-dim)' }} />
-              <h3 style={{ marginBottom: '8px' }}>No Bookings Found</h3>
-              <p style={{ marginBottom: 'var(--space-lg)' }}>
-                {search || dateFilter || statusFilter !== 'All'
-                  ? 'No bookings match your current search or filters.'
-                  : 'No PlayStation bookings added yet.'}
+            <div className="bookings-empty-state glass">
+              <div className="empty-state-icon-wrap">
+                <Gamepad2 size={44} />
+              </div>
+              <h3 className="empty-state-title">
+                {dateFilter === todayStr
+                  ? 'No Bookings for Today'
+                  : dateFilter
+                  ? `No Bookings on ${getFormattedDateTitle(dateFilter)}`
+                  : 'No Bookings Found'}
+              </h3>
+              <p className="empty-state-desc">
+                {search
+                  ? `No bookings match "${search}".`
+                  : dateFilter === todayStr && bookings.length > 0
+                  ? `There are 0 bookings today (${bookings.length} bookings found on other dates).`
+                  : 'Tap below to quickly start a live walk-in session or view all dates.'}
               </p>
-              <button type="button" className="btn btn-primary btn-sm" onClick={openAddModal}>
-                <Plus size={16} /> + Direct Book Slot
-              </button>
+              <div className="empty-state-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary empty-action-btn empty-action-btn--walkin"
+                  onClick={() => setViewMode('counter')}
+                >
+                  <Zap size={16} /> ⚡ Open Staff Booking Counter
+                </button>
+                {dateFilter && bookings.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary empty-action-btn"
+                    onClick={() => setDateFilter('')}
+                  >
+                    <Calendar size={15} /> 📅 View All Dates ({bookings.length})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-ghost empty-action-btn"
+                  onClick={() => openBookingModal({ startSessionNow: false })}
+                >
+                  <Plus size={15} /> + Reserve Advance Slot
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -2184,7 +2542,37 @@ export default function AdminBookings() {
             className="modal-box glass-strong booking-modal-box"
             onClick={e => e.stopPropagation()}
           >
-            {/* Header */}
+            {/* Header Mode Switch Tabs */}
+            <div className="booking-modal-mode-tabs">
+              <button
+                type="button"
+                className={`booking-mode-tab ${bookingForm.startSessionNow ? 'active live' : ''}`}
+                onClick={() => {
+                  const now = getCurrentTime24();
+                  setBookingForm(p => ({
+                    ...p,
+                    startSessionNow: true,
+                    date: getTodayString(),
+                    startTime: now,
+                    endTime: addMinutesToTime(now, p.durationMins),
+                  }));
+                }}
+              >
+                <Zap size={15} />
+                <span>⚡ Fast Walk-in (Live Now)</span>
+              </button>
+
+              <button
+                type="button"
+                className={`booking-mode-tab ${!bookingForm.startSessionNow ? 'active reserve' : ''}`}
+                onClick={() => setBookingForm(p => ({ ...p, startSessionNow: false }))}
+              >
+                <Calendar size={15} />
+                <span>📅 Reserve Advance Slot</span>
+              </button>
+            </div>
+
+            {/* Header Title Row */}
             <div className="modal-header" style={{ marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 12 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2193,29 +2581,32 @@ export default function AdminBookings() {
                     height: 34,
                     borderRadius: '8px',
                     background: bookingForm.startSessionNow
-                      ? 'linear-gradient(135deg, #06b6d4, #10b981)'
-                      : 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                      ? 'linear-gradient(135deg, #00ff66, #00f5d4)'
+                      : 'linear-gradient(135deg, #a855f7, #00f5d4)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#fff',
+                    color: '#060807',
+                    fontWeight: 900,
                     boxShadow: bookingForm.startSessionNow
-                      ? '0 0 14px rgba(6, 182, 212, 0.45)'
-                      : '0 0 14px rgba(236, 72, 153, 0.45)'
+                      ? '0 0 16px rgba(0, 255, 102, 0.45)'
+                      : '0 0 16px rgba(168, 85, 247, 0.45)'
                   }}>
                     {bookingForm.startSessionNow ? <Zap size={18} /> : <Calendar size={18} />}
                   </span>
                   <div>
                     <h3 className="modal-title" style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>{bookingForm.startSessionNow ? '⚡ Play Live Now' : '📅 Reserve Slot'}</span>
-                      <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#94a3b8', fontWeight: 700 }}>
-                        {isStaff ? 'Staff Desk' : 'Admin'}
+                      <span>{bookingForm.startSessionNow ? '⚡ Counter Walk-in (Play Live)' : '📅 Reserve Advance Slot'}</span>
+                      <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: 'var(--color-primary)', fontWeight: 700 }}>
+                        {isStaff ? 'Staff Counter' : 'Admin'}
                       </span>
                     </h3>
                   </div>
                 </div>
                 <p style={{ margin: '4px 0 0', fontSize: '0.76rem', color: 'var(--color-text-dim)' }}>
-                  {bookingForm.startSessionNow ? 'Walk-in counter session: starts timer immediately' : 'Schedule advance PlayStation reservation'}
+                  {bookingForm.startSessionNow
+                    ? '1-Click counter session: Starts live gaming timer right now'
+                    : 'Schedule advance PlayStation reservation for any date & time'}
                 </p>
               </div>
               <button className="btn-close" onClick={() => setShowBookingModal(false)}>
@@ -2244,20 +2635,20 @@ export default function AdminBookings() {
                         style={{
                           padding: '10px 8px',
                           borderRadius: 'var(--radius-md)',
-                          border: isSelected ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)',
-                          background: isSelected ? 'rgba(6, 182, 212, 0.16)' : 'rgba(255,255,255,0.03)',
+                          border: isSelected ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
+                          background: isSelected ? 'rgba(0, 255, 102, 0.14)' : 'rgba(255,255,255,0.03)',
                           color: '#fff',
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'flex-start',
                           gap: 4,
-                          boxShadow: isSelected ? '0 0 16px rgba(6, 182, 212, 0.35)' : 'none',
+                          boxShadow: isSelected ? '0 0 16px rgba(0, 255, 102, 0.35)' : 'none',
                           transition: 'all 0.15s ease',
                           textAlign: 'left',
                         }}
                       >
-                        <div style={{ fontSize: '0.82rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', color: isSelected ? 'var(--color-primary)' : '#ffffff' }}>
                           {s.name}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.7rem' }}>
@@ -2265,9 +2656,9 @@ export default function AdminBookings() {
                             ₹{rate}/hr <span style={{ color: 'var(--color-text-dim)', fontSize: '0.65rem' }}>· 30m: ₹{p30}</span>
                           </span>
                           <span style={{
-                            color: isBusy ? '#ef4444' : '#10b981',
-                            fontWeight: 700,
-                            fontSize: '0.65rem'
+                            color: isBusy ? '#ef4444' : '#00ff66',
+                            fontWeight: 800,
+                            fontSize: '0.68rem'
                           }}>
                             {isBusy ? '🔴 Busy' : '🟢 Free'}
                           </span>
@@ -2278,16 +2669,47 @@ export default function AdminBookings() {
                 </div>
               </div>
 
-              {/* 2. Customer Name & Phone */}
+              {/* 2. Customer Name with 1-Tap Quick Fill Chips */}
               <div className="booking-customer-fields" style={{ display: 'grid', gap: 10 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ marginBottom: 4 }}>
-                    Customer Name <span style={{ color: 'var(--color-danger)' }}>*</span>
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>
+                      Customer / Gamer Name <span style={{ color: 'var(--color-danger)' }}>*</span>
+                    </label>
+                  </div>
+
+                  {/* 1-Tap Quick Fill Buttons */}
+                  <div className="quick-gamer-chips">
+                    <button
+                      type="button"
+                      className="quick-gamer-chip"
+                      onClick={() => setBookingForm(p => ({ ...p, userName: 'Walk-in Gamer' }))}
+                      title="Quick fill 'Walk-in Gamer'"
+                    >
+                      ⚡ Walk-in Gamer
+                    </button>
+                    <button
+                      type="button"
+                      className="quick-gamer-chip"
+                      onClick={() => setBookingForm(p => ({ ...p, userName: 'Regular Gamer' }))}
+                      title="Quick fill 'Regular Gamer'"
+                    >
+                      🎮 Regular Gamer
+                    </button>
+                    <button
+                      type="button"
+                      className="quick-gamer-chip"
+                      onClick={() => setBookingForm(p => ({ ...p, userName: '2 Players (Duo)' }))}
+                      title="Quick fill '2 Players (Duo)'"
+                    >
+                      👥 2 Players
+                    </button>
+                  </div>
+
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Rohan Patil"
+                    placeholder="Enter gamer name (or tap chip above)"
                     value={bookingForm.userName}
                     onChange={e => setBookingForm(p => ({ ...p, userName: e.target.value }))}
                     required
@@ -2314,102 +2736,170 @@ export default function AdminBookings() {
                 </div>
               </div>
 
-              {/* 3. Date & Circular Analog Clock Time Picker */}
-              <div className="booking-date-time-panel" style={{
-                background: 'rgba(255,255,255,0.03)',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-              }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>
-                      📅 Booking Date
-                    </label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        type="button"
-                        onClick={() => setBookingForm(p => ({ ...p, date: getTodayString() }))}
-                        style={{
-                          background: bookingForm.date === getTodayString() ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)',
-                          color: bookingForm.date === getTodayString() ? '#fff' : 'var(--color-text-dim)',
-                          border: 'none',
-                          fontSize: '0.72rem',
-                          padding: '2px 8px',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          fontWeight: 700
-                        }}
-                      >
-                        Today
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const tom = new Date();
-                          tom.setDate(tom.getDate() + 1);
-                          const y = tom.getFullYear();
-                          const m = String(tom.getMonth() + 1).padStart(2, '0');
-                          const d = String(tom.getDate()).padStart(2, '0');
-                          setBookingForm(p => ({ ...p, date: `${y}-${m}-${d}` }));
-                        }}
-                        style={{
-                          background: bookingForm.date !== getTodayString() ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
-                          color: bookingForm.date !== getTodayString() ? '#fff' : 'var(--color-text-dim)',
-                          border: 'none',
-                          fontSize: '0.72rem',
-                          padding: '2px 8px',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          fontWeight: 700
-                        }}
-                      >
-                        Tomorrow
-                      </button>
+              {/* 3. Time & Date Selection (Streamlined for Staff) */}
+              {bookingForm.startSessionNow ? (
+                /* ── FAST WALK-IN: Locked to Now, Zero Friction (No Clock Dragging) ── */
+                <div className="live-walkin-time-banner">
+                  <div className="live-walkin-time-left">
+                    <span className="live-pulse-dot" />
+                    <div>
+                      <div className="live-walkin-time-title">
+                        ⚡ Session Starts RIGHT NOW (Live Session)
+                      </div>
+                      <div className="live-walkin-time-sub">
+                        🕒 <strong>{formatTime12h(bookingForm.startTime)}</strong> → <strong>{formatTime12h(bookingForm.endTime)}</strong>
+                        <span className="live-walkin-dur-pill">({bookingForm.durationMins} minutes)</span>
+                      </div>
                     </div>
                   </div>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={bookingForm.date}
-                    onChange={e => setBookingForm(p => ({ ...p, date: e.target.value }))}
-                    required
-                  />
+                  <button
+                    type="button"
+                    className="live-walkin-sync-btn"
+                    onClick={() => {
+                      const now = getCurrentTime24();
+                      handleBookingStartTimeChange(now);
+                    }}
+                    title="Sync to exact current minute"
+                  >
+                    <RefreshCw size={13} />
+                    <span>Sync</span>
+                  </button>
                 </div>
-
-                {/* Clock Dial Time Picker */}
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <ClockTimePicker
-                    label="Booking Start Time"
-                    value={bookingForm.startTime}
-                    onChange={newTime => handleBookingStartTimeChange(newTime)}
-                  />
-                </div>
-
-                {/* Calculated Time Span Banner */}
-                <div className="booking-time-span" style={{
+              ) : (
+                /* ── ADVANCE RESERVATION: Date + 1-Tap Slot Selector ── */
+                <div className="booking-date-time-panel" style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  padding: '12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(255,255,255,0.07)',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  padding: '8px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'rgba(6, 182, 212, 0.1)',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
-                  fontSize: '0.8rem',
+                  flexDirection: 'column',
+                  gap: 12,
                 }}>
-                  <span style={{ color: 'var(--color-accent)', fontWeight: 800 }}>
-                    🕒 Time Span: <strong>{formatTime12h(bookingForm.startTime)}</strong> → <strong>{formatTime12h(bookingForm.endTime)}</strong>
-                  </span>
-                  <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 700 }}>
-                    ({bookingForm.durationMins} minutes session)
-                  </span>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>
+                        📅 Booking Date
+                      </label>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setBookingForm(p => ({ ...p, date: getTodayString() }))}
+                          style={{
+                            background: bookingForm.date === getTodayString() ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)',
+                            color: bookingForm.date === getTodayString() ? '#040806' : 'var(--color-text-dim)',
+                            border: 'none',
+                            fontSize: '0.72rem',
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            fontWeight: 800
+                          }}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tom = new Date();
+                            tom.setDate(tom.getDate() + 1);
+                            const y = tom.getFullYear();
+                            const m = String(tom.getMonth() + 1).padStart(2, '0');
+                            const d = String(tom.getDate()).padStart(2, '0');
+                            setBookingForm(p => ({ ...p, date: `${y}-${m}-${d}` }));
+                          }}
+                          style={{
+                            background: bookingForm.date !== getTodayString() ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
+                            color: bookingForm.date !== getTodayString() ? '#040806' : 'var(--color-text-dim)',
+                            border: 'none',
+                            fontSize: '0.72rem',
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            fontWeight: 800
+                          }}
+                        >
+                          Tomorrow
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={bookingForm.date}
+                      onChange={e => setBookingForm(p => ({ ...p, date: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  {/* 1-Tap Slot Chips for Advance Booking */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ marginBottom: 6 }}>
+                      🕒 Click Starting Slot:
+                    </label>
+                    <div className="advance-slots-grid">
+                      {ONE_HOUR_SLOTS.map(slot => {
+                        const isPassed = isSlotTimePassed(slot.start, bookingForm.date);
+                        const booked = getBookingForSlot(slot, bookingForm.setupId, bookingForm.date, bookings);
+                        const isSelected = bookingForm.startTime === slot.start;
+
+                        let btnClass = 'advance-slot-btn--free';
+                        if (booked) btnClass = 'advance-slot-btn--booked';
+                        else if (isSelected) btnClass = 'advance-slot-btn--selected';
+                        else if (isPassed) btnClass = 'advance-slot-btn--passed';
+
+                        return (
+                          <button
+                            type="button"
+                            key={slot.id}
+                            className={`advance-slot-btn ${btnClass}`}
+                            disabled={booked || (isPassed && !isSelected)}
+                            onClick={() => handleBookingStartTimeChange(slot.start)}
+                          >
+                            <span className="advance-slot-time">{slot.short}</span>
+                            <span className="advance-slot-tag">
+                              {isSelected ? '✓ SELECTED' : booked ? `🔴 ${booked.userName?.split(' ')[0]}` : isPassed ? '⚪ N/A' : '🟢 FREE'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Optional Custom Minute Clock Picker */}
+                  <details className="custom-clock-details">
+                    <summary>⏱️ Custom Exact Minute Picker (Clock Dial)</summary>
+                    <div style={{ marginTop: 10 }}>
+                      <ClockTimePicker
+                        label="Custom Start Time"
+                        value={bookingForm.startTime}
+                        onChange={newTime => handleBookingStartTimeChange(newTime)}
+                      />
+                    </div>
+                  </details>
+
+                  {/* Calculated Time Span Banner */}
+                  <div className="booking-time-span" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(0, 245, 212, 0.08)',
+                    border: '1px solid rgba(0, 245, 212, 0.25)',
+                    fontSize: '0.8rem',
+                  }}>
+                    <span style={{ color: 'var(--color-accent)', fontWeight: 800 }}>
+                      🕒 Time Span: <strong>{formatTime12h(bookingForm.startTime)}</strong> → <strong>{formatTime12h(bookingForm.endTime)}</strong>
+                    </span>
+                    <span style={{ color: '#00ff66', fontSize: '0.75rem', fontWeight: 700 }}>
+                      ({bookingForm.durationMins} minutes session)
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* 4. Duration Selector Chips */}
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -2417,7 +2907,7 @@ export default function AdminBookings() {
                   <label className="form-label" style={{ marginBottom: 0 }}>
                     ⏱️ Select Duration
                   </label>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-accent)', fontWeight: 700 }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--color-primary)', fontWeight: 800 }}>
                     {bookingForm.durationMins} min ({Math.round((bookingForm.durationMins / 60) * 10) / 10} hr)
                   </span>
                 </div>
@@ -2438,46 +2928,49 @@ export default function AdminBookings() {
                         key={item.mins}
                         onClick={() => handleBookingDurationChange(item.mins)}
                         style={{
-                          padding: '8px 4px',
+                          padding: '10px 4px',
                           borderRadius: 'var(--radius-sm)',
-                          border: isSelected ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)',
-                          background: isSelected ? 'linear-gradient(135deg, #06b6d4, #9333ea)' : 'rgba(255,255,255,0.04)',
-                          color: isSelected ? '#fff' : 'var(--color-text-dim)',
+                          border: isSelected ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
+                          background: isSelected ? 'linear-gradient(135deg, rgba(0, 255, 102, 0.25), rgba(168, 85, 247, 0.25))' : 'rgba(255,255,255,0.04)',
+                          color: isSelected ? '#00ff66' : 'var(--color-text-dim)',
                           fontWeight: 800,
-                          fontSize: '0.75rem',
+                          fontSize: '0.78rem',
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
-                          gap: 2,
+                          gap: 3,
                           transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 0 14px rgba(0, 255, 102, 0.3)' : 'none',
                         }}
                       >
-                        <span>{item.label}</span>
-                        <span style={{ fontSize: '0.65rem', opacity: 0.85 }}>₹{calculatedPrice}</span>
+                        <span style={{ color: isSelected ? '#ffffff' : 'inherit' }}>{item.label}</span>
+                        <span style={{ fontSize: '0.7rem', color: isSelected ? 'var(--color-primary)' : 'var(--color-accent)', fontWeight: 800 }}>
+                          ₹{calculatedPrice}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* 5. Total Booking Amount (Editable) & Payment Mode */}
+              {/* 5. Total Booking Amount (Editable) & 1-Tap Payment Selector */}
               <div className="booking-amount-payment" style={{ display: 'grid', gap: 10 }}>
                 {/* Total Charge (Editable) */}
                 <div style={{
                   padding: '10px 12px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'rgba(16, 185, 129, 0.08)',
-                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  background: 'rgba(0, 255, 102, 0.08)',
+                  border: '1px solid rgba(0, 255, 102, 0.3)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center',
                 }}>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#10b981', marginBottom: 4 }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#00ff66', marginBottom: 4 }}>
                     TOTAL AMOUNT (₹)
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: '#10b981', fontWeight: 800, fontSize: '1.1rem' }}>₹</span>
+                    <span style={{ color: '#00ff66', fontWeight: 800, fontSize: '1.1rem' }}>₹</span>
                     <input
                       type="number"
                       min="0"
@@ -2485,105 +2978,50 @@ export default function AdminBookings() {
                       value={bookingForm.totalAmount}
                       onChange={e => setBookingForm(p => ({ ...p, totalAmount: Number(e.target.value) || 0 }))}
                       style={{
-                        height: 36,
-                        background: 'rgba(0,0,0,0.5)',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                        height: 38,
+                        background: '#040806',
+                        border: '1.5px solid rgba(0, 255, 102, 0.5)',
                         borderRadius: 6,
-                        color: '#10b981',
+                        color: '#00ff66',
                         fontWeight: 900,
-                        fontSize: '1.1rem',
+                        fontSize: '1.15rem',
                         textAlign: 'center',
                         padding: '4px',
                       }}
-                      title="Editable for custom discount or offers"
+                      title="Editable for custom counter discount"
                     />
                   </div>
                 </div>
 
-                {/* Payment Mode */}
+                {/* 1-Tap Visual Payment Mode Selector */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ marginBottom: 4 }}>
                     Payment Mode
                   </label>
-                  <select
-                    className="form-input"
-                    value={bookingForm.paymentStatus}
-                    onChange={e => setBookingForm(p => ({ ...p, paymentStatus: e.target.value }))}
-                  >
-                    <option value="paid_cash">💵 Cash Received</option>
-                    <option value="paid_upi">📱 UPI / QR Received</option>
-                    <option value="paid_card">💳 Card Received</option>
-                    <option value="pending">⏳ Pay Later / Unpaid</option>
-                  </select>
+                  <div className="payment-quick-grid">
+                    {[
+                      { id: 'paid_cash', label: 'Cash', icon: '💵' },
+                      { id: 'paid_upi', label: 'UPI / QR', icon: '📱' },
+                      { id: 'pending', label: 'Pay Later', icon: '⏳' },
+                    ].map(p => (
+                      <button
+                        type="button"
+                        key={p.id}
+                        className={`payment-quick-btn ${bookingForm.paymentStatus === p.id ? 'active' : ''}`}
+                        onClick={() => setBookingForm(prev => ({ ...prev, paymentStatus: p.id }))}
+                      >
+                        <span className="pay-btn-icon">{p.icon}</span>
+                        <span className="pay-btn-label">{p.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* 6. Execution Choice: Play Live Now vs Reserve Slot */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ marginBottom: 6 }}>
-                  Booking Action
-                </label>
-                <div className="booking-action-options" style={{ display: 'grid', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setBookingForm(p => ({ ...p, startSessionNow: true }))}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      border: bookingForm.startSessionNow ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
-                      background: bookingForm.startSessionNow ? 'rgba(16, 185, 129, 0.16)' : 'rgba(255,255,255,0.03)',
-                      color: '#fff',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: '1.2rem' }}>🟢</span>
-                    <div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 800, color: bookingForm.startSessionNow ? '#10b981' : '#fff' }}>
-                        Play Live Now
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-dim)' }}>
-                        Starts timer immediately
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setBookingForm(p => ({ ...p, startSessionNow: false }))}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      border: !bookingForm.startSessionNow ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
-                      background: !bookingForm.startSessionNow ? 'rgba(147, 51, 234, 0.16)' : 'rgba(255,255,255,0.03)',
-                      color: '#fff',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: '1.2rem' }}>📅</span>
-                    <div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 800, color: !bookingForm.startSessionNow ? 'var(--color-primary-light)' : '#fff' }}>
-                        Reserve Slot
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-dim)' }}>
-                        Scheduled for selected time
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* 7. Handled By */}
+              {/* 6. Handled By */}
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                  <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Handled by
+                  <UserCheck size={13} style={{ color: 'var(--color-primary)' }} /> Counter Staff
                 </label>
                 <div
                   className="form-input"
@@ -2591,8 +3029,8 @@ export default function AdminBookings() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    background: 'rgba(147, 51, 234, 0.12)',
-                    borderColor: 'rgba(147, 51, 234, 0.35)',
+                    background: 'rgba(168, 85, 247, 0.12)',
+                    borderColor: 'rgba(168, 85, 247, 0.35)',
                     color: '#fff',
                     fontWeight: 700,
                     height: '38px',
@@ -2600,10 +3038,13 @@ export default function AdminBookings() {
                   }}
                 >
                   <span>👤 {formatHandledByName(isStaff ? (currentStaffUser?.name || 'Staff') : 'Super Admin')}</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--color-primary)', marginLeft: 'auto', background: 'rgba(0, 255, 102, 0.15)', padding: '2px 8px', borderRadius: 4, fontWeight: 800 }}>
+                    Active On Duty
+                  </span>
                 </div>
               </div>
 
-              {/* 8. Action Buttons */}
+              {/* 7. Action Buttons */}
               <div className="booking-form-footer" style={{ marginTop: 8, display: 'flex', gap: 10 }}>
                 <button
                   type="button"
@@ -2620,28 +3061,29 @@ export default function AdminBookings() {
                   style={{
                     flex: 1,
                     background: bookingForm.startSessionNow
-                      ? 'linear-gradient(135deg, #06b6d4, #10b981)'
-                      : 'linear-gradient(135deg, #9333ea, #06b6d4)',
+                      ? 'linear-gradient(135deg, #00ff66, #00f5d4)'
+                      : 'linear-gradient(135deg, #a855f7, #00ff66)',
+                    color: '#040806',
                     border: 'none',
-                    fontWeight: 800,
-                    fontSize: '0.95rem',
+                    fontWeight: 900,
+                    fontSize: '0.98rem',
                     padding: '12px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
                     boxShadow: bookingForm.startSessionNow
-                      ? '0 0 20px rgba(6, 182, 212, 0.45)'
-                      : '0 0 20px rgba(147, 51, 234, 0.45)',
+                      ? '0 0 24px rgba(0, 255, 102, 0.5)'
+                      : '0 0 24px rgba(168, 85, 247, 0.5)',
                   }}
                 >
                   {submitting ? 'Saving...' : (
                     <>
-                      {bookingForm.startSessionNow ? <Zap size={18} style={{ color: '#ffea79' }} /> : <Calendar size={18} />}
+                      {bookingForm.startSessionNow ? <Zap size={18} /> : <Calendar size={18} />}
                       <span>
                         {bookingForm.startSessionNow
-                          ? `Start Session Now • ₹${bookingForm.totalAmount}`
-                          : `Confirm Booking • ₹${bookingForm.totalAmount}`}
+                          ? `▶ Start Live Session Now • ₹${bookingForm.totalAmount}`
+                          : `📅 Confirm Reservation • ₹${bookingForm.totalAmount}`}
                       </span>
                     </>
                   )}
@@ -2651,6 +3093,17 @@ export default function AdminBookings() {
           </div>
         </div>
       )}
+
+      {/* ── Mobile Floating Quick Counter Button (FAB) ── */}
+      <button
+        type="button"
+        className="mobile-bookings-fab"
+        onClick={() => setViewMode('counter')}
+        title="Open Staff Booking Counter"
+      >
+        <Zap size={20} className="fab-icon" />
+        <span className="fab-label">⚡ Fast Booking</span>
+      </button>
     </div>
   );
 }

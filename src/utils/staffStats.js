@@ -234,3 +234,46 @@ export function getClean10Phone(phone) {
   const clean = String(phone).replace(/\D/g, '');
   return clean.slice(-10);
 }
+
+/**
+ * Checks if a staff member is currently on shift based on real-time clock
+ */
+export function isStaffCurrentlyOnShift(shift = '', status = 'active') {
+  if (status !== 'active') return false;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const lower = (shift || '').toLowerCase();
+
+  if (lower.includes('morning')) {
+    // 09:00 AM (540 min) to 03:00 PM (900 min)
+    return currentMinutes >= 540 && currentMinutes < 900;
+  }
+  if (lower.includes('evening')) {
+    // 03:00 PM (900 min) to 10:00 PM (1320 min)
+    return currentMinutes >= 900 && currentMinutes < 1320;
+  }
+  if (lower.includes('full day')) {
+    // 09:00 AM (540 min) to 10:00 PM (1320 min)
+    return currentMinutes >= 540 && currentMinutes < 1320;
+  }
+  return false;
+}
+
+/**
+ * Pre-formats WhatsApp message containing staff login credentials
+ */
+export function generateStaffCredentialsMessage(staff) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `🎮 *TS GAMING CAFÉ — STAFF DUTY DESK* 🎮
+
+Hello *${staff.name}*, here are your login details:
+
+👤 *Staff Name:* ${staff.name}
+🔑 *Duty PIN:* ${staff.pin}
+💼 *Role:* ${staff.role || 'Counter Operator'}
+⏰ *Work Shift:* ${staff.shift || 'Flexible'}
+🌐 *Login Portal:* ${origin}/login
+
+⚠️ _Keep your PIN secure and punch in at the start of your shift!_`;
+}
+

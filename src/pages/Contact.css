@@ -40,7 +40,7 @@
   height: 40px;
   border-radius: var(--radius-md);
   background: var(--color-primary-dim);
-  border: 1px solid rgba(147,51,234,0.2);
+  border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;

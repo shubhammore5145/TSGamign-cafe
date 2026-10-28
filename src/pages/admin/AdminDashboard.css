@@ -47,7 +47,7 @@
   font-size: 1.15rem;
   font-weight: 900;
   letter-spacing: 0.05em;
-  background: linear-gradient(135deg, #00e5ff 0%, #ff5500 100%);
+  background: linear-gradient(135deg, #00ff66 0%, #a855f7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1.1;
@@ -93,9 +93,10 @@
 }
 
 .ts-dash-nav-btn--active {
-  background: #ff5500 !important;
-  color: #fff !important;
-  box-shadow: 0 0 14px rgba(255, 85, 0, 0.4);
+  background: #00ff66 !important;
+  color: #040806 !important;
+  font-weight: 800;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.4);
 }
 
 .ts-dash-header__right {

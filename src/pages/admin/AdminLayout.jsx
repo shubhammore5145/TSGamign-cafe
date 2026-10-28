@@ -37,7 +37,12 @@ export default function AdminLayout() {
     ...(isAdmin
       ? [{ to: '/admin/dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard }]
       : []),
-    { to: '/admin/bookings', label: 'Bookings & Slots', shortLabel: 'Slots', icon: Calendar },
+    {
+      to: '/admin/bookings',
+      label: isAdmin ? 'PlayStation Bookings & Counter' : 'Staff Booking Counter',
+      shortLabel: 'Booking',
+      icon: Gamepad2,
+    },
     { to: '/admin/sessions', label: 'Live Sessions', shortLabel: 'Live', icon: Zap },
     { to: '/admin/timer', label: 'Big Timer', shortLabel: 'Timer', icon: Clock },
     {
