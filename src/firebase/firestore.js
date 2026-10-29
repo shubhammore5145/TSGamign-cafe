@@ -19,8 +19,32 @@ import {
 // ─── USERS ───────────────────────────────────────────────────
 export const getUser = (uid) => getDoc(doc(db, 'users', uid));
 
+export const addUser = (data) =>
+  addDoc(collection(db, 'users'), {
+    ...data,
+    role: data.role || 'user',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
 export const updateUser = (uid, data) =>
   updateDoc(doc(db, 'users', uid), { ...data, updatedAt: serverTimestamp() });
+
+export const deleteUser = (uid) => deleteDoc(doc(db, 'users', uid));
+
+export const subscribeToAllUsers = (callback, onError) =>
+  onSnapshot(
+    query(collection(db, 'users'), orderBy('createdAt', 'desc')),
+    (snap) => callback(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    (err) => {
+      // Fallback without orderBy in case index or createdAt is missing
+      onSnapshot(
+        collection(db, 'users'),
+        (s) => callback(s.docs.map(d => ({ id: d.id, ...d.data() }))),
+        (e) => { if (onError) onError(e); else console.error('subscribeToAllUsers error:', e); }
+      );
+    }
+  );
 
 // ─── GAMING SETUPS ───────────────────────────────────────────
 export const getSetups = () => getDocs(collection(db, 'gamingSetups'));

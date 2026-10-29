@@ -51,6 +51,12 @@ export default function AdminLayout() {
       shortLabel: isAdmin ? 'Food Sale' : 'Cafe POS',
       icon: Coffee,
     },
+    {
+      to: '/admin/users',
+      label: 'Gamers & Customers',
+      shortLabel: 'Gamers',
+      icon: Users,
+    },
     ...(isAdmin
       ? [
           { to: '/admin/setups', label: 'PlayStation Setups', shortLabel: 'Setups', icon: Gamepad2 },

@@ -7,6 +7,7 @@ import {
   subscribeToStaff,
   subscribeToFoodItems,
   subscribeToFoodSales,
+  subscribeToAllUsers,
 } from '../../firebase/firestore';
 import {
   Gamepad2,
@@ -58,6 +59,7 @@ export default function AdminDashboard() {
   const [staffList, setStaffList] = useState([]);
   const [foodItems, setFoodItems] = useState([]);
   const [foodSales, setFoodSales] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
 
   // Live Clock & Date
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -80,6 +82,7 @@ export default function AdminDashboard() {
       subscribeToStaff(setStaffList),
       subscribeToFoodItems(setFoodItems),
       subscribeToFoodSales(setFoodSales),
+      subscribeToAllUsers(setAllUsers),
     ];
     return () => unsubs.forEach((f) => f && f());
   }, []);
@@ -301,6 +304,9 @@ export default function AdminDashboard() {
           <Link to="/admin/food" className="ts-dash-nav-btn">
             <Package size={14} /> Stock
           </Link>
+          <Link to="/admin/users" className="ts-dash-nav-btn" title="View & Add Registered Gamers">
+            <Users size={14} /> Gamers ({allUsers.length})
+          </Link>
           <button
             type="button"
             className="ts-dash-nav-btn"
@@ -419,6 +425,18 @@ export default function AdminDashboard() {
             <span className="ts-dash-stat-val">₹{stats.total.toLocaleString('en-IN')}</span>
           </div>
         </div>
+
+        {/* Card 6: Registered Gamers */}
+        <Link to="/admin/users" className="ts-dash-stat-card" style={{ textDecoration: 'none' }}>
+          <div className="ts-dash-stat-icon ts-dash-stat-icon--purple" style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}>
+            <Users size={22} />
+          </div>
+          <div className="ts-dash-stat-body">
+            <span className="ts-dash-stat-label">Registered Gamers</span>
+            <span className="ts-dash-stat-val">{allUsers.length}</span>
+            <span className="ts-dash-stat-sub" style={{ color: '#a855f7' }}>+ Manage & Add</span>
+          </div>
+        </Link>
       </section>
 
       {/* ── Main Two-Column Layout ── */}

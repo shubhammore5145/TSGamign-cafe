@@ -29,6 +29,7 @@ const AdminSetups = lazy(() => import('./pages/admin/AdminSetups'));
 const AdminStaff = lazy(() => import('./pages/admin/AdminStaff'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminFood = lazy(() => import('./pages/admin/AdminFood'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 
 // CSS
 import './pages/admin/AdminSetups.css';
@@ -70,6 +71,7 @@ function AppContent() {
             <Route path="sessions" element={<AdminSessions />} />
             <Route path="timer" element={<AdminTimer />} />
             <Route path="food" element={<AdminFood />} />
+            <Route path="users" element={<AdminUsers />} />
             <Route path="setups" element={<AdminSetups />} />
             <Route path="staff" element={<AdminStaff />} />
           </Route>

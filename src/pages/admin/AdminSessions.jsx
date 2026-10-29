@@ -41,7 +41,18 @@ export default function AdminSessions() {
   const handleEndSession = async (session) => {
     try {
       await updateSession(session.id, { status: 'completed' });
-      await updateSetup(session.setupId, { status: 'available' });
+      // Only set setup to available if all remaining sessions on this setup are below capacity
+      const remainingActive = sessions.filter(
+        ses => ses.setupId === session.setupId && ses.id !== session.id && ses.status !== 'completed'
+      );
+      const setupDoc = setups.find(s => s.id === session.setupId);
+      const cap = setupDoc?.capacity || (setupDoc?.type === 'PS2' ? 6 : 1);
+      const stillOccupied = remainingActive.reduce(
+        (sum, s) => sum + (Number(s.players || s.playerCount || 1)), 0
+      );
+      if (stillOccupied < cap) {
+        await updateSetup(session.setupId, { status: 'available' });
+      }
       await addNotification({
         userId: session.userId,
         type: 'session_completed',

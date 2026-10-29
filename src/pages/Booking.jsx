@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Gamepad2,
   Clock,
   Calendar,
   Check,
@@ -13,7 +12,10 @@ import {
   CheckCircle2,
   QrCode,
   MessageSquare,
-  Monitor,
+  Share2,
+  Users,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,10 +23,38 @@ import {
   createBooking,
   subscribeToAllBookings,
   subscribeToSetups,
+  subscribeToAllActiveSessions,
 } from '../firebase/firestore';
 import UpiQrModal from '../components/UpiQrModal';
 import CustomerAuthModal from '../components/CustomerAuthModal';
 import './Booking.css';
+
+const DURATION_OPTIONS = [
+  { id: '30m', label: '30 Minutes', durationMins: 30, durationHrs: 0.5, description: 'Quick warm-up' },
+  { id: '1h', label: '1 Hour', durationMins: 60, durationHrs: 1, description: 'Most popular' },
+  { id: '2h', label: '2 Hours', durationMins: 120, durationHrs: 2, description: 'Double the play time' },
+  { id: 'group', label: 'Group', durationMins: 60, durationHrs: 1, description: 'Group rate per player' },
+];
+
+const TWO_HOUR_COMPLIMENTARY_ITEMS = [
+  { name: 'Cold Drink', quantity: 1, price: 0 },
+  { name: 'Chips', quantity: 1, price: 0 },
+];
+
+const formatLocalDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatTimeLabel = (time) => {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes || 0, 0, 0);
+  return date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+};
 
 // 1-Hour Time Slots from 10:00 AM to 10:00 PM
 const TIME_SLOTS = [
@@ -52,11 +82,17 @@ export default function Booking() {
   // ── Real Setups & Bookings from Firestore ──
   const [setups, setSetups] = useState([]);
   const [allBookings, setAllBookings] = useState([]);
+  const [activeSessions, setActiveSessions] = useState([]);
 
   // ── Selections ──
   const [selectedStationType, setSelectedStationType] = useState('PS5');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [durationHrs, setDurationHrs] = useState(1);
+  const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()));
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [durationOptionId, setDurationOptionId] = useState('1h');
+  const [playerCount, setPlayerCount] = useState(2);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
   // ── Customer Information (Added as requested) ──
@@ -71,35 +107,45 @@ export default function Booking() {
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Generate next 7 days
-  const nextDays = useMemo(() => {
-    const days = [];
-    const today = new Date();
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const dayName = i === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' });
-      const dayNum = d.getDate();
-      days.push({
-        dateStr,
-        dayName,
-        dayNum,
-        isToday: i === 0,
-      });
-    }
-    return days;
-  }, []);
+  const todayDateString = formatLocalDate(new Date());
+  const maxBookingDate = new Date();
+  maxBookingDate.setDate(maxBookingDate.getDate() + 30);
+  const maxBookingDateString = formatLocalDate(maxBookingDate);
 
-  // Initialize date to today
-  useEffect(() => {
-    if (nextDays.length > 0 && !selectedDate) {
-      setSelectedDate(nextDays[0].dateStr);
-    }
-  }, [nextDays, selectedDate]);
+  const calendarCells = useMemo(() => {
+    const firstOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const gridStart = new Date(firstOfMonth);
+    gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      const dateString = formatLocalDate(date);
+      const isCurrentMonth = date.getMonth() === calendarMonth.getMonth();
+      return {
+        date,
+        dateString,
+        isCurrentMonth,
+        isDisabled:
+          !isCurrentMonth || dateString < todayDateString || dateString > maxBookingDateString,
+      };
+    });
+  }, [calendarMonth, todayDateString, maxBookingDateString]);
+
+  const monthLabel = calendarMonth.toLocaleDateString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const maxMonthStart = new Date(maxBookingDate.getFullYear(), maxBookingDate.getMonth(), 1);
+  const canGoToPreviousMonth =
+    calendarMonth.getFullYear() > currentMonthStart.getFullYear() ||
+    (calendarMonth.getFullYear() === currentMonthStart.getFullYear() &&
+      calendarMonth.getMonth() > currentMonthStart.getMonth());
+  const canGoToNextMonth =
+    calendarMonth.getFullYear() < maxMonthStart.getFullYear() ||
+    (calendarMonth.getFullYear() === maxMonthStart.getFullYear() &&
+      calendarMonth.getMonth() < maxMonthStart.getMonth());
 
   // Autofill user details if logged in
   useEffect(() => {
@@ -118,9 +164,13 @@ export default function Booking() {
         setSetups(docs.filter(s => s.status !== 'maintenance'));
       }
     });
+    const unsubSessions = subscribeToAllActiveSessions(s => {
+      if (Array.isArray(s)) setActiveSessions(s);
+    });
     return () => {
       if (typeof unsubBookings === 'function') unsubBookings();
       if (typeof unsubSetups === 'function') unsubSetups();
+      if (typeof unsubSessions === 'function') unsubSessions();
     };
   }, []);
 
@@ -133,7 +183,9 @@ export default function Booking() {
           type: 'PS5',
           name: 'PlayStation 5',
           sub: '4K Ultra, DualSense',
+          image: '/images/ps5.jpg',
           rate: 100,
+          rate30: 60,
           count: 2,
         },
         {
@@ -141,7 +193,9 @@ export default function Booking() {
           type: 'PS4',
           name: 'PS4 Pro',
           sub: 'Standard Controllers',
+          image: '/images/ps4.jpg',
           rate: 80,
+          rate30: 48,
           count: 2,
         },
         {
@@ -149,7 +203,9 @@ export default function Booking() {
           type: 'PC',
           name: 'Gaming PC',
           sub: 'RTX 4060, 144Hz',
+          image: '/images/gallery/gaming-pc.jpg',
           rate: 120,
+          rate30: 72,
           count: 1,
         },
       ];
@@ -171,6 +227,7 @@ export default function Booking() {
           : type === 'PS4' ? 'Standard Controllers'
           : type === 'PC' ? 'RTX 4060, 144Hz'
           : type === 'RACING' ? 'Wheel & Pedals'
+          : type === 'PS2' ? '6-Player Co-op, Retro Classic'
           : (Array.isArray(s.specs) ? s.specs[0] : s.specs) || 'High Performance';
 
         map.set(type, {
@@ -178,7 +235,21 @@ export default function Booking() {
           type: type,
           name: title,
           sub: sub,
+          image:
+            s.image ||
+            (type === 'PC'
+              ? '/images/gallery/gaming-pc.jpg'
+              : type === 'RACING'
+              ? '/images/sim-racing.jpg'
+              : type === 'PS5'
+              ? '/images/ps5.jpg'
+              : type === 'PS4'
+              ? '/images/ps4.jpg'
+              : type === 'PS3'
+              ? '/images/ps3.jpg'
+              : '/images/ps2.jpg'),
           rate: Number(s.pricePerHour) || 100,
+          rate30: Number(s.pricePer30Min) || Math.round((Number(s.pricePerHour) || 100) * 0.6),
           setups: [s],
           count: 1,
         });
@@ -205,57 +276,110 @@ export default function Booking() {
     return availableStations.find(s => s.type === selectedStationType) || availableStations[0];
   }, [availableStations, selectedStationType]);
 
-  // Check if slot has passed for today
+  const selectedDuration =
+    DURATION_OPTIONS.find((option) => option.id === durationOptionId) || DURATION_OPTIONS[1];
+
+  function timeToMins(t) {
+    if (!t) return 0;
+    const [h, m] = t.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  // Check if slot has passed for today (15-min grace period)
   const isSlotPast = (slotStart) => {
-    if (!nextDays[0] || selectedDate !== nextDays[0].dateStr) return false;
+    if (selectedDate !== todayDateString) return false;
     const now = new Date();
     const [h, m] = slotStart.split(':').map(Number);
     const slotDate = new Date();
     slotDate.setHours(h, m, 0, 0);
-    return now.getTime() > slotDate.getTime();
+    return now.getTime() > (slotDate.getTime() + 15 * 60 * 1000);
   };
 
-  // Check if all units of this station are booked for this slot
-  const isSlotBooked = (slot) => {
-    if (!currentStation) return false;
-    const totalUnits = currentStation.count || 1;
-    const bookedCount = allBookings.filter(b => {
-      if (b.status === 'cancelled') return false;
-      if (b.date !== selectedDate) return false;
+  // Get available seats for this slot (considering PS2 multi-seat capacity = 6)
+  const getSlotAvailableSeats = (slot) => {
+    if (!currentStation) return 1;
+    const isPS2 = selectedStationType === 'PS2';
+    const totalCapacity = isPS2 ? ((currentStation.count || 1) * 6) : (currentStation.count || 1);
+    const reqStart = timeToMins(slot.start);
+    const reqEnd = reqStart + selectedDuration.durationMins;
+
+    // 1. Overlapping bookings for this date
+    let occupied = 0;
+    allBookings.forEach(b => {
+      if (b.status === 'cancelled') return;
+      if (b.date !== selectedDate) return;
       const bSetup = (b.setupName || '').toUpperCase();
       const sType = selectedStationType.toUpperCase();
-      if (!bSetup.includes(sType)) return false;
-      return b.startTime === slot.start;
-    }).length;
-    return bookedCount >= totalUnits;
+      if (!bSetup.includes(sType)) return;
+
+      const bStart = timeToMins(b.startTime);
+      const bDuration = Number(b.duration) || (Number(b.durationMins) / 60) || 1;
+      const bEnd = b.endTime ? timeToMins(b.endTime) : (bStart + bDuration * 60);
+
+      if (reqStart < bEnd && reqEnd > bStart) {
+        occupied += isPS2 ? (Number(b.players || b.playerCount) || 1) : 1;
+      }
+    });
+
+    // 2. Overlapping active live sessions if today
+    if (selectedDate === todayDateString) {
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      activeSessions.forEach(ses => {
+        if (ses.status === 'completed') return;
+        const sesSetup = (ses.setupName || '').toUpperCase();
+        const sType = selectedStationType.toUpperCase();
+        if (!sesSetup.includes(sType)) return;
+
+        const sesEnd = ses.sessionEndTime?.toDate ? ses.sessionEndTime.toDate() : new Date(ses.sessionEndTime);
+        const sesEndMins = sesEnd.getHours() * 60 + sesEnd.getMinutes();
+        if (sesEndMins > reqStart && nowMins < reqEnd) {
+          occupied += isPS2 ? (Number(ses.players || ses.playerCount) || 1) : 1;
+        }
+      });
+    }
+
+    return Math.max(0, totalCapacity - occupied);
+  };
+
+  // Check if slot has enough seats for the requested player count
+  const isSlotBooked = (slot) => {
+    const seatsFree = getSlotAvailableSeats(slot);
+    return seatsFree < playerCount;
   };
 
   // Pricing calculations
-  const subtotal = (currentStation?.rate || 100) * durationHrs;
+  const pricePerPlayer =
+    durationOptionId === '30m'
+      ? currentStation?.rate30 || Math.round((currentStation?.rate || 100) * 0.6)
+      : durationOptionId === '2h'
+      ? (currentStation?.rate || 100) * 2
+      : durationOptionId === 'group'
+      ? Math.round((currentStation?.rate || 100) * 0.8)
+      : currentStation?.rate || 100;
+  const subtotal = pricePerPlayer * playerCount;
   const convenienceFee = 0; // FREE
   const totalAmount = subtotal + convenienceFee;
+  const complimentaryItems =
+    durationOptionId === '2h' ? TWO_HOUR_COMPLIMENTARY_ITEMS : [];
+  const hasTwoHourOffer = complimentaryItems.length > 0;
+  const complimentaryOfferLabel = '1 Cold Drink + 1 Chips FREE';
 
   // Step Meta
   const stepTitles = [
-    { step: 1, title: 'Choose Setup', progress: '25%' },
-    { step: 2, title: 'Select Time', progress: '50%' },
-    { step: 3, title: 'Your Details', progress: '75%' },
-    { step: 4, title: 'Checkout', progress: '100%' },
+    { step: 1, title: 'Select Station', progress: '20%' },
+    { step: 2, title: 'Select Duration', progress: '40%' },
+    { step: 3, title: 'Number of Players', progress: '60%' },
+    { step: 4, title: 'Date & Time', progress: '80%' },
+    { step: 5, title: 'Booking Summary', progress: '100%' },
   ];
 
   const currentStepMeta = stepTitles[currentStep - 1] || stepTitles[0];
 
-  // Duration modifier
-  const updateDuration = (change) => {
-    const next = durationHrs + change;
-    if (next >= 1 && next <= 6) {
-      setDurationHrs(next);
-    }
-  };
-
   // ── AUTO ADVANCE ON SELECTION (User Request: "select keli ki next time auto madhe aali pahije") ──
   const handleSelectStation = (stationType) => {
     setSelectedStationType(stationType);
+    setSelectedSlot(null);
     // Smooth auto-advance to Step 2
     setTimeout(() => {
       setCurrentStep(2);
@@ -264,30 +388,23 @@ export default function Booking() {
 
   const handleSelectSlot = (slot) => {
     setSelectedSlot(slot);
-    // Smooth auto-advance to Step 3
+    // Smooth auto-advance to booking summary
     setTimeout(() => {
-      setCurrentStep(3);
+      setCurrentStep(5);
     }, 220);
   };
 
   // Step Validation & Navigation
   const canProceedStep1 = !!selectedStationType;
-  const canProceedStep2 = !!selectedSlot;
+  const canProceedStep4 = !!selectedSlot;
   const cleanPhone = customerPhone.replace(/\D/g, '');
-  const canProceedStep3 = customerName.trim().length >= 2 && cleanPhone.length === 10;
+  const canProceedStep5 = customerName.trim().length >= 2 && cleanPhone.length === 10;
 
   const nextStep = () => {
     if (currentStep === 1 && canProceedStep1) setCurrentStep(2);
-    else if (currentStep === 2 && canProceedStep2) setCurrentStep(3);
-    else if (currentStep === 3) {
-      if (!canProceedStep3) {
-        if (!customerName.trim()) return toast.show('Please enter your full name', 'error');
-        if (cleanPhone.length !== 10) return toast.show('Please enter a valid 10-digit mobile number', 'error');
-      }
-      setCurrentStep(4);
-    } else if (currentStep === 4) {
-      handleFinalSubmit();
-    }
+    else if (currentStep === 2) setCurrentStep(3);
+    else if (currentStep === 3) setCurrentStep(4);
+    else if (currentStep === 4 && canProceedStep4) setCurrentStep(5);
   };
 
   const prevStep = () => {
@@ -298,17 +415,24 @@ export default function Booking() {
 
   // Final Booking Submit
   const handleFinalSubmit = async () => {
-    if (!canProceedStep3) {
+    if (!canProceedStep5) {
       toast.show('Please complete your name and 10-digit mobile number.', 'error');
-      setCurrentStep(3);
+      setCurrentStep(5);
+      return;
+    }
+    if (!selectedSlot || isSlotPast(selectedSlot.start) || isSlotBooked(selectedSlot)) {
+      toast.show('That time slot is no longer available. Please choose another one.', 'error');
+      setSelectedSlot(null);
+      setCurrentStep(4);
       return;
     }
 
     setIsSubmitting(true);
     try {
       const [startH, startM] = (selectedSlot?.start || '10:00').split(':').map(Number);
-      const endH = startH + durationHrs;
-      const computedEndTime = `${String(endH).padStart(2, '0')}:${String(startM || 0).padStart(2, '0')}`;
+      const endDate = new Date();
+      endDate.setHours(startH, startM + selectedDuration.durationMins, 0, 0);
+      const computedEndTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
       const matchingSetups = currentStation.setups || [];
       const assignedSetup = matchingSetups[0] || null;
@@ -325,8 +449,14 @@ export default function Booking() {
         date: selectedDate,
         startTime: selectedSlot.start,
         endTime: computedEndTime,
-        duration: durationHrs,
-        durationMins: durationHrs * 60,
+        duration: selectedDuration.durationHrs,
+        durationMins: selectedDuration.durationMins,
+        durationLabel: selectedDuration.label,
+        playerCount,
+        pricePerPlayer,
+        gamingAmount: totalAmount,
+        complimentaryItems,
+        offerCode: hasTwoHourOffer ? '2H_FREE_DRINK_CHIPS' : null,
         totalAmount,
         status: 'confirmed',
         paymentStatus: paymentChoice === 'upi' ? 'pending' : 'pending',
@@ -354,7 +484,7 @@ export default function Booking() {
 
   // Format date readable
   const getSelectedDateDisplay = () => {
-    if (!selectedDate) return 'Today';
+    if (!selectedDate) return 'Select a date';
     const [y, m, d] = selectedDate.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
     return dateObj.toLocaleDateString('en-IN', {
@@ -362,6 +492,16 @@ export default function Booking() {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const getSelectedEndTimeDisplay = () => {
+    if (!selectedSlot) return '';
+    const [startHour, startMinute] = selectedSlot.start.split(':').map(Number);
+    const endDate = new Date();
+    endDate.setHours(startHour, startMinute + selectedDuration.durationMins, 0, 0);
+    return formatTimeLabel(
+      `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`
+    );
   };
 
   return (
@@ -422,7 +562,7 @@ export default function Booking() {
                   <span className="receipt-item-label">
                     <Calendar size={13} /> Date
                   </span>
-                  <span className="receipt-item-val">{bookingSuccess.date}</span>
+                  <span className="receipt-item-val">{getSelectedDateDisplay()}</span>
                 </div>
 
                 <div className="receipt-item-row">
@@ -430,9 +570,24 @@ export default function Booking() {
                     <Clock size={13} /> Time Slot
                   </span>
                   <span className="receipt-item-val">
-                    {bookingSuccess.startTime} – {bookingSuccess.endTime}
+                    {selectedSlot?.label} – {formatTimeLabel(bookingSuccess.endTime)}
                   </span>
                 </div>
+
+                <div className="receipt-item-row">
+                  <span className="receipt-item-label">
+                    <Users size={13} /> Players · {bookingSuccess.durationLabel}
+                  </span>
+                  <span className="receipt-item-val">
+                    {bookingSuccess.playerCount === 5 ? '5+' : bookingSuccess.playerCount}
+                  </span>
+                </div>
+
+                {bookingSuccess.complimentaryItems?.length > 0 && (
+                  <div className="booking-offer-summary">
+                    🎁 Free with your 2-hour booking: 1 Cold Drink + 1 Chips
+                  </div>
+                )}
 
                 <div className="receipt-item-row">
                   <span className="receipt-item-label">
@@ -459,7 +614,7 @@ export default function Booking() {
               <div className="success-actions-col">
                 <a
                   href={`https://wa.me/917972430951?text=${encodeURIComponent(
-                    `🎮 *TS Gaming Cafe — Booking Slip*\n👤 Gamer: ${bookingSuccess.userName}\n🕹️ Setup: ${bookingSuccess.setupName}\n📅 Date: ${bookingSuccess.date}\n⏰ Time: ${bookingSuccess.startTime} - ${bookingSuccess.endTime}\n💰 Total: ₹${bookingSuccess.totalAmount}\n📍 Waluj, Sambhajinagar`
+                    `🎮 *TS Gaming Cafe — Booking Slip*\n👤 Gamer: ${bookingSuccess.userName}\n🕹️ Setup: ${bookingSuccess.setupName}\n👥 Players: ${bookingSuccess.playerCount === 5 ? '5+' : bookingSuccess.playerCount}\n⏱️ Duration: ${bookingSuccess.durationLabel}${bookingSuccess.complimentaryItems?.length ? '\n🎁 Free: 1 Cold Drink + 1 Chips' : ''}\n📅 Date: ${getSelectedDateDisplay()}\n⏰ Time: ${selectedSlot?.label} - ${formatTimeLabel(bookingSuccess.endTime)}\n💰 Total: ₹${bookingSuccess.totalAmount}\n📍 Waluj, Sambhajinagar`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -468,11 +623,27 @@ export default function Booking() {
                   <MessageSquare size={15} /> WhatsApp Confirmation
                 </a>
 
+                <a
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                    `🎮 Hey squad, I booked a slot at *TS Gaming Cafe*!\n🕹️ Station: ${bookingSuccess.setupName}\n👥 Players: ${bookingSuccess.playerCount === 5 ? '5+' : bookingSuccess.playerCount}\n📅 Date: ${getSelectedDateDisplay()} (${selectedSlot?.label} - ${formatTimeLabel(bookingSuccess.endTime)})\nJoin me for some games! 🔥`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-whatsapp-slip"
+                  style={{
+                    background: 'rgba(37, 211, 102, 0.12)',
+                    color: '#25d366',
+                    border: '1px solid rgba(37, 211, 102, 0.35)',
+                  }}
+                >
+                  <Share2 size={14} /> Invite Squad on WhatsApp
+                </a>
+
                 {paymentChoice === 'upi' && (
                   <button
                     type="button"
                     className="btn-whatsapp-slip"
-                    style={{ background: 'linear-gradient(135deg, #a855f7, #6366f1)' }}
+                    style={{ background: 'linear-gradient(135deg, #ff5500, #ff8800)' }}
                     onClick={() => setShowUpiModal(true)}
                   >
                     <QrCode size={15} /> Show UPI QR Code
@@ -506,27 +677,23 @@ export default function Booking() {
                     {availableStations.map(station => {
                       const isSelected = selectedStationType === station.type;
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={station.id}
                           className={`console-card-option ${isSelected ? 'selected' : ''}`}
+                          aria-pressed={isSelected}
                           onClick={() => handleSelectStation(station.type)}
                         >
-                          <div className="console-card-icon">
-                            {station.type === 'PC' ? (
-                              <Monitor size={18} />
-                            ) : (
-                              <Gamepad2 size={18} />
-                            )}
-                          </div>
+                          <img className="console-card-image" src={station.image} alt="" />
                           <div className="console-card-info">
-                            <h3 className="console-card-title">{station.name}</h3>
-                            <p className="console-card-sub">{station.sub}</p>
+                            <span className="console-card-title">{station.name}</span>
+                            <span className="console-card-sub">{station.sub}</span>
                           </div>
                           <div className="console-card-price">
                             <span className="card-price-rate">₹{station.rate}</span>
                             <span className="card-price-unit">/h</span>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -534,88 +701,191 @@ export default function Booking() {
               )}
 
               {/* ═══════════════════════════════════════════════════════
-                  STEP 2: DATE & TIME (Compact Selector)
+                  STEP 2: SESSION DURATION
                  ═══════════════════════════════════════════════════════ */}
               {currentStep === 2 && (
                 <div className="step-container">
-                  <h2 className="step-heading">Date & Time</h2>
-                  <p className="step-subtitle">Tap an available slot to continue.</p>
+                  <h2 className="step-heading">Select Duration</h2>
+                  <p className="step-subtitle">Choose how long your gaming session should be.</p>
 
-                  {/* Date Selector */}
-                  <div className="section-mini-label">Date</div>
-                  <div className="date-scroll-strip">
-                    {nextDays.map(d => {
-                      const isSel = selectedDate === d.dateStr;
+                  <div className="duration-options-grid">
+                    {DURATION_OPTIONS.map((option) => {
+                      const isSelected = durationOptionId === option.id;
+                      const rate =
+                        option.id === '30m'
+                          ? currentStation?.rate30 || Math.round((currentStation?.rate || 100) * 0.6)
+                          : option.id === '2h'
+                          ? (currentStation?.rate || 100) * 2
+                          : option.id === 'group'
+                          ? Math.round((currentStation?.rate || 100) * 0.8)
+                          : currentStation?.rate || 100;
                       return (
                         <button
-                          key={d.dateStr}
+                          key={option.id}
                           type="button"
-                          className={`date-pill-btn ${isSel ? 'selected' : ''}`}
+                          className={`duration-option-card ${isSelected ? 'selected' : ''}`}
                           onClick={() => {
-                            setSelectedDate(d.dateStr);
+                            setDurationOptionId(option.id);
                             setSelectedSlot(null);
                           }}
                         >
-                          <span className="date-pill-day">{d.dayName}</span>
-                          <span className="date-pill-num">{d.dayNum}</span>
+                          <span className="duration-option-title">{option.label}</span>
+                          <span className="duration-option-description">{option.description}</span>
+                          {option.id === '2h' && (
+                            <span className="duration-offer-badge">
+                              🎁 1 Cold Drink + 1 Chips FREE
+                            </span>
+                          )}
+                          <span className="duration-option-price">
+                            ₹{rate}<small> / player</small>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
+                </div>
+              )}
 
-                  {/* Duration Stepper */}
-                  <div className="duration-row">
-                    <span className="section-mini-label" style={{ margin: 0 }}>
-                      Duration
-                    </span>
-                    <div className="duration-stepper">
+              {/* ═══════════════════════════════════════════════════════
+                  STEP 3: PLAYER COUNT
+                 ═══════════════════════════════════════════════════════ */}
+              {currentStep === 3 && (
+                <div className="step-container">
+                  <h2 className="step-heading">Number of Players</h2>
+                  <p className="step-subtitle">How many gamers are joining your session?</p>
+
+                  <div className="player-count-card">
+                    <div className="player-count-copy">
+                      <Users size={20} />
+                      <div>
+                        <strong>Your squad</strong>
+                        <span>₹{pricePerPlayer} per player · {selectedDuration.label}</span>
+                      </div>
+                    </div>
+                    <div className="player-count-control" aria-label="Player count">
                       <button
                         type="button"
-                        className="stepper-btn"
-                        disabled={durationHrs <= 1}
-                        onClick={() => updateDuration(-1)}
+                        className="player-count-button"
+                        aria-label="Remove one player"
+                        disabled={playerCount <= 1}
+                        onClick={() => setPlayerCount((count) => Math.max(1, count - 1))}
                       >
-                        <Minus size={12} />
+                        <Minus size={18} />
                       </button>
-                      <span className="stepper-value">{durationHrs}h</span>
+                      <strong>{selectedStationType === 'PS2' ? `${playerCount} Players` : playerCount === 5 ? '5+' : playerCount}</strong>
                       <button
                         type="button"
-                        className="stepper-btn"
-                        disabled={durationHrs >= 6}
-                        onClick={() => updateDuration(1)}
+                        className="player-count-button"
+                        aria-label="Add one player"
+                        disabled={playerCount >= (selectedStationType === 'PS2' ? 6 : 5)}
+                        onClick={() => setPlayerCount((count) => Math.min(selectedStationType === 'PS2' ? 6 : 5, count + 1))}
                       >
-                        <Plus size={12} />
+                        <Plus size={18} />
                       </button>
                     </div>
                   </div>
 
-                  {/* Available Time Slots Grid */}
-                  <div className="section-mini-label">Available Slots</div>
+                  <div className="player-total-preview">
+                    <span>Session total</span>
+                    <strong>₹{totalAmount}</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* ═══════════════════════════════════════════════════════
+                  STEP 4: CALENDAR & TIME
+                 ═══════════════════════════════════════════════════════ */}
+              {currentStep === 4 && (
+                <div className="step-container">
+                  <h2 className="step-heading">Select Date & Time</h2>
+                  <p className="step-subtitle">Pick a date, then choose an available time slot.</p>
+
+                  <div className="calendar-picker">
+                    <div className="calendar-picker-header">
+                      <strong>{monthLabel}</strong>
+                      <div>
+                        <button
+                          type="button"
+                          aria-label="Previous month"
+                          disabled={!canGoToPreviousMonth}
+                          onClick={() =>
+                            setCalendarMonth(
+                              (month) => new Date(month.getFullYear(), month.getMonth() - 1, 1)
+                            )
+                          }
+                        >
+                          <ChevronLeft size={17} />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Next month"
+                          disabled={!canGoToNextMonth}
+                          onClick={() =>
+                            setCalendarMonth(
+                              (month) => new Date(month.getFullYear(), month.getMonth() + 1, 1)
+                            )
+                          }
+                        >
+                          <ChevronRight size={17} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="calendar-weekdays" aria-hidden="true">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                        <span key={day}>{day}</span>
+                      ))}
+                    </div>
+                    <div className="calendar-days-grid">
+                      {calendarCells.map(({ date, dateString, isCurrentMonth, isDisabled }) => (
+                        <button
+                          key={dateString}
+                          type="button"
+                          disabled={isDisabled}
+                          aria-pressed={selectedDate === dateString}
+                          className={[
+                            'calendar-day-button',
+                            !isCurrentMonth ? 'outside-month' : '',
+                            selectedDate === dateString ? 'selected' : '',
+                            dateString === todayDateString ? 'today' : '',
+                          ].filter(Boolean).join(' ')}
+                          onClick={() => {
+                            setSelectedDate(dateString);
+                            setSelectedSlot(null);
+                          }}
+                        >
+                          {date.getDate()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="section-mini-label time-slot-heading">
+                    Available Time Slots · {getSelectedDateDisplay()}
+                  </div>
                   <div className="time-slots-grid">
-                    {TIME_SLOTS.map(slot => {
+                    {TIME_SLOTS.map((slot) => {
+                      const availSeats = getSlotAvailableSeats(slot);
                       const isBooked = isSlotBooked(slot);
                       const isPast = isSlotPast(slot.start);
                       const isDisabled = isBooked || isPast;
                       const isSelected = selectedSlot?.id === slot.id;
+                      const isPS2 = selectedStationType === 'PS2';
 
                       return (
                         <button
                           key={slot.id}
                           type="button"
                           disabled={isDisabled}
-                          className={`time-slot-btn ${
-                            isSelected ? 'selected' : ''
-                          } ${isDisabled ? 'booked' : ''}`}
+                          className={`time-slot-btn ${isSelected ? 'selected' : ''} ${isDisabled ? 'booked' : ''}`}
                           onClick={() => handleSelectSlot(slot)}
-                          title={
-                            isPast
-                              ? 'Time passed'
-                              : isBooked
-                              ? 'Booked'
-                              : 'Available'
-                          }
+                          title={isPast ? 'Time passed' : isBooked ? 'Not enough seats' : isPS2 ? `${availSeats} of 6 seats free` : 'Available'}
                         >
-                          {slot.label}
+                          <span>{slot.label}</span>
+                          {isPS2 && !isPast && (
+                            <span className="slot-seats-badge">
+                              {isBooked ? 'Full' : `${availSeats}/6 Free`}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -624,98 +894,20 @@ export default function Booking() {
               )}
 
               {/* ═══════════════════════════════════════════════════════
-                  STEP 3: CUSTOMER INFORMATION
+                  STEP 5: DETAILS, SUMMARY & PAYMENT
                  ═══════════════════════════════════════════════════════ */}
-              {currentStep === 3 && (
-                <div className="step-container">
-                  <h2 className="step-heading">Your Details</h2>
-                  <p className="step-subtitle">
-                    Enter details for booking confirmation slip.
-                  </p>
-
-                  <div className="customer-fields-card">
-                    {/* Full Name */}
-                    <div className="field-group">
-                      <label className="field-label">
-                        <User size={13} /> Full Name <span style={{ color: '#ef4444' }}>*</span>
-                      </label>
-                      <div className="field-input-box">
-                        <input
-                          type="text"
-                          className="customer-text-input"
-                          placeholder="e.g. Rahul Sharma"
-                          value={customerName}
-                          onChange={e => setCustomerName(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Mobile Number */}
-                    <div className="field-group">
-                      <label className="field-label">
-                        <Phone size={13} /> Mobile Number (10 digits) <span style={{ color: '#ef4444' }}>*</span>
-                      </label>
-                      <div className="field-input-box">
-                        <span className="input-prefix-flag">🇮🇳 +91</span>
-                        <input
-                          type="tel"
-                          maxLength={10}
-                          className="customer-text-input with-prefix"
-                          placeholder="9876543210"
-                          value={customerPhone}
-                          onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
-                        />
-                      </div>
-                    </div>
-
-                    {/* WhatsApp Toggle */}
-                    <div
-                      className="whatsapp-optin-row"
-                      onClick={() => setWhatsappReceipt(!whatsappReceipt)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={whatsappReceipt}
-                        onChange={() => {}}
-                        style={{ width: 15, height: 15, accentColor: '#25d366' }}
-                      />
-                      <span className="whatsapp-optin-text">
-                        📱 Send booking receipt on WhatsApp
-                      </span>
-                    </div>
-
-                    {!user && (
-                      <div style={{ textAlign: 'center', marginTop: 4 }}>
-                        <button
-                          type="button"
-                          className="minimal-ghost-link"
-                          style={{ color: '#a855f7', fontSize: '0.78rem' }}
-                          onClick={() => setShowAuthModal(true)}
-                        >
-                          Already have an account? Sign In
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ═══════════════════════════════════════════════════════
-                  STEP 4: CHECKOUT & REVIEW
-                 ═══════════════════════════════════════════════════════ */}
-              {currentStep === 4 && (
+              {currentStep === 5 && (
                 <div className="step-container">
                   <div className="checkout-hero-icon">
                     <CheckCircle2 size={30} />
                   </div>
                   <h2 className="step-heading" style={{ textAlign: 'center' }}>
-                    Review Booking
+                    Booking Summary
                   </h2>
                   <p className="step-subtitle" style={{ textAlign: 'center', marginBottom: 14 }}>
-                    Confirm your details to lock this session.
+                    Check your session details and add your contact information.
                   </p>
 
-                  {/* Receipt Ticket */}
                   <div className="receipt-card">
                     <h3 className="receipt-header-title">{currentStation.name}</h3>
 
@@ -731,8 +923,25 @@ export default function Booking() {
                         <Clock size={13} /> Time Slot
                       </span>
                       <span className="receipt-item-val">
-                        {selectedSlot?.label || '10:00 AM'} ({durationHrs}h)
+                        {selectedSlot?.label || '10:00 AM'} – {getSelectedEndTimeDisplay()}
                       </span>
+                    </div>
+
+                    <div className="receipt-item-row">
+                      <span className="receipt-item-label">Duration</span>
+                      <span className="receipt-item-val">{selectedDuration.label}</span>
+                    </div>
+
+                    <div className="receipt-item-row">
+                      <span className="receipt-item-label">
+                        <Users size={13} /> Players
+                      </span>
+                      <span className="receipt-item-val">{playerCount === 5 ? '5+' : playerCount}</span>
+                    </div>
+
+                    <div className="receipt-item-row">
+                      <span className="receipt-item-label">Price per player</span>
+                      <span className="receipt-item-val">₹{pricePerPlayer}</span>
                     </div>
 
                     <div className="receipt-item-row">
@@ -740,28 +949,84 @@ export default function Booking() {
                         <User size={13} /> Gamer
                       </span>
                       <span className="receipt-item-val">
-                        {customerName} (+91 {cleanPhone})
+                        {customerName || 'Your name'} {cleanPhone ? `(+91 ${cleanPhone})` : ''}
                       </span>
                     </div>
 
                     <div className="receipt-divider-dashed" />
 
                     <div className="receipt-item-row">
-                      <span className="receipt-item-label">Subtotal</span>
+                      <span className="receipt-item-label">₹{pricePerPlayer} × {playerCount === 5 ? '5+' : playerCount} players</span>
                       <span className="receipt-item-val">₹{subtotal}</span>
-                    </div>
-
-                    <div className="receipt-item-row">
-                      <span className="receipt-item-label">Fee</span>
-                      <span className="receipt-item-val" style={{ color: '#00ff66' }}>
-                        ₹0 (FREE)
-                      </span>
                     </div>
 
                     <div className="receipt-total-row" style={{ marginTop: 8 }}>
                       <span className="receipt-total-label">Total Amount</span>
                       <span className="receipt-total-val">₹{totalAmount}</span>
                     </div>
+                    {hasTwoHourOffer && (
+                      <div className="booking-offer-summary">
+                        🎁 {complimentaryOfferLabel} with this 2-hour booking
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="customer-fields-card">
+                    <div className="field-group">
+                      <label className="field-label">
+                        <User size={13} /> Full Name <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div className="field-input-box">
+                        <input
+                          type="text"
+                          className="customer-text-input"
+                          placeholder="e.g. Rahul Sharma"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">
+                        <Phone size={13} /> Mobile Number (10 digits) <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div className="field-input-box">
+                        <span className="input-prefix-flag">🇮🇳 +91</span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          className="customer-text-input with-prefix"
+                          placeholder="9876543210"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
+                        />
+                      </div>
+                    </div>
+
+                    <label className="whatsapp-optin-row">
+                      <input
+                        type="checkbox"
+                        checked={whatsappReceipt}
+                        onChange={() => setWhatsappReceipt((enabled) => !enabled)}
+                        style={{ width: 15, height: 15, accentColor: '#25d366' }}
+                      />
+                      <span className="whatsapp-optin-text">📱 Send booking receipt on WhatsApp</span>
+                    </label>
+
+                    {!user && (
+                      <div style={{ textAlign: 'center', marginTop: 4 }}>
+                        <button
+                          type="button"
+                          className="minimal-ghost-link"
+                          style={{ color: '#ff8855', fontSize: '0.78rem' }}
+                          onClick={() => setShowAuthModal(true)}
+                        >
+                          Already have an account? Sign In
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Payment Method Selector */}
@@ -804,7 +1069,7 @@ export default function Booking() {
                 disabled={!canProceedStep1}
                 onClick={nextStep}
               >
-                <span>Continue to Time</span>
+                <span>Continue to Duration</span>
                 <ArrowRight size={15} />
               </button>
             )}
@@ -813,11 +1078,10 @@ export default function Booking() {
               <button
                 type="button"
                 className="main-action-step-btn"
-                disabled={!canProceedStep2}
                 onClick={nextStep}
               >
-                <span>{selectedSlot ? 'Continue to Details' : 'Select a Time Slot'}</span>
-                {selectedSlot && <ArrowRight size={15} />}
+                <span>Continue to Players</span>
+                <ArrowRight size={15} />
               </button>
             )}
 
@@ -825,10 +1089,9 @@ export default function Booking() {
               <button
                 type="button"
                 className="main-action-step-btn"
-                disabled={!canProceedStep3}
                 onClick={nextStep}
               >
-                <span>Review Booking</span>
+                <span>Choose Date & Time</span>
                 <ArrowRight size={15} />
               </button>
             )}
@@ -836,8 +1099,20 @@ export default function Booking() {
             {currentStep === 4 && (
               <button
                 type="button"
+                className="main-action-step-btn"
+                disabled={!canProceedStep4}
+                onClick={nextStep}
+              >
+                <span>{selectedSlot ? 'Continue to Summary' : 'Select a Time Slot'}</span>
+                {selectedSlot && <ArrowRight size={15} />}
+              </button>
+            )}
+
+            {currentStep === 5 && (
+              <button
+                type="button"
                 className="main-action-step-btn btn-pay-final"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !canProceedStep5}
                 onClick={handleFinalSubmit}
               >
                 {isSubmitting ? (

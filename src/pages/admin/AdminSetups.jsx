@@ -18,6 +18,7 @@ const DEFAULT_FORM = {
   setupNumber: 1,
   pricePerHour: 100,
   pricePer30Min: 60,
+  capacity: 1,
   status: 'available',
   specs: '2x DualSense Wireless Controllers\n4K HDR Gaming TV\nUltra High-Speed SSD',
   games: 'EA Sports FC 24 / FIFA 24\nGTA V\nWWE 2K24\nGod of War Ragnarök\nSpider-Man 2\nTekken 8\nMortal Kombat 1',
@@ -86,11 +87,13 @@ const DEFAULT_PS_SEED = [
     setupNumber: 6,
     pricePerHour: 30,
     pricePer30Min: 20,
+    capacity: 6,
     status: 'available',
-    specs: ['2x DualShock 2 Wired Controllers', 'Memory Card 64MB', 'CRT / Gaming Display'],
+    specs: ['6-Player Multi-Seat Setup (6 लोकांची जागा)', 'DualShock 2 Controllers', 'Memory Card 64MB', 'CRT / Gaming Display'],
     games: ['GTA San Andreas', 'GTA Vice City', 'WWE SmackDown Here Comes The Pain', 'God of War II', 'Tekken 5', 'Need for Speed Most Wanted'],
     image: '',
   },
+  
   {
     name: 'Pro Gaming PC — Station #07',
     type: 'PC',
@@ -136,6 +139,7 @@ export default function AdminSetups() {
       setupNumber: nextNum,
       pricePerHour: 100,
       pricePer30Min: 60,
+      capacity: 1,
     });
     setEditingId(null);
     setImageFile(null);
@@ -150,6 +154,7 @@ export default function AdminSetups() {
       setupNumber: setup.setupNumber || 1,
       pricePerHour: hr,
       pricePer30Min: setup.pricePer30Min || Math.round(hr * 0.6),
+      capacity: setup.capacity || (setup.type === 'PS2' ? 6 : 1),
       status: setup.status || 'available',
       specs: Array.isArray(setup.specs) ? setup.specs.join('\n') : (setup.specs || ''),
       games: Array.isArray(setup.games) ? setup.games.join('\n') : (setup.games || ''),
@@ -163,37 +168,44 @@ export default function AdminSetups() {
   const handleTypeSelectInForm = (type) => {
     let rate = 100;
     let rate30 = 60;
+    let cap = 1;
     let specs = '';
     let games = '';
 
     if (type === 'PS5') {
       rate = 100;
       rate30 = 60;
+      cap = 1;
       specs = '2x DualSense Wireless Controllers\n55-inch 4K 120Hz TV\nUltra High-Speed SSD';
       games = 'EA Sports FC 24\nGTA V\nWWE 2K24\nGod of War Ragnarök\nSpider-Man 2\nTekken 8';
     } else if (type === 'PS4') {
       rate = 60;
       rate30 = 40;
+      cap = 1;
       specs = '2x DualShock 4 Wireless Controllers\n43-inch 4K HDR TV';
       games = 'FIFA 23\nGTA V\nWWE 2K22\nGod of War\nSpider-Man\nMortal Kombat 11';
     } else if (type === 'PS3') {
       rate = 40;
       rate30 = 25;
+      cap = 1;
       specs = '2x DualShock 3 Wireless Controllers\n32-inch HD TV';
       games = 'GTA IV\nFIFA 18\nWWE 2K14\nGod of War III\nTekken 6\nBlur Racing';
     } else if (type === 'PS2') {
       rate = 30;
       rate30 = 20;
-      specs = '2x DualShock 2 Controllers\nMemory Card 64MB';
+      cap = 6;
+      specs = '6-Player Multi-Seat Setup (6 लोकांची जागा)\nDualShock 2 Controllers\nMemory Card 64MB';
       games = 'GTA San Andreas\nGTA Vice City\nWWE SmackDown Here Comes The Pain\nGod of War II\nTekken 5';
     } else if (type === 'PC') {
       rate = 70;
       rate30 = 45;
+      cap = 1;
       specs = 'RTX 4060 GPU / Intel i7 13th Gen\n240Hz High Refresh Monitor\nMechanical RGB Keyboard & Gaming Mouse';
       games = 'Valorant\nCS:GO 2\nGTA V\nCall of Duty Warzone\nFortnite\nApex Legends';
     } else if (type === 'Racing') {
       rate = 150;
       rate30 = 90;
+      cap = 1;
       specs = 'Logitech G29 Force Feedback Wheel\nMetal Pedals & 6-Speed Shifter\nRacing Cockpit Bucket Seat';
       games = 'Forza Horizon 5\nF1 23\nAssetto Corsa\nNeed for Speed Heat\nDirt Rally 2.0';
     }
@@ -203,6 +215,7 @@ export default function AdminSetups() {
       type,
       pricePerHour: rate,
       pricePer30Min: rate30,
+      capacity: cap,
       specs,
       games,
     }));
@@ -222,6 +235,7 @@ export default function AdminSetups() {
         setupNumber: Number(form.setupNumber),
         pricePerHour: hrRate,
         pricePer30Min: Number(form.pricePer30Min) || Math.round(hrRate * 0.6),
+        capacity: Number(form.capacity) || (form.type === 'PS2' ? 6 : 1),
         status: form.status,
         specs: form.specs.split('\n').map(s => s.trim()).filter(Boolean),
         games: form.games.split('\n').map(g => g.trim()).filter(Boolean),
@@ -392,6 +406,17 @@ export default function AdminSetups() {
                 }}>
                   ⏱️ 30m: ₹{setup.pricePer30Min || Math.round((setup.pricePerHour || 100) * 0.6)}
                 </span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  color: '#00ff66',
+                  background: 'rgba(0, 255, 102, 0.12)',
+                  border: '1px solid rgba(0, 255, 102, 0.3)',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                }}>
+                  👥 {setup.capacity || (setup.type === 'PS2' ? 6 : 1)} Seats Capacity
+                </span>
               </div>
 
               {/* Specs & Games snippet */}
@@ -553,6 +578,23 @@ export default function AdminSetups() {
                     onChange={e => setForm(p => ({ ...p, pricePer30Min: e.target.value }))}
                     id="setup-price-30m-input"
                     placeholder="e.g. 60"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ color: '#00ff66' }}>
+                    👥 Seat Capacity (जागा / Players)
+                  </label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={form.capacity}
+                    min={1}
+                    max={12}
+                    onChange={e => setForm(p => ({ ...p, capacity: Number(e.target.value) || 1 }))}
+                    id="setup-capacity-input"
+                    placeholder="e.g. 6 for PS2"
                     required
                   />
                 </div>

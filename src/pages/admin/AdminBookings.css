@@ -2061,9 +2061,394 @@
   color: #94a3b8;
 }
 
-/* Hide the duplicate floating button when in counter mode */
-.mobile-bookings-fab {
-  display: none !important;
+/* ── Multi-Seat (PS2 Capacity = 6) UI Styles ── */
+.console-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+}
+
+.console-cap-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 255, 102, 0.15);
+  border: 1px solid rgba(0, 255, 102, 0.35);
+  color: #00ff66;
+  white-space: nowrap;
+}
+
+.seats-live-counter {
+  font-size: 0.72rem;
+  color: #00ff66;
+  font-weight: 800;
+  background: rgba(0, 255, 102, 0.12);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 102, 0.3);
+}
+
+.seats-live-counter strong {
+  color: #ffffff;
+}
+
+.dot-partial {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+.partial-text {
+  color: #fbbf24;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.partial-text strong {
+  color: #fde047;
+}
+
+.minimal-console.partial {
+  background: rgba(245, 158, 11, 0.06) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+.seat-rate {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.minimal-pills--players {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 600px) {
+  .minimal-pills--players {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.player-pill.disabled-full {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.player-pill.disabled-full .pill-cost {
+  color: #f87171 !important;
+  font-weight: 800;
+}
+
+.live-players-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 245, 212, 0.15);
+  color: #00f5d4;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+/* ── Mobile App Date Scope Strip & Search ── */
+.mobile-app-date-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+  width: 100%;
+}
+.mobile-app-date-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.date-scope-pill {
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.date-scope-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.date-scope-pill.active {
+  background: rgba(0, 245, 212, 0.15);
+  border-color: #00f5d4;
+  color: #00f5d4;
+  font-weight: 800;
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.2);
+}
+
+.date-scope-picker-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.date-scope-picker-btn.active {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: #a855f7;
+  color: #c084fc;
+}
+
+.date-native-picker-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ── 🟢 Dedicated Live Playing Sessions Mobile Tab ── */
+.mobile-live-tab-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.mobile-section-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+}
+
+.mobile-live-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-live-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(0, 255, 102, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.live-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.live-card-console {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.live-timer-chip {
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(0, 255, 102, 0.15);
+  border: 1px solid rgba(0, 255, 102, 0.4);
+  color: #00ff66;
+  font-weight: 800;
+  font-size: 0.74rem;
+}
+
+.live-gamer-name {
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: #ffffff;
+}
+
+.live-gamer-phone {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.live-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.live-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff66, #00f5d4);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.live-card-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.live-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.live-act-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.live-act-btn--extend {
+  background: rgba(0, 245, 212, 0.15);
+  color: #00f5d4;
+  border: 1px solid rgba(0, 245, 212, 0.35);
+}
+.live-act-btn--extend:hover {
+  background: rgba(0, 245, 212, 0.25);
+}
+
+.live-act-btn--danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.live-act-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ── 📱 NATIVE MOBILE APP OPTIMIZATIONS (Screen <= 640px) ── */
+@media (max-width: 640px) {
+  .bookings-page-container {
+    padding: 6px 8px 125px 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .minimal-desk-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .minimal-desk-brand {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .minimal-desk-tabs {
+    width: 100%;
+    display: flex;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .minimal-desk-tab {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 4px;
+    font-size: 0.76rem;
+    font-weight: 800;
+  }
+
+  .minimal-consoles {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+
+  .minimal-console {
+    padding: 8px 10px;
+  }
+
+  .minimal-start-btn-wrap {
+    position: fixed;
+    bottom: 56px; /* Sits right above .admin-mobile-bottom-nav */
+    left: 0;
+    right: 0;
+    padding: 8px 12px;
+    background: rgba(10, 14, 23, 0.96);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 65;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6);
+  }
+
+  .minimal-start-btn {
+    height: 46px;
+    font-size: 0.92rem;
+  }
+
+  .mobile-bookings-fab {
+    position: fixed;
+    bottom: 68px; /* Above bottom nav */
+    right: 14px;
+    z-index: 68;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, #00ff66, #00f5d4);
+    color: #040806;
+    font-weight: 900;
+    font-size: 0.82rem;
+    box-shadow: 0 4px 20px rgba(0, 255, 102, 0.5);
+    border: none;
+    cursor: pointer;
+  }
 }
 
 
@@ -2127,3 +2512,114 @@
   cursor: not-allowed !important;
   opacity: 0.8 !important;
 }
+
+/* ── Staff Desk Gamer Suggest & Quick Add ── */
+.desk-add-gamer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(147, 51, 234, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #d8b4fe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.desk-add-gamer-btn:hover {
+  background: rgba(147, 51, 234, 0.35);
+  border-color: #a855f7;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.desk-gamer-suggest-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #0f111a;
+  border: 1.5px solid rgba(168, 85, 247, 0.5);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(147, 51, 234, 0.25);
+  z-index: 100;
+  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.desk-suggest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(147, 51, 234, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #c084fc;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.desk-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s;
+}
+
+.desk-suggest-item:hover {
+  background: rgba(147, 51, 234, 0.22);
+}
+
+.desk-suggest-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.desk-suggest-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.desk-suggest-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desk-suggest-phone {
+  font-size: 0.7rem;
+  color: #00e5ff;
+}
+
+.desk-suggest-pick {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #a855f7;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(168, 85, 247, 0.15);
+}
+

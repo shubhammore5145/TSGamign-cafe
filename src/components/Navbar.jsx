@@ -90,7 +90,7 @@ export default function Navbar() {
         <div className="navbar__right">
           {/* Book Now Button */}
           <button
-            onClick={() => handleNavClick('#booking')}
+            onClick={() => navigate('/booking')}
             className="navbar__book-btn"
             id="nav-book-now-btn"
           >
@@ -175,7 +175,10 @@ export default function Navbar() {
 
           <div className="navbar__mobile-actions">
             <button
-              onClick={() => handleNavClick('#booking')}
+              onClick={() => {
+                setMobileOpen(false);
+                navigate('/booking');
+              }}
               className="navbar__book-btn navbar__book-btn--full"
             >
               <Calendar size={16} />

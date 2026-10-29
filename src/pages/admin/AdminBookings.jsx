@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   subscribeToAllBookings,
   subscribeToSetups,
   subscribeToAllActiveSessions,
   subscribeToStaff,
+  subscribeToAllUsers,
+  addUser,
   createBooking,
   updateBooking,
   deleteBooking,
@@ -46,9 +49,12 @@ import {
   Sparkles,
   Target,
   RefreshCw,
+  Users,
+  UserPlus,
 } from 'lucide-react';
 import ClockTimePicker from '../../components/ClockTimePicker';
 import './AdminBookings.css';
+import './AdminUsers.css';
 
 // ── Fixed 1-Hour Slots from Opening (5:00 AM) to Closing Time (10:00 PM) ──
 export const ONE_HOUR_SLOTS = [
@@ -274,77 +280,132 @@ function getFormattedDateTitle(dateStr) {
 }
 
 
-export function getSetupLiveStatus(setupId, setups = [], activeSessions = [], bookings = []) {
-  if (!setupId) return { isBusy: false, freeTime12h: 'Now', freeTime24: null, minsLeft: 0, user: null };
+// Helper to get maximum seat capacity for a console (PS2 defaults to 6 seats/people)
+export function getSetupCapacity(setup) {
+  if (!setup) return 1;
+  if (setup.capacity && Number(setup.capacity) > 0) return Number(setup.capacity);
+  const type = String(setup.type || '').toUpperCase();
+  const name = String(setup.name || '').toUpperCase();
+  if (type === 'PS2' || name.includes('PS2') || name.includes('PS 2') || name.includes('PLAYSTATION 2')) {
+    return 6; // PS2 default 6 seats / people
+  }
+  return 1;
+}
 
+export function getSetupLiveStatus(setupId, setups = [], activeSessions = [], bookings = []) {
+  if (!setupId) {
+    return {
+      isBusy: false,
+      capacity: 1,
+      occupiedSeats: 0,
+      remainingSeats: 1,
+      freeTime12h: 'Now',
+      freeTime24: null,
+      minsLeft: 0,
+      user: null,
+      activeUsers: [],
+    };
+  }
+
+  const setupDoc = setups.find(s => s.id === setupId);
+  const capacity = getSetupCapacity(setupDoc);
   const todayStr = getTodayString();
   const now = new Date();
   const current24 = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  // 1. Check live activeSessions
-  const activeSess = activeSessions.find(ses => ses.setupId === setupId && ses.status !== 'completed');
-  if (activeSess) {
-    const endDate = activeSess.sessionEndTime?.toDate
-      ? activeSess.sessionEndTime.toDate()
-      : new Date(activeSess.sessionEndTime);
-    const endH = String(endDate.getHours()).padStart(2, '0');
-    const endM = String(endDate.getMinutes()).padStart(2, '0');
-    const end24 = `${endH}:${endM}`;
-    const minsLeft = Math.max(0, Math.round((endDate.getTime() - now.getTime()) / 60000));
+  // 1. Gather all active sessions for this setup
+  const setupSessions = activeSessions.filter(
+    ses => ses.setupId === setupId && ses.status !== 'completed'
+  );
 
-    return {
-      isBusy: true,
-      user: activeSess.userName || 'Gamer',
-      freeTime24: end24,
-      freeTime12h: formatTime12h(end24),
-      minsLeft,
-      reason: 'Live Session',
-    };
-  }
-
-  // 2. Check bookings for today that are active or overlapping current time
-  const currentBooking = bookings.find(b => {
-    if (b.setupId !== setupId) return false;
-    if (b.date !== todayStr) return false;
+  // 2. Gather active bookings overlapping current time (that don't already have an activeSession)
+  const setupBookings = bookings.filter(b => {
+    if (b.setupId !== setupId || b.date !== todayStr) return false;
     if (b.status === 'cancelled' || b.status === 'completed') return false;
-    return b.status === 'active' || (b.startTime <= current24 && current24 < b.endTime);
+    const isNow = b.status === 'active' || (b.startTime <= current24 && current24 < b.endTime);
+    if (!isNow) return false;
+    // If a session already exists for this bookingId, don't count twice
+    const hasSession = setupSessions.some(ses => ses.bookingId === b.id);
+    return !hasSession;
   });
 
-  if (currentBooking) {
-    const [endH, endM] = currentBooking.endTime.split(':').map(Number);
-    const endDate = new Date();
-    endDate.setHours(endH || 0, endM || 0, 0, 0);
-    const minsLeft = Math.max(0, Math.round((endDate.getTime() - now.getTime()) / 60000));
+  // Calculate occupied seats and track active gamers
+  let occupiedSeats = 0;
+  const activeUsers = [];
+  let earliestFreeDate = null;
+  let earliestFree24 = null;
+  let maxFreeDate = null;
+  let maxFree24 = null;
 
-    return {
-      isBusy: true,
-      user: currentBooking.userName || 'Gamer',
-      freeTime24: currentBooking.endTime,
-      freeTime12h: formatTime12h(currentBooking.endTime),
-      minsLeft,
-      reason: 'Active Booking',
-    };
+  setupSessions.forEach(ses => {
+    const p = Math.max(1, Number(ses.players || ses.playerCount || 1));
+    occupiedSeats += p;
+    const end = ses.sessionEndTime?.toDate ? ses.sessionEndTime.toDate() : new Date(ses.sessionEndTime);
+    const endH = String(end.getHours()).padStart(2, '0');
+    const endM = String(end.getMinutes()).padStart(2, '0');
+    const end24 = `${endH}:${endM}`;
+    activeUsers.push({
+      id: ses.id,
+      name: ses.userName || 'Gamer',
+      players: p,
+      endTime: end24,
+      endDate: end,
+    });
+    if (!earliestFreeDate || end < earliestFreeDate) {
+      earliestFreeDate = end;
+      earliestFree24 = end24;
+    }
+    if (!maxFreeDate || end > maxFreeDate) {
+      maxFreeDate = end;
+      maxFree24 = end24;
+    }
+  });
+
+  setupBookings.forEach(b => {
+    const p = Math.max(1, Number(b.players || b.playerCount || 1));
+    occupiedSeats += p;
+    const [h, m] = (b.endTime || '00:00').split(':').map(Number);
+    const end = new Date();
+    end.setHours(h || 0, m || 0, 0, 0);
+    activeUsers.push({
+      id: b.id,
+      name: b.userName || 'Gamer',
+      players: p,
+      endTime: b.endTime,
+      endDate: end,
+    });
+    if (!earliestFreeDate || end < earliestFreeDate) {
+      earliestFreeDate = end;
+      earliestFree24 = b.endTime;
+    }
+    if (!maxFreeDate || end > maxFreeDate) {
+      maxFreeDate = end;
+      maxFree24 = b.endTime;
+    }
+  });
+
+  // Check manual occupied flag if no real gamers are tracked
+  if (setupDoc && setupDoc.status === 'occupied' && occupiedSeats === 0) {
+    occupiedSeats = capacity;
   }
 
-  // 3. Check setups table status flag if manually marked occupied
-  const setupDoc = setups.find(s => s.id === setupId);
-  if (setupDoc && setupDoc.status === 'occupied') {
-    return {
-      isBusy: true,
-      user: 'Gamer',
-      freeTime24: null,
-      freeTime12h: 'Soon',
-      minsLeft: 0,
-      reason: 'Occupied',
-    };
-  }
+  const remainingSeats = Math.max(0, capacity - occupiedSeats);
+  const isBusy = remainingSeats === 0;
+
+  const nextFreeDate = isBusy ? earliestFreeDate : null;
+  const nextFree24 = isBusy ? earliestFree24 : null;
+  const minsLeft = nextFreeDate ? Math.max(0, Math.round((nextFreeDate.getTime() - now.getTime()) / 60000)) : 0;
 
   return {
-    isBusy: false,
-    user: null,
-    freeTime24: null,
-    freeTime12h: 'Now',
-    minsLeft: 0,
+    isBusy,
+    capacity,
+    occupiedSeats,
+    remainingSeats,
+    freeTime24: nextFree24,
+    freeTime12h: nextFree24 ? formatTime12h(nextFree24) : 'Now',
+    minsLeft,
+    user: activeUsers.map(u => `${u.name} (${u.players}p)`).join(', ') || null,
+    activeUsers,
   };
 }
 
@@ -374,6 +435,14 @@ export default function AdminBookings() {
   const [staffList, setStaffList] = useState([]);
   const [staffFilter, setStaffFilter] = useState('all'); // 'all' | 'my' | specific staffId
 
+  // Registered Gamers State for Staff Desk
+  const [usersList, setUsersList] = useState([]);
+  const [showAddGamerModal, setShowAddGamerModal] = useState(false);
+  const [gamerSearchFocused, setGamerSearchFocused] = useState(false);
+  const [newGamerForm, setNewGamerForm] = useState({ name: '', phone: '', email: '', notes: '' });
+  const [addingGamer, setAddingGamer] = useState(false);
+  const location = useLocation();
+
   // Compatibility aliases for any leftover references
   const showAddModal = false;
   const setShowAddModal = setShowBookingModal;
@@ -397,6 +466,7 @@ export default function AdminBookings() {
     totalAmount: 100,
     paymentStatus: 'paid_cash',
     startSessionNow: true,
+    players: 1, // 1 gamer by default, adjustable up to setup capacity (e.g. 6 for PS2)
   });
 
   const isStaff = isStaffLoggedIn();
@@ -433,9 +503,76 @@ export default function AdminBookings() {
       subscribeToSetups(setSetups),
       subscribeToAllActiveSessions(setActiveSessions),
       subscribeToStaff(setStaffList),
+      subscribeToAllUsers(setUsersList),
     ];
     return () => unsubs.forEach(f => f && f());
   }, []);
+
+  // Prefill customer info if navigated from Users page
+  useEffect(() => {
+    if (location?.state?.prefillUser) {
+      setBookingForm(prev => ({
+        ...prev,
+        userName: location.state.prefillUser.name || prev.userName,
+        userPhone: location.state.prefillUser.phone || prev.userPhone,
+      }));
+    }
+  }, [location?.state]);
+
+  // Auto-suggest registered gamers matching current input
+  const suggestedGamers = useMemo(() => {
+    const nameInput = (bookingForm.userName || '').trim().toLowerCase();
+    const phoneInput = (bookingForm.userPhone || '').trim();
+    if (!nameInput && !phoneInput) return [];
+    if (nameInput === 'walk-in gamer' && !phoneInput) return [];
+
+    return usersList.filter(u => {
+      const nameMatch = nameInput && (u.name || '').toLowerCase().includes(nameInput);
+      const phoneDigits = phoneInput ? phoneInput.replace(/\D/g, '') : '';
+      const userPhoneDigits = getClean10Phone(u.phone);
+      const phoneMatch = phoneDigits ? userPhoneDigits.includes(phoneDigits) : false;
+      return nameMatch || phoneMatch;
+    }).slice(0, 5);
+  }, [usersList, bookingForm.userName, bookingForm.userPhone]);
+
+  // Handle Quick Add Gamer from Booking Counter
+  const handleAddNewGamer = async (e) => {
+    if (e) e.preventDefault();
+    if (!newGamerForm.name.trim()) {
+      return toast.warning('Name Required', 'Please enter customer name.');
+    }
+    const cleanPhone = getClean10Phone(newGamerForm.phone);
+    if (newGamerForm.phone && cleanPhone.length !== 10) {
+      return toast.warning('Invalid Phone', 'Please enter a valid 10-digit mobile number.');
+    }
+
+    setAddingGamer(true);
+    try {
+      await addUser({
+        name: newGamerForm.name.trim(),
+        phone: cleanPhone || '',
+        email: newGamerForm.email.trim() || '',
+        notes: newGamerForm.notes.trim() || '',
+        role: 'user',
+        createdByStaff: currentStaffUser?.name || 'Counter Staff',
+      });
+
+      // Auto-fill into the current booking form!
+      setBookingForm(prev => ({
+        ...prev,
+        userName: newGamerForm.name.trim(),
+        userPhone: cleanPhone || prev.userPhone,
+      }));
+
+      toast.success('Gamer Registered! 🎮', `${newGamerForm.name} saved and selected for booking.`);
+      setShowAddGamerModal(false);
+      setNewGamerForm({ name: '', phone: '', email: '', notes: '' });
+    } catch (err) {
+      toast.error('Could not add gamer', err.message);
+    } finally {
+      setAddingGamer(false);
+    }
+  };
 
   // Calculate personal duty stats for logged-in staff
   const myStaffStats = useMemo(() => {
@@ -460,7 +597,9 @@ export default function AdminBookings() {
         const rate = Number(target.pricePerHour) || 100;
         const p30 = Number(target.pricePer30Min) || Math.round(rate * 0.6);
         const dur = bookingForm.durationMins || 60;
-        const price = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+        const pCount = Math.max(1, Number(bookingForm.players) || 1);
+        const singlePrice = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+        const price = singlePrice * pCount;
 
         setBookingForm(prev => ({
           ...prev,
@@ -846,13 +985,24 @@ export default function AdminBookings() {
       return toast.error('Validation Error', 'Please select a PlayStation Setup first.');
     }
     const currentLiveStatus = getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings);
-    if (currentLiveStatus.isBusy) {
+    const playersToBook = Math.max(1, Number(bookingForm.players) || 1);
+
+    if (currentLiveStatus.isBusy || currentLiveStatus.remainingSeats === 0) {
       return toast.error(
         'Console Already In Use!',
-        `🚫 ${bookingForm.setupName} is currently in use until ${currentLiveStatus.freeTime12h}. Double-booking is blocked! Please select another console.`
+        `🚫 ${bookingForm.setupName} is currently full until ${currentLiveStatus.freeTime12h}. Double-booking is blocked! Please select another console.`
       );
     }
-    const customerName = bookingForm.userName.trim() || 'Walk-in Gamer';
+
+    if (currentLiveStatus.capacity > 1 && playersToBook > currentLiveStatus.remainingSeats) {
+      return toast.warning(
+        'Not Enough Seats Available',
+        `🚫 Only ${currentLiveStatus.remainingSeats} seats are available on ${bookingForm.setupName}, but you selected ${playersToBook} players!`
+      );
+    }
+
+    const defaultCustomerName = playersToBook > 1 ? `${playersToBook} Gamers (Walk-in)` : 'Walk-in Gamer';
+    const customerName = bookingForm.userName.trim() || defaultCustomerName;
     setSubmitting(true);
     try {
       const setup = setups.find(s => s.id === bookingForm.setupId);
@@ -871,6 +1021,8 @@ export default function AdminBookings() {
         userEmail: '',
         setupId: bookingForm.setupId,
         setupName: bookingForm.setupName || setup?.name || 'PlayStation Console',
+        players: playersToBook,
+        playerCount: playersToBook,
         date: getTodayString(),
         startTime: startFormatted,
         endTime: computedEndTime,
@@ -883,7 +1035,7 @@ export default function AdminBookings() {
         paymentStatus: bookingForm.paymentStatus,
         status: 'active',
         isWalkIn: true,
-        bookingTypeLabel: '⚡ Live Walk-In',
+        bookingTypeLabel: playersToBook > 1 ? `⚡ Multi-Seat (${playersToBook}p)` : '⚡ Live Walk-In',
         staffId: staffIdToSave,
         staffName: staffNameToSave,
         handledByStaffId: staffIdToSave,
@@ -898,6 +1050,8 @@ export default function AdminBookings() {
         bookingId: docRef.id,
         userId: 'admin-walkin',
         userName: customerName,
+        players: playersToBook,
+        playerCount: playersToBook,
         userPhone: bookingForm.userPhone.trim(),
         userImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=00ff66&color=040806`,
         setupId: bookingForm.setupId,
@@ -908,11 +1062,16 @@ export default function AdminBookings() {
         handledBy: staffNameToSave,
       });
 
-      await updateSetup(bookingForm.setupId, { status: 'occupied' });
+      // Only mark setup as 'occupied' in Firestore if all seats are now filled
+      const newOccupied = (currentLiveStatus.occupiedSeats || 0) + playersToBook;
+      const isNowFull = newOccupied >= currentLiveStatus.capacity;
+      if (isNowFull) {
+        await updateSetup(bookingForm.setupId, { status: 'occupied' });
+      }
 
       toast.success(
         '⚡ Live Session Started!',
-        `🎮 ${customerName} started on ${payload.setupName} (${bookingForm.durationMins} min) • ₹${bookingForm.totalAmount}`
+        `🎮 ${customerName} (${playersToBook} seats) started on ${payload.setupName} (${bookingForm.durationMins} min) • ₹${bookingForm.totalAmount}`
       );
 
       // Auto-select another available console for next walk-in
@@ -921,6 +1080,7 @@ export default function AdminBookings() {
         ...prev,
         userName: 'Walk-in Gamer',
         userPhone: '',
+        players: 1,
         setupId: nextAvail?.id || prev.setupId,
         setupName: nextAvail?.name || prev.setupName,
       }));
@@ -946,8 +1106,21 @@ export default function AdminBookings() {
     if (!window.confirm(`End session for ${session.userName} on ${session.setupName}?`)) return;
     try {
       await updateSession(session.id, { status: 'completed' });
-      await updateSetup(session.setupId, { status: 'available' });
-      toast.success('Session Ended', `Session on ${session.setupName} completed.`);
+
+      // Check if there are other sessions still running on this setup
+      const remainingActive = activeSessions.filter(
+        ses => ses.setupId === session.setupId && ses.id !== session.id && ses.status !== 'completed'
+      );
+      const setupDoc = setups.find(s => s.id === session.setupId);
+      const cap = getSetupCapacity(setupDoc);
+      const stillOccupied = remainingActive.reduce(
+        (sum, s) => sum + (Number(s.players || s.playerCount || 1)), 0
+      );
+      if (stillOccupied < cap) {
+        await updateSetup(session.setupId, { status: 'available' });
+      }
+
+      toast.success('Session Ended', `Session on ${session.setupName} completed. Seats freed!`);
     } catch (err) {
       toast.error('End failed', err.message);
     }
@@ -1109,6 +1282,14 @@ export default function AdminBookings() {
 
   // KPIs
   const todayStr = getTodayString();
+  const tomorrowStr = useMemo(() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
   const todayBookings = useMemo(() => bookings.filter(b => b.date === todayStr), [bookings, todayStr]);
   const activeBookingsCount = useMemo(() => bookings.filter(b => b.status === 'active').length, [bookings]);
   const todayRevenue = useMemo(() => {
@@ -1153,7 +1334,7 @@ export default function AdminBookings() {
         <div className="minimal-desk-brand">
           <Gamepad2 size={20} className="minimal-desk-icon" />
           <span className="minimal-desk-title">PlayStation Desk</span>
-          <span className="minimal-desk-stats">Today: {todayBookings.length} · ₹{todayRevenue}</span>
+          <span className="minimal-desk-stats">Today: {todayBookings.length} · ₹{todayRevenue} · 👥 {usersList.length} Gamers</span>
         </div>
 
         <div className="minimal-desk-tabs">
@@ -1166,10 +1347,17 @@ export default function AdminBookings() {
           </button>
           <button
             type="button"
+            className={`minimal-desk-tab ${viewMode === 'live' ? 'active' : ''}`}
+            onClick={() => setViewMode('live')}
+          >
+            <span className="live-pulse-dot" style={{ width: 6, height: 6 }} /> Live ({activeSessions.length})
+          </button>
+          <button
+            type="button"
             className={`minimal-desk-tab ${viewMode === 'table' ? 'active' : ''}`}
             onClick={() => setViewMode('table')}
           >
-            <List size={14} /> All Bookings ({bookings.length})
+            <List size={14} /> Bookings ({bookings.length})
           </button>
         </div>
       </div>
@@ -1177,6 +1365,48 @@ export default function AdminBookings() {
       {/* ── ⚡ Minimal 1-Tap Counter (Only in Quick Book) ── */}
       {viewMode === 'counter' && (
         <div className="minimal-counter">
+          {/* Active Sessions Live Monitor (At top for instant glance & control) */}
+          {activeSessions.length > 0 && (
+            <div className="minimal-live-strip">
+              <div className="minimal-live-title">
+                <span className="live-pulse-dot" /> Live Playing Right Now ({activeSessions.length})
+              </div>
+              <div className="minimal-live-chips">
+                {activeSessions.map(ses => {
+                  const end = ses.sessionEndTime?.toDate ? ses.sessionEndTime.toDate() : new Date(ses.sessionEndTime);
+                  const minsLeft = Math.max(0, Math.round((end - new Date()) / 60000));
+                  return (
+                    <div key={ses.id} className="minimal-live-item">
+                      <span>
+                        <strong>{ses.setupName}</strong> · {ses.userName}
+                        {(ses.players > 1 || ses.playerCount > 1) && (
+                          <span className="live-players-badge">
+                            👥 {ses.players || ses.playerCount} Seats
+                          </span>
+                        )}
+                      </span>
+                      <span className="live-timer-text">⏱ {minsLeft}m left</span>
+                      <button
+                        type="button"
+                        className="live-mini-btn"
+                        onClick={() => handleExtendSessionQuick(ses, 15)}
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        className="live-mini-btn live-mini-btn--danger"
+                        onClick={() => handleEndSessionQuick(ses)}
+                      >
+                        End
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 1. Consoles: Sleek & Clean Cards with Live Busy/Free Times */}
           <div className="minimal-card">
             <div className="minimal-label">1. Choose PlayStation</div>
@@ -1187,33 +1417,51 @@ export default function AdminBookings() {
                 const isBusy = liveStatus.isBusy;
                 const rate = Number(s.pricePerHour) || 100;
                 const p30 = Number(s.pricePer30Min) || Math.round(rate * 0.6);
+                const isMultiSeat = liveStatus.capacity > 1;
 
                 return (
                   <div
                     key={s.id}
-                    className={`minimal-console ${isSelected ? 'selected' : ''} ${isBusy ? 'busy' : 'free'}`}
+                    className={`minimal-console ${isSelected ? 'selected' : ''} ${isBusy ? 'busy' : liveStatus.occupiedSeats > 0 ? 'partial' : 'free'}`}
                     onClick={() => {
                       if (isBusy) {
-                        return toast.warning('Console Busy', `${s.name} is playing until ${liveStatus.freeTime12h}. Next slot opens at ${liveStatus.freeTime12h}!`);
+                        return toast.warning('Console Full', `${s.name} is completely occupied until ${liveStatus.freeTime12h}. Next slot opens at ${liveStatus.freeTime12h}!`);
                       }
-                      const dur = bookingForm.durationMins;
-                      const price = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+                      const dur = bookingForm.durationMins || 60;
+                      const maxAllowed = Math.min(bookingForm.players || 1, liveStatus.remainingSeats);
+                      const playersCount = Math.max(1, maxAllowed);
+                      const basePrice = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+                      const totalPrice = basePrice * playersCount;
+
                       setBookingForm(prev => ({
                         ...prev,
                         setupId: s.id,
                         setupName: s.name,
                         hourlyRate: rate,
                         pricePer30Min: p30,
-                        totalAmount: price,
+                        players: playersCount,
+                        totalAmount: totalPrice,
                       }));
                     }}
                   >
-                    <div className="console-title">{s.name}</div>
+                    <div className="console-title-row">
+                      <span className="console-title">{s.name}</span>
+                      {isMultiSeat && (
+                        <span className="console-cap-badge" title="Station accommodates up to 6 players simultaneously">
+                          👥 {liveStatus.capacity} Seats
+                        </span>
+                      )}
+                    </div>
                     <div className="console-sub">
-                      <span className={`status-dot ${isBusy ? 'dot-busy' : 'dot-free'}`} />
+                      <span className={`status-dot ${isBusy ? 'dot-busy' : liveStatus.occupiedSeats > 0 ? 'dot-partial' : 'dot-free'}`} />
                       {isBusy ? (
                         <span className="busy-text">
-                          Busy · Free at <strong>{liveStatus.freeTime12h}</strong> {liveStatus.minsLeft > 0 ? `(${liveStatus.minsLeft}m)` : ''}
+                          Full (0/{liveStatus.capacity} free) · Free at <strong>{liveStatus.freeTime12h}</strong> {liveStatus.minsLeft > 0 ? `(${liveStatus.minsLeft}m)` : ''}
+                        </span>
+                      ) : isMultiSeat ? (
+                        <span className={liveStatus.occupiedSeats > 0 ? 'partial-text' : 'free-text'}>
+                          <strong>{liveStatus.remainingSeats}/{liveStatus.capacity} Seats Free</strong>
+                          <span className="seat-rate"> · ₹{rate}/h</span>
                         </span>
                       ) : (
                         <span className="free-text">
@@ -1245,12 +1493,63 @@ export default function AdminBookings() {
             </div>
           </div>
 
-          {/* 2. Duration & Payment in 1 sleek card */}
+          {/* 2. Players / Seats & Duration in 1 sleek card */}
           <div className="minimal-card">
+            {/* Multi-seat Players Selector (Specially for PS2 with up to 6 players) */}
+            {(() => {
+              const selSetup = setups.find(s => s.id === bookingForm.setupId);
+              const selCap = getSetupCapacity(selSetup);
+              const selStatus = getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings);
+              const maxSeats = selCap > 1 ? selCap : 2;
+
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div className="minimal-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>2. Number of Gamers / Seats</span>
+                    {selCap > 1 && (
+                      <span className="seats-live-counter">
+                        💺 <strong>{selStatus.remainingSeats} of {selCap} Seats Free</strong>
+                      </span>
+                    )}
+                  </div>
+                  <div className="minimal-pills minimal-pills--players">
+                    {Array.from({ length: maxSeats }, (_, i) => i + 1).map(num => {
+                      const isFull = selCap > 1 && num > selStatus.remainingSeats;
+                      const isSel = (bookingForm.players || 1) === num;
+                      const rate = bookingForm.hourlyRate || 100;
+                      const p30 = bookingForm.pricePer30Min || Math.round(rate * 0.6);
+                      const dur = bookingForm.durationMins || 60;
+                      const singlePrice = dur <= 30 ? p30 : Math.round((dur / 60) * rate);
+                      const numPrice = singlePrice * num;
+
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          className={`minimal-pill player-pill ${isSel ? 'active' : ''} ${isFull ? 'disabled-full' : ''}`}
+                          disabled={isFull}
+                          onClick={() => {
+                            setBookingForm(prev => ({
+                              ...prev,
+                              players: num,
+                              totalAmount: numPrice,
+                            }));
+                          }}
+                        >
+                          <span className="pill-main">{num === 1 ? '1 Gamer' : `${num} Gamers`}</span>
+                          <span className="pill-cost">{isFull ? 'Full' : `₹${numPrice}`}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="minimal-two-col">
               {/* Duration */}
               <div>
-                <div className="minimal-label">2. Duration</div>
+                <div className="minimal-label">3. Duration</div>
                 <div className="minimal-pills">
                   {[
                     { label: '30m', mins: 30 },
@@ -1259,7 +1558,9 @@ export default function AdminBookings() {
                   ].map(opt => {
                     const rate = bookingForm.hourlyRate || 100;
                     const p30 = bookingForm.pricePer30Min || Math.round(rate * 0.6);
-                    const price = opt.mins <= 30 ? p30 : Math.round((opt.mins / 60) * rate);
+                    const singlePrice = opt.mins <= 30 ? p30 : Math.round((opt.mins / 60) * rate);
+                    const playersCount = bookingForm.players || 1;
+                    const price = singlePrice * playersCount;
                     const isSel = bookingForm.durationMins === opt.mins;
 
                     return (
@@ -1283,7 +1584,7 @@ export default function AdminBookings() {
 
               {/* Payment */}
               <div>
-                <div className="minimal-label">3. Payment</div>
+                <div className="minimal-label">4. Payment</div>
                 <div className="minimal-pills">
                   {[
                     { id: 'paid_cash', label: '💵 Cash' },
@@ -1303,75 +1604,118 @@ export default function AdminBookings() {
               </div>
             </div>
 
-            {/* Gamer Name (Clean & simple) */}
+            {/* 5. Gamer Name & Phone (Quick, Auto-Suggest & + Add Gamer) */}
             <div style={{ marginTop: 14 }}>
-              <div className="minimal-label">Customer Name (Optional)</div>
-              <input
-                type="text"
-                className="minimal-text-input"
-                value={bookingForm.userName}
-                placeholder="Walk-in Gamer"
-                onChange={e => setBookingForm(prev => ({ ...prev, userName: e.target.value }))}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div className="minimal-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>5. Customer / Gamer</span>
+                  <span style={{ fontSize: '0.72rem', color: '#c084fc', fontWeight: 700 }}>
+                    (👥 {usersList.length} Gamers)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="desk-add-gamer-btn"
+                  onClick={() => setShowAddGamerModal(true)}
+                  title="Add new gamer to database"
+                >
+                  <UserPlus size={12} /> + Add Gamer
+                </button>
+              </div>
+
+              <div className="minimal-two-col" style={{ position: 'relative' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    className="minimal-text-input"
+                    value={bookingForm.userName}
+                    placeholder={bookingForm.players > 1 ? `${bookingForm.players} Gamers (Walk-in)` : 'Walk-in Gamer'}
+                    onFocus={() => setGamerSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setGamerSearchFocused(false), 250)}
+                    onChange={e => setBookingForm(prev => ({ ...prev, userName: e.target.value }))}
+                  />
+
+                  {/* Auto-suggest dropdown when typing name or phone */}
+                  {gamerSearchFocused && suggestedGamers.length > 0 && (
+                    <div className="desk-gamer-suggest-menu">
+                      <div className="desk-suggest-header">
+                        <span>Select Existing Gamer</span>
+                        <span>{suggestedGamers.length} match</span>
+                      </div>
+                      {suggestedGamers.map(u => {
+                        const clean10 = getClean10Phone(u.phone);
+                        return (
+                          <div
+                            key={u.id}
+                            className="desk-suggest-item"
+                            onMouseDown={() => {
+                              setBookingForm(prev => ({
+                                ...prev,
+                                userName: u.name,
+                                userPhone: clean10 || prev.userPhone,
+                              }));
+                              setGamerSearchFocused(false);
+                            }}
+                          >
+                            <div className="desk-suggest-avatar">
+                              {u.name ? u.name.charAt(0).toUpperCase() : 'G'}
+                            </div>
+                            <div className="desk-suggest-info">
+                              <span className="desk-suggest-name">{u.name}</span>
+                              {clean10 && (
+                                <span className="desk-suggest-phone">📱 {clean10}</span>
+                              )}
+                            </div>
+                            <span className="desk-suggest-pick">Pick</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <input
+                    type="tel"
+                    className="minimal-text-input"
+                    value={bookingForm.userPhone}
+                    placeholder="10-digit mobile"
+                    maxLength={10}
+                    onChange={e => setBookingForm(prev => ({ ...prev, userPhone: e.target.value.replace(/\D/g, '') }))}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* 3. Big Clean Start CTA (Blocked if selected console is busy) */}
-          {(() => {
-            const currentSelectedStatus = getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings);
-            const isSelectedBusy = currentSelectedStatus.isBusy;
-            return (
-              <button
-                type="button"
-                className={`minimal-start-btn ${isSelectedBusy ? 'disabled-busy' : ''}`}
-                disabled={submitting || !bookingForm.setupId || isSelectedBusy}
-                onClick={handleFastCounterStart}
-              >
-                {submitting ? (
-                  'Starting Session...'
-                ) : isSelectedBusy ? (
-                  `🚫 ${bookingForm.setupName} is Busy (Free at ${currentSelectedStatus.freeTime12h})`
-                ) : (
-                  `▶ Start Session • ${bookingForm.setupName || 'Console'} (₹${bookingForm.totalAmount})`
-                )}
-              </button>
-            );
-          })()}
+          {/* 3. Big Clean Start CTA (Sticky above mobile bottom nav) */}
+          <div className="minimal-start-btn-wrap">
+            {(() => {
+              const currentSelectedStatus = getSetupLiveStatus(bookingForm.setupId, setups, activeSessions, bookings);
+              const isSelectedBusy = currentSelectedStatus.isBusy;
+              const pCount = bookingForm.players || 1;
+              const notEnoughSeats = currentSelectedStatus.capacity > 1 && pCount > currentSelectedStatus.remainingSeats;
 
-          {/* 4. Active Sessions (Quiet & clean) */}
-          {activeSessions.length > 0 && (
-            <div className="minimal-live-strip">
-              <div className="minimal-live-title">
-                <span className="live-pulse-dot" /> Live Playing ({activeSessions.length})
-              </div>
-              <div className="minimal-live-chips">
-                {activeSessions.map(ses => {
-                  const end = ses.sessionEndTime?.toDate ? ses.sessionEndTime.toDate() : new Date(ses.sessionEndTime);
-                  const minsLeft = Math.max(0, Math.round((end - new Date()) / 60000));
-                  return (
-                    <div key={ses.id} className="minimal-live-item">
-                      <span><strong>{ses.setupName}</strong> · {ses.userName}</span>
-                      <span className="live-timer-text">⏱ {minsLeft}m left</span>
-                      <button
-                        type="button"
-                        className="live-mini-btn"
-                        onClick={() => handleExtendSessionQuick(ses, 15)}
-                      >
-                        +15m
-                      </button>
-                      <button
-                        type="button"
-                        className="live-mini-btn live-mini-btn--danger"
-                        onClick={() => handleEndSessionQuick(ses)}
-                      >
-                        End
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+              return (
+                <button
+                  type="button"
+                  className={`minimal-start-btn ${isSelectedBusy || notEnoughSeats ? 'disabled-busy' : ''}`}
+                  disabled={submitting || !bookingForm.setupId || isSelectedBusy || notEnoughSeats}
+                  onClick={handleFastCounterStart}
+                >
+                  {submitting ? (
+                    'Starting Session...'
+                  ) : isSelectedBusy ? (
+                    `🚫 ${bookingForm.setupName} is Full (Free at ${currentSelectedStatus.freeTime12h})`
+                  ) : notEnoughSeats ? (
+                    `🚫 Only ${currentSelectedStatus.remainingSeats} Seats Free on ${bookingForm.setupName}`
+                  ) : (
+                    `⚡ Start Session • ${bookingForm.setupName || 'Console'} (${pCount} ${pCount > 1 ? 'Gamers' : 'Gamer'} · ₹${bookingForm.totalAmount})`
+                  )}
+                </button>
+              );
+            })()}
+          </div>
 
           {/* Advance booking subtle trigger */}
           <div style={{ textAlign: 'center', marginTop: 8 }}>
@@ -1386,54 +1730,139 @@ export default function AdminBookings() {
         </div>
       )}
 
-      {/* ── Control Deck (Shown ONLY in All Bookings List) ── */}
-      {viewMode !== 'counter' && (
+      {/* ── 🟢 Dedicated Live Playing Sessions Tab (Mobile App Style) ── */}
+      {viewMode === 'live' && (
+        <div className="mobile-live-tab-container">
+          <div className="mobile-section-header">
+            <span className="live-pulse-dot" />
+            <h3 className="mobile-section-title">Active Live Sessions ({activeSessions.length})</h3>
+          </div>
+
+          {activeSessions.length === 0 ? (
+            <div className="bookings-empty-state glass">
+              <div className="empty-state-icon-wrap" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
+                <Zap size={40} style={{ color: '#00ff66' }} />
+              </div>
+              <h3 className="empty-state-title">No Active Games Right Now</h3>
+              <p className="empty-state-desc">
+                All PlayStation consoles are currently free. Start a game session for a walk-in customer.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary empty-action-btn empty-action-btn--walkin"
+                onClick={() => setViewMode('counter')}
+              >
+                <Zap size={16} /> ⚡ Start Walk-in Session
+              </button>
+            </div>
+          ) : (
+            <div className="mobile-live-cards-grid">
+              {activeSessions.map(ses => {
+                const end = ses.sessionEndTime?.toDate ? ses.sessionEndTime.toDate() : new Date(ses.sessionEndTime);
+                const start = ses.sessionStartTime?.toDate ? ses.sessionStartTime.toDate() : new Date(ses.sessionStartTime);
+                const totalMins = Math.max(1, Math.round((end - start) / 60000));
+                const minsLeft = Math.max(0, Math.round((end - new Date()) / 60000));
+                const percentDone = Math.min(100, Math.max(0, Math.round(((totalMins - minsLeft) / totalMins) * 100)));
+
+                return (
+                  <div key={ses.id} className="mobile-live-card">
+                    <div className="live-card-top">
+                      <div className="live-card-console">
+                        <Gamepad2 size={16} style={{ color: '#00ff66' }} />
+                        <strong>{ses.setupName}</strong>
+                      </div>
+                      <span className="live-timer-chip">
+                        ⏱ {minsLeft}m remaining
+                      </span>
+                    </div>
+
+                    <div className="live-card-gamer">
+                      <div className="live-gamer-name">{ses.userName || 'Walk-in Gamer'}</div>
+                      {ses.userPhone && (
+                        <div className="live-gamer-phone">
+                          <Phone size={10} /> {ses.userPhone}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="live-progress-track">
+                      <div className="live-progress-bar" style={{ width: `${percentDone}%` }} />
+                    </div>
+
+                    <div className="live-card-times">
+                      <span>Started: {formatTime12h(`${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`)}</span>
+                      <span>Ends: {formatTime12h(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`)}</span>
+                    </div>
+
+                    {/* Quick App Actions */}
+                    <div className="live-card-actions">
+                      <button
+                        type="button"
+                        className="live-act-btn live-act-btn--extend"
+                        onClick={() => handleExtendSessionQuick(ses, 15)}
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        className="live-act-btn live-act-btn--extend"
+                        onClick={() => handleExtendSessionQuick(ses, 30)}
+                      >
+                        +30m
+                      </button>
+                      <button
+                        type="button"
+                        className="live-act-btn live-act-btn--danger"
+                        onClick={() => handleEndSessionQuick(ses)}
+                      >
+                        End Session
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Control Deck (Shown in All Bookings List) ── */}
+      {viewMode === 'table' && (
         <div className="bookings-control-deck">
           <div className="bookings-deck-row">
-            {/* Date Navigator */}
-            <div className="bookings-date-nav">
+            {/* Quick Mobile App Date Strip */}
+            <div className="mobile-app-date-strip">
               <button
                 type="button"
-                className="date-nav-btn"
-                onClick={handlePrevDay}
-                title="Previous Day"
+                className={`date-scope-pill ${!dateFilter ? 'active' : ''}`}
+                onClick={() => setDateFilter('')}
               >
-                <ChevronLeft size={15} /> Back
+                📅 All Bookings ({bookings.length})
               </button>
               <button
                 type="button"
-                className={`date-nav-btn ${dateFilter === todayStr ? 'active' : ''}`}
+                className={`date-scope-pill ${dateFilter === todayStr ? 'active' : ''}`}
                 onClick={handleToday}
               >
-                Today
+                ⚡ Today ({todayBookings.length})
               </button>
               <button
                 type="button"
-                className="date-nav-btn"
-                onClick={handleNextDay}
-                title="Next Day"
+                className={`date-scope-pill ${dateFilter === tomorrowStr ? 'active' : ''}`}
+                onClick={() => handleDayOffset(1)}
               >
-                Next <ChevronRight size={15} />
+                Tomorrow
               </button>
-              <button
-                type="button"
-                className={`date-nav-btn date-nav-all ${!dateFilter ? 'active' : ''}`}
-                onClick={() => setDateFilter('')}
-                title="Show all bookings across all dates"
-              >
-                📅 All Dates ({bookings.length})
-              </button>
-
-              <input
-                type="date"
-                className="date-native-picker"
-                value={dateFilter}
-                onChange={e => setDateFilter(e.target.value)}
-              />
-
-              <span className="date-display-badge">
-                📅 {getFormattedDateTitle(dateFilter)}
-              </span>
+              <label className={`date-scope-picker-btn ${dateFilter && dateFilter !== todayStr && dateFilter !== tomorrowStr ? 'active' : ''}`} title="Pick date">
+                <span>{dateFilter && dateFilter !== todayStr && dateFilter !== tomorrowStr ? `📅 ${dateFilter}` : '📅 Other Date'}</span>
+                <input
+                  type="date"
+                  className="date-native-picker-hidden"
+                  value={dateFilter}
+                  onChange={e => setDateFilter(e.target.value)}
+                />
+              </label>
             </div>
 
             {/* Search Box */}
@@ -1759,6 +2188,11 @@ export default function AdminBookings() {
                         <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.85rem' }}>
                           {b.duration}h
                         </span>
+                        {b.complimentaryItems?.length > 0 && (
+                          <div style={{ fontSize: '0.68rem', color: '#22c55e', fontWeight: 700, marginTop: 4 }}>
+                            🎁 Free drink + chips
+                          </div>
+                        )}
                       </td>
 
                       <td>
@@ -1954,6 +2388,15 @@ export default function AdminBookings() {
                         {b.duration || (Number(b.durationMins) / 60) || 0}h
                       </span>
                     </div>
+
+                    {b.complimentaryItems?.length > 0 && (
+                      <div className="mobile-grid-item">
+                        <span className="mobile-grid-label">Free with booking</span>
+                        <span className="mobile-grid-val" style={{ color: '#22c55e' }}>
+                          🎁 1 Cold Drink + 1 Chips
+                        </span>
+                      </div>
+                    )}
 
                     <div className="mobile-grid-item">
                       <span className="mobile-grid-label">Amount & Mode</span>
@@ -2174,6 +2617,12 @@ export default function AdminBookings() {
                     <strong>{selectedSlotBooking.booking.paymentStatus?.replace('_', ' ').toUpperCase()}</strong>
                   </div>
                 </div>
+
+                {selectedSlotBooking.booking.complimentaryItems?.length > 0 && (
+                  <div style={{ marginTop: 10, padding: '9px 10px', borderRadius: 8, background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', color: '#86efac', fontSize: '0.8rem', fontWeight: 700 }}>
+                    🎁 Include 1 free Cold Drink + 1 Chips with this booking
+                  </div>
+                )}
 
                 {selectedSlotBooking.booking.notes && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginTop: 8, fontStyle: 'italic' }}>
@@ -3094,16 +3543,116 @@ export default function AdminBookings() {
         </div>
       )}
 
+      {/* ── Quick Add Gamer Modal for Staff Counter ── */}
+      {showAddGamerModal && (
+        <div className="gamer-modal-overlay" onClick={() => setShowAddGamerModal(false)}>
+          <div className="gamer-modal" onClick={e => e.stopPropagation()}>
+            <div className="gamer-modal-header">
+              <div className="gamer-modal-title">
+                <UserPlus size={18} style={{ color: '#a855f7' }} />
+                <span>Quick Add Gamer (नवा गेमर ॲड करा)</span>
+              </div>
+              <button
+                type="button"
+                className="gamer-modal-close"
+                onClick={() => setShowAddGamerModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewGamer}>
+              <div className="gamer-modal-body">
+                <div className="gamer-input-group">
+                  <label className="gamer-input-label">
+                    <span>Gamer Full Name *</span>
+                    <span style={{ color: '#a855f7', fontSize: '0.7rem' }}>Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="gamer-input-field"
+                    placeholder="e.g. Rahul Shinde"
+                    value={newGamerForm.name}
+                    onChange={e => setNewGamerForm(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+
+                <div className="gamer-input-group">
+                  <label className="gamer-input-label">
+                    <span>Mobile Phone (10 Digits)</span>
+                  </label>
+                  <input
+                    type="tel"
+                    className="gamer-input-field"
+                    placeholder="e.g. 9876543210"
+                    maxLength={10}
+                    value={newGamerForm.phone}
+                    onChange={e => setNewGamerForm(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '') }))}
+                  />
+                </div>
+
+                <div className="gamer-input-group">
+                  <label className="gamer-input-label">
+                    <span>Favorite Game / Console (Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="gamer-input-field"
+                    placeholder="e.g. PS5 FIFA, Mortal Kombat"
+                    value={newGamerForm.notes}
+                    onChange={e => setNewGamerForm(prev => ({ ...prev, notes: e.target.value }))}
+                  />
+                </div>
+
+                <div className="gamer-input-group">
+                  <label className="gamer-input-label">
+                    <span>Email Address (Optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="gamer-input-field"
+                    placeholder="e.g. rahul@gmail.com"
+                    value={newGamerForm.email}
+                    onChange={e => setNewGamerForm(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="gamer-modal-footer">
+                <button
+                  type="button"
+                  className="gamer-btn-cancel"
+                  onClick={() => setShowAddGamerModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingGamer}
+                  className="gamer-btn-submit"
+                >
+                  {addingGamer ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
+                  <span>Save & Select Gamer</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── Mobile Floating Quick Counter Button (FAB) ── */}
-      <button
-        type="button"
-        className="mobile-bookings-fab"
-        onClick={() => setViewMode('counter')}
-        title="Open Staff Booking Counter"
-      >
-        <Zap size={20} className="fab-icon" />
-        <span className="fab-label">⚡ Fast Booking</span>
-      </button>
+      {viewMode !== 'counter' && (
+        <button
+          type="button"
+          className="mobile-bookings-fab"
+          onClick={() => setViewMode('counter')}
+          title="Open Staff Booking Counter"
+        >
+          <Zap size={18} className="fab-icon" />
+          <span className="fab-label">⚡ Quick Book</span>
+        </button>
+      )}
     </div>
   );
 }

@@ -26,7 +26,7 @@
   color: #ffffff;
   border-radius: 1.5rem;
   border: 1px solid #1e293b;
-  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(168, 85, 247, 0.12);
+  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(255, 85, 0, 0.12);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -49,6 +49,23 @@
     min-height: calc(100dvh - 56px);
     max-height: calc(100dvh - 56px);
     box-shadow: none;
+  }
+
+  .booking-content-scroll {
+    padding: 14px 12px 82px;
+  }
+
+  .console-card-option {
+    min-height: 70px;
+  }
+
+  .calendar-day-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .duration-option-card {
+    min-height: 106px;
   }
 }
 
@@ -114,7 +131,7 @@
 }
 
 .booking-progress-fill {
-  background: linear-gradient(90deg, #a855f7, #00ff66);
+  background: #ff5500;
   height: 3px;
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -152,24 +169,26 @@
   margin: 0 0 14px;
 }
 
-/* ── STEP 1: CONSOLE SELECTION (Compact Cards) ── */
+/* ── STEP 1: CONSOLE SELECTION (Ultra-Compact Cards for Phone) ── */
 .console-options-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .console-card-option {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
   background: #1e293b;
   border: 1.5px solid #334155;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
+  font-family: inherit;
 }
 
 .console-card-option:hover {
@@ -178,28 +197,40 @@
 }
 
 .console-card-option.selected {
-  border-color: #a855f7;
-  background: rgba(168, 85, 247, 0.14);
-  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+  border-color: #ff5500;
+  background: rgba(255, 85, 0, 0.14);
+  box-shadow: 0 0 12px rgba(255, 85, 0, 0.25);
 }
 
-.console-card-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+.console-card-icon,
+.console-card-image {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   background: #334155;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  font-size: 1.15rem;
+  font-size: 1rem;
   flex-shrink: 0;
   transition: all 0.2s;
 }
 
+.console-card-image {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+  background: #0b1120;
+}
+
 .console-card-option.selected .console-card-icon {
-  background: rgba(168, 85, 247, 0.35);
-  color: #c084fc;
+  background: rgba(255, 85, 0, 0.35);
+  color: #ff8855;
+}
+
+.console-card-option.selected .console-card-image {
+  box-shadow: 0 0 0 2px #ff5500;
 }
 
 .console-card-info {
@@ -208,8 +239,8 @@
 }
 
 .console-card-title {
-  font-size: 0.92rem;
-  font-weight: 800;
+  font-size: 0.88rem;
+  font-weight: 700;
   color: #ffffff;
   margin: 0;
   white-space: nowrap;
@@ -218,9 +249,9 @@
 }
 
 .console-card-sub {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: #94a3b8;
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -232,15 +263,15 @@
 }
 
 .card-price-rate {
-  font-size: 1.05rem;
+  font-size: 0.96rem;
   font-weight: 800;
-  color: #c084fc;
+  color: #ff8855;
   display: block;
   line-height: 1;
 }
 
 .console-card-option.selected .card-price-rate {
-  color: #00ff66;
+  color: #ff5500;
 }
 
 .card-price-unit {
@@ -271,6 +302,266 @@
   display: none;
 }
 
+/* Duration choices */
+.duration-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.duration-option-card {
+  min-width: 0;
+  min-height: 112px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  border: 1.5px solid #334155;
+  border-radius: 12px;
+  background: #111c2c;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.duration-option-card.selected {
+  border-color: #ff5500;
+  background: rgba(255, 85, 0, 0.12);
+  box-shadow: 0 0 14px rgba(255, 85, 0, 0.18);
+}
+
+.duration-option-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.duration-option-description {
+  min-height: 1.1em;
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+.duration-option-price {
+  margin-top: auto;
+  color: #ff8855;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.duration-option-price small {
+  color: #94a3b8;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.duration-offer-badge {
+  max-width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.booking-offer-summary {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 9px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: left;
+}
+
+/* Player count */
+.player-count-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 12px;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #111c2c;
+}
+
+.player-count-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ff8855;
+}
+
+.player-count-copy div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.player-count-copy strong {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.player-count-copy span {
+  color: #94a3b8;
+  font-size: 0.68rem;
+}
+
+.player-count-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.player-count-control > strong {
+  min-width: 28px;
+  color: #fff;
+  font-size: 1.15rem;
+  text-align: center;
+}
+
+.player-count-button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #475569;
+  border-radius: 9px;
+  background: #1e293b;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.player-count-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.player-total-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 85, 0, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 85, 0, 0.08);
+  color: #cbd5e1;
+  font-size: 0.84rem;
+}
+
+.player-total-preview strong {
+  color: #ff8855;
+  font-size: 1.1rem;
+}
+
+/* Month calendar */
+.calendar-picker {
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #111c2c;
+}
+
+.calendar-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #fff;
+  font-size: 0.86rem;
+}
+
+.calendar-picker-header > div {
+  display: flex;
+  gap: 6px;
+}
+
+.calendar-picker-header button {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: #1e293b;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.calendar-picker-header button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.calendar-weekdays,
+.calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  text-align: center;
+}
+
+.calendar-weekdays {
+  margin-bottom: 4px;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.calendar-days-grid {
+  gap: 3px 0;
+}
+
+.calendar-day-button {
+  width: 32px;
+  height: 32px;
+  justify-self: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.calendar-day-button.outside-month {
+  color: #64748b;
+}
+
+.calendar-day-button.today {
+  border-color: rgba(255, 85, 0, 0.55);
+}
+
+.calendar-day-button.selected {
+  border-color: #ff5500;
+  background: #ff5500;
+  color: #fff;
+  font-weight: 800;
+}
+
+.calendar-day-button:disabled {
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.time-slot-heading {
+  margin-top: 4px;
+}
+
 .date-pill-btn {
   flex-shrink: 0;
   width: 52px;
@@ -294,10 +585,10 @@
 }
 
 .date-pill-btn.selected {
-  border-color: #a855f7;
-  background: rgba(168, 85, 247, 0.22);
+  border-color: #ff5500;
+  background: rgba(255, 85, 0, 0.22);
   color: #ffffff;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 10px rgba(255, 85, 0, 0.3);
 }
 
 .date-pill-day {
@@ -312,7 +603,7 @@
 }
 
 .date-pill-btn.selected .date-pill-day {
-  color: #c084fc;
+  color: #ff8855;
 }
 
 /* Duration Row */
@@ -394,10 +685,10 @@
 }
 
 .time-slot-btn.selected {
-  background: #a855f7;
-  border-color: #a855f7;
+  background: #ff5500;
+  border-color: #ff5500;
   color: #ffffff;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 12px rgba(255, 85, 0, 0.4);
 }
 
 .time-slot-btn.booked {
@@ -464,8 +755,8 @@
 }
 
 .customer-text-input:focus {
-  border-color: #a855f7;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+  border-color: #ff5500;
+  box-shadow: 0 0 10px rgba(255, 85, 0, 0.3);
 }
 
 .whatsapp-optin-row {
@@ -491,8 +782,8 @@
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  background: rgba(255, 85, 0, 0.15);
+  color: #ff8855;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -558,7 +849,7 @@
 .receipt-total-val {
   font-size: 1.2rem;
   font-weight: 900;
-  color: #00ff66;
+  color: #ff5500;
   font-family: var(--font-heading);
 }
 
@@ -607,7 +898,7 @@
   height: 44px;
   border-radius: 11px;
   border: none;
-  background: #a855f7;
+  background: #ff5500;
   color: #ffffff;
   font-size: 0.88rem;
   font-weight: 800;
@@ -616,12 +907,12 @@
   justify-content: center;
   gap: 7px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 4px 16px rgba(255, 85, 0, 0.35);
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .main-action-step-btn:hover:not(:disabled) {
-  background: #9333ea;
+  background: #e64a00;
   transform: translateY(-1px);
 }
 
@@ -637,12 +928,12 @@
 }
 
 .main-action-step-btn.btn-pay-final {
-  background: linear-gradient(135deg, #10b981, #059669);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, #ff5500, #ff8800);
+  box-shadow: 0 4px 16px rgba(255, 85, 0, 0.35);
 }
 
 .main-action-step-btn.btn-pay-final:hover:not(:disabled) {
-  background: linear-gradient(135deg, #059669, #047857);
+  background: linear-gradient(135deg, #e64a00, #f97316);
 }
 
 /* ── SUCCESS MODAL / SCREEN ── */
@@ -709,3 +1000,45 @@
   cursor: pointer;
 }
 
+@media (max-width: 640px) {
+  .booking-content-scroll {
+    padding: 14px 12px 82px;
+  }
+
+  .console-card-option {
+    min-height: 70px;
+  }
+
+  .calendar-day-button {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .player-count-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .player-count-control {
+    align-self: flex-end;
+  }
+
+  .console-card-image {
+    width: 56px;
+    height: 44px;
+  }
+}
+
+.slot-seats-badge {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #00ff66;
+  margin-top: 2px;
+}
+
+.time-slot-btn.booked .slot-seats-badge {
+  color: #f87171;
+}
