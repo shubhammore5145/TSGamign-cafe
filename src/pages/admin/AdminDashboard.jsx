@@ -36,7 +36,16 @@ import {
   FileText,
 } from 'lucide-react';
 import { isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
-import { calculateAllStaffSummary, getTodayString } from '../../utils/staffStats';
+import {
+  calculateAllStaffSummary,
+  calculateStaffStats,
+  isBookingHandledByStaff,
+  isFoodSaleHandledByStaff,
+  isStaffCurrentlyOnShift,
+  getTodayString,
+  formatINR,
+  getClean10Phone,
+} from '../../utils/staffStats';
 import { useToast } from '../../context/ToastContext';
 import UpiQrModal from '../../components/UpiQrModal';
 import DailyReportModal from '../../components/DailyReportModal';
@@ -69,6 +78,13 @@ export default function AdminDashboard() {
   }, []);
 
   const todayStr = useMemo(() => getTodayString(), []);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return getTodayString(d);
+  }, []);
 
   // Food Sale category filter (NO POS, only Food Sale records)
   const [foodCategoryFilter, setFoodCategoryFilter] = useState('All');
@@ -87,36 +103,60 @@ export default function AdminDashboard() {
     return () => unsubs.forEach((f) => f && f());
   }, []);
 
-  // ── Financial Metrics Calculation (Today's Sales) ──
-  const todayBookings = useMemo(() => {
-    return bookings.filter((b) => b && b.date === todayStr && b.status !== 'cancelled');
-  }, [bookings, todayStr]);
+  // ── Financial Metrics Calculation (Date-wise Sales) ──
+  const customerVisitsMap = useMemo(() => {
+    const map = new Map();
+    bookings.forEach(b => {
+      if (!b || b.status === 'cancelled') return;
+      const p = getClean10Phone(b.userPhone || b.customerPhone);
+      if (p.length === 10) {
+        map.set(p, (map.get(p) || 0) + 1);
+      }
+    });
+    return map;
+  }, [bookings]);
 
-  const todayFoodSales = useMemo(() => {
-    return foodSales.filter((s) => s && s.date === todayStr);
-  }, [foodSales, todayStr]);
+  const getGamerVisits = (phone) => {
+    const clean = getClean10Phone(phone);
+    if (clean.length === 10 && customerVisitsMap.has(clean)) {
+      return customerVisitsMap.get(clean);
+    }
+    return 1;
+  };
+
+  const selectedDateBookings = useMemo(() => {
+    return bookings.filter((b) => b && b.date === selectedDate && b.status !== 'cancelled');
+  }, [bookings, selectedDate]);
+
+  const selectedDateFoodSales = useMemo(() => {
+    return foodSales.filter((s) => s && s.date === selectedDate);
+  }, [foodSales, selectedDate]);
+
+  // Aliases for component compatibility
+  const todayBookings = selectedDateBookings;
+  const todayFoodSales = selectedDateFoodSales;
 
   const stats = useMemo(() => {
-    // Gaming Sales
-    const gamingRevenue = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-    const gamingCash = todayBookings
+    // Gaming Sales for selected date
+    const gamingRevenue = selectedDateBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+    const gamingCash = selectedDateBookings
       .filter((b) => b.paymentStatus === 'paid_cash' || b.paymentMode === 'cash')
       .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-    const gamingUpi = todayBookings
+    const gamingUpi = selectedDateBookings
       .filter((b) => b.paymentStatus === 'paid_upi' || b.paymentMode === 'upi' || b.paymentStatus === 'paid_card')
       .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
-    // Food Sales
-    const foodRevenue = todayFoodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
-    const foodCash = todayFoodSales
+    // Food Sales for selected date
+    const foodRevenue = selectedDateFoodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const foodCash = selectedDateFoodSales
       .filter((s) => s.paymentMethod === 'cash')
       .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
-    const foodUpi = todayFoodSales
-      .filter((s) => s.paymentMethod === 'upi')
+    const foodUpi = selectedDateFoodSales
+      .filter((s) => s.paymentMethod === 'upi' || (s.paymentMethod && s.paymentMethod !== 'cash'))
       .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
 
     // Food Items Sold count
-    const foodItemsCount = todayFoodSales.reduce((sum, s) => {
+    const foodItemsCount = selectedDateFoodSales.reduce((sum, s) => {
       if (Array.isArray(s.items)) {
         return sum + s.items.reduce((iSum, i) => iSum + (Number(i.quantity) || 1), 0);
       }
@@ -130,7 +170,7 @@ export default function AdminDashboard() {
     const finalCash = totalCash > 0 ? totalCash : 0;
     const finalUpi = totalUpi > 0 ? totalUpi : 0;
     const finalGaming = gamingRevenue > 0 ? gamingRevenue : 0;
-    const finalGamingSessions = todayBookings.length > 0 ? todayBookings.length : 0;
+    const finalGamingSessions = selectedDateBookings.length > 0 ? selectedDateBookings.length : 0;
     const finalFood = foodRevenue > 0 ? foodRevenue : 0;
     const finalFoodItems = foodItemsCount > 0 ? foodItemsCount : 0;
     const finalTotal = totalSales > 0 ? totalSales : 0;
@@ -144,11 +184,11 @@ export default function AdminDashboard() {
       itemsCount: finalFoodItems,
       total: finalTotal,
     };
-  }, [todayBookings, todayFoodSales]);
+  }, [selectedDateBookings, selectedDateFoodSales]);
 
   const displayBookings = useMemo(() => {
-    if (todayBookings.length > 0) {
-      return todayBookings.slice(0, 10).map((b, idx) => ({
+    if (selectedDateBookings.length > 0) {
+      return selectedDateBookings.slice(0, 15).map((b, idx) => ({
         id: b.id,
         index: idx + 1,
         time: `${b.startTime || b.time || '5:00 PM'} - ${b.endTime || '6:00 PM'}`,
@@ -157,12 +197,12 @@ export default function AdminDashboard() {
         customer: b.userName || 'Customer',
         bookedBy: (b.handledBy || (b.userId ? 'Website' : 'Staff')).replace(/\s*\(Staff\)/gi, ''),
         amount: b.totalAmount || 100,
-        status: b.status === 'active' ? 'Playing' : b.status || 'Confirmed',
+        status: b.status === 'active' ? 'Playing' : b.status === 'completed' ? 'Completed' : b.status || 'Confirmed',
       }));
     }
 
     return [];
-  }, [todayBookings]);
+  }, [selectedDateBookings]);
 
   const displayFoodSales = useMemo(() => {
     if (todayFoodSales.length > 0) {
@@ -197,7 +237,7 @@ export default function AdminDashboard() {
   }, [foodItems, todayFoodSales]);
 
   const displayStaffSales = useMemo(() => {
-    const { summary } = calculateAllStaffSummary(staffList, bookings, foodSales);
+    const { summary } = calculateAllStaffSummary(staffList, bookings, foodSales, selectedDate);
     const rows = [];
 
     if (isAdmin) {
@@ -245,7 +285,7 @@ export default function AdminDashboard() {
     }
 
     return rows.filter((row) => row.total > 0 || row.isCurrent || row.isAdmin).sort((a, b) => b.total - a.total).slice(0, 6);
-  }, [staffList, bookings, foodSales, isAdmin, isStaff, staffUser]);
+  }, [staffList, bookings, foodSales, isAdmin, isStaff, staffUser, selectedDate]);
 
   // Formatted date & time strings
   const formattedDate = currentDateTime.toLocaleDateString('en-IN', {
@@ -260,6 +300,505 @@ export default function AdminDashboard() {
     minute: '2-digit',
     hour12: true,
   });
+
+  // ── STAFF PERSONAL METRICS (STRICTLY NO ADMIN DATA) ──
+  const myStaffStats = useMemo(() => {
+    if (!staffUser) return null;
+    return calculateStaffStats(staffUser.id, staffUser.name, bookings, foodSales, selectedDate);
+  }, [staffUser, bookings, foodSales, selectedDate]);
+
+  const isOnShift = staffUser ? isStaffCurrentlyOnShift(staffUser.shift, staffUser.status) : false;
+
+  const myTodayBookings = useMemo(() => {
+    if (!staffUser) return [];
+    return (bookings || []).filter(
+      (b) =>
+        b &&
+        b.date === selectedDate &&
+        b.status !== 'cancelled' &&
+        isBookingHandledByStaff(b, staffUser.id, staffUser.name)
+    );
+  }, [bookings, staffUser, selectedDate]);
+
+  const myTodayFoodSales = useMemo(() => {
+    if (!staffUser) return [];
+    return (foodSales || []).filter(
+      (s) => s && s.date === selectedDate && isFoodSaleHandledByStaff(s, staffUser.id, staffUser.name)
+    );
+  }, [foodSales, staffUser, selectedDate]);
+
+  // ── FOR STAFF: ONLY SHOW WHAT THEY BOOKED, CASH, UPI, AND TOTAL (NO ADMIN DATA!) ──
+  if (!isAdmin && isStaff) {
+    return (
+      <div className="ts-dash-container">
+        {/* Staff Dashboard Header */}
+        <header className="ts-dash-header">
+          <div className="ts-dash-header__brand">
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+                color: '#000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '1.2rem',
+                fontFamily: 'var(--font-display, Orbitron, monospace)',
+                boxShadow: '0 0 15px rgba(6, 182, 212, 0.4)',
+              }}
+            >
+              {(staffUser?.name || 'S').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontSize: '0.68rem', color: '#00f5d4', fontWeight: 800, letterSpacing: '0.05em' }}>
+                ⚡ STAFF DUTY DESK
+              </div>
+              <div className="ts-dash-header__brand-title">{staffUser?.name || 'Staff Member'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: '#94a3b8' }}>
+                <span>{staffUser?.role || 'Staff Operator'}</span>
+                <span>·</span>
+                <span>⏱️ {staffUser?.shift || 'General Shift'}</span>
+                <span
+                  style={{
+                    padding: '1px 7px',
+                    borderRadius: 999,
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    background: isOnShift ? 'rgba(34, 197, 94, 0.18)' : 'rgba(148, 163, 184, 0.15)',
+                    color: isOnShift ? '#22c55e' : '#94a3b8',
+                    border: `1px solid ${isOnShift ? 'rgba(34, 197, 94, 0.4)' : 'rgba(148, 163, 184, 0.3)'}`,
+                  }}
+                >
+                  {isOnShift ? '🟢 On Duty Now' : '⚪ Shift Off'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <nav className="ts-dash-header__nav">
+            <Link
+              to="/admin/bookings"
+              className="ts-dash-nav-btn"
+              style={{
+                background: 'rgba(0, 255, 102, 0.15)',
+                border: '1px solid rgba(0, 255, 102, 0.4)',
+                color: '#00ff66',
+                fontWeight: 700,
+              }}
+            >
+              <Gamepad2 size={14} /> 🎮 Booking Counter
+            </Link>
+            <Link
+              to="/admin/food"
+              className="ts-dash-nav-btn"
+              style={{
+                background: 'rgba(255, 85, 0, 0.15)',
+                border: '1px solid rgba(255, 85, 0, 0.4)',
+                color: '#ff5500',
+                fontWeight: 700,
+              }}
+            >
+              <Coffee size={14} /> 🍔 Cafe POS
+            </Link>
+            <Link to="/admin/timer" className="ts-dash-nav-btn">
+              <Clock size={14} /> Big Timer
+            </Link>
+            <button
+              type="button"
+              className="ts-dash-nav-btn"
+              onClick={() => setShowUpiQr(true)}
+              style={{
+                background: 'rgba(168, 85, 247, 0.18)',
+                border: '1px solid rgba(168, 85, 247, 0.35)',
+                color: '#c084fc',
+                fontWeight: 700,
+              }}
+              title="Instant UPI Payment QR Code"
+            >
+              <QrCode size={14} /> 📱 Counter UPI QR
+            </button>
+          </nav>
+
+          <div className="ts-dash-header__right">
+            <div className="ts-dash-clock">
+              <span>{formattedDate}</span>
+              <span style={{ color: '#475569' }}>|</span>
+              <Clock size={13} style={{ color: '#38bdf8' }} />
+              <span className="ts-dash-clock__time">{formattedTime}</span>
+            </div>
+          </div>
+        </header>
+
+        {/* ── Date Navigation Bar for Staff ── */}
+        <div className="ts-dash-date-bar">
+          <div className="ts-dash-date-bar__left">
+            <span className="ts-dash-date-bar__label">
+              <Calendar size={15} style={{ color: '#00f5d4' }} />
+              <span>Shift Date:</span>
+            </span>
+            <button
+              type="button"
+              className={`ts-dash-date-pill ${selectedDate === todayStr ? 'active' : ''}`}
+              onClick={() => setSelectedDate(todayStr)}
+            >
+              ⚡ Today ({myTodayBookings.length} Bookings)
+            </button>
+            <button
+              type="button"
+              className={`ts-dash-date-pill ${selectedDate === yesterdayStr ? 'active' : ''}`}
+              onClick={() => setSelectedDate(yesterdayStr)}
+            >
+              ⏪ Yesterday
+            </button>
+            <label className={`ts-dash-date-picker-label ${selectedDate !== todayStr && selectedDate !== yesterdayStr ? 'active' : ''}`}>
+              <span>📅 {selectedDate !== todayStr && selectedDate !== yesterdayStr ? selectedDate : 'Other Date'}</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="ts-dash-date-native-input"
+              />
+            </label>
+          </div>
+          <div className="ts-dash-date-bar__right">
+            <span className="ts-dash-date-summary-badge">
+              🎮 <strong>{myTodayBookings.length} Bookings</strong> done by you on {selectedDate === todayStr ? 'Today' : selectedDate}
+            </span>
+          </div>
+        </div>
+
+        {/* ── TOP KPI CARDS: ONLY THAT STAFF'S NUMBERS ── */}
+        <section className="ts-dash-stats-grid">
+          {/* 1. Bookings by this staff */}
+          <div className="ts-dash-stat-card">
+            <div className="ts-dash-stat-icon ts-dash-stat-icon--blue">
+              <Gamepad2 size={20} />
+            </div>
+            <div className="ts-dash-stat-body">
+              <span className="ts-dash-stat-label">Bookings Done by You</span>
+              <span className="ts-dash-stat-val" style={{ color: '#38bdf8' }}>
+                {myTodayBookings.length}
+              </span>
+              <span className="ts-dash-stat-sub">
+                ₹{(myStaffStats?.todayGamingCollection || 0).toLocaleString('en-IN')} gaming value
+              </span>
+            </div>
+          </div>
+
+          {/* 2. Cash Collected by this staff */}
+          <div className="ts-dash-stat-card">
+            <div className="ts-dash-stat-icon ts-dash-stat-icon--green">
+              <span>₹</span>
+            </div>
+            <div className="ts-dash-stat-body">
+              <span className="ts-dash-stat-label">Cash Collected by You</span>
+              <span className="ts-dash-stat-val" style={{ color: '#00ff66' }}>
+                ₹{(myStaffStats?.todayCash || 0).toLocaleString('en-IN')}
+              </span>
+              <span className="ts-dash-stat-sub">Physical cash to handover</span>
+            </div>
+          </div>
+
+          {/* 3. UPI Payments handled by this staff */}
+          <div className="ts-dash-stat-card">
+            <div className="ts-dash-stat-icon ts-dash-stat-icon--purple">
+              <Zap size={20} />
+            </div>
+            <div className="ts-dash-stat-body">
+              <span className="ts-dash-stat-label">UPI Online by You</span>
+              <span className="ts-dash-stat-val" style={{ color: '#00f5d4' }}>
+                ₹{(myStaffStats?.todayUpi || 0).toLocaleString('en-IN')}
+              </span>
+              <span className="ts-dash-stat-sub">Direct QR scanner payments</span>
+            </div>
+          </div>
+
+          {/* 4. Total Handled by this staff */}
+          <div className="ts-dash-stat-card">
+            <div className="ts-dash-stat-icon ts-dash-stat-icon--orange">
+              <TrendingUp size={20} />
+            </div>
+            <div className="ts-dash-stat-body">
+              <span className="ts-dash-stat-label">Your Total Collection</span>
+              <span className="ts-dash-stat-val" style={{ color: '#ff7700' }}>
+                ₹{(myStaffStats?.todayCollection || 0).toLocaleString('en-IN')}
+              </span>
+              <span className="ts-dash-stat-sub">Total Cash + UPI collected</span>
+            </div>
+          </div>
+
+          {/* 5. Food Orders by this staff */}
+          <div className="ts-dash-stat-card">
+            <div
+              className="ts-dash-stat-icon"
+              style={{
+                background: 'rgba(236, 72, 153, 0.15)',
+                color: '#ec4899',
+                border: '1px solid rgba(236, 72, 153, 0.3)',
+              }}
+            >
+              <Coffee size={20} />
+            </div>
+            <div className="ts-dash-stat-body">
+              <span className="ts-dash-stat-label">Cafe Orders by You</span>
+              <span className="ts-dash-stat-val" style={{ color: '#ec4899' }}>
+                {myStaffStats?.todayFoodCount || 0}
+              </span>
+              <span className="ts-dash-stat-sub">
+                ₹{(myStaffStats?.todayFoodCollection || 0).toLocaleString('en-IN')} cafe value
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SHIFT HANDOVER SUMMARY BOX ── */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(6, 182, 212, 0.1))',
+            border: '1px solid rgba(6, 182, 212, 0.35)',
+            borderRadius: '16px',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 14,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: '1rem',
+                fontWeight: 800,
+                color: '#00f5d4',
+              }}
+            >
+              <Receipt size={18} /> Shift Handover Summary
+            </div>
+            <div style={{ fontSize: '0.84rem', color: '#cbd5e1', marginTop: 4 }}>
+              💵 Cash to Handover: <strong style={{ color: '#00ff66' }}>₹{(myStaffStats?.todayCash || 0).toLocaleString('en-IN')}</strong> · 
+              📱 UPI: <strong style={{ color: '#38bdf8' }}>₹{(myStaffStats?.todayUpi || 0).toLocaleString('en-IN')}</strong> · 
+              💰 Total: <strong style={{ color: '#f59e0b' }}>₹{(myStaffStats?.todayCollection || 0).toLocaleString('en-IN')}</strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                const text =
+                  `📋 *TS GAMING CAFÉ — SHIFT HANDOVER REPORT*\n` +
+                  `👤 *Staff:* ${staffUser.name} (${staffUser.role || 'Staff'})\n` +
+                  `📅 *Date:* ${todayStr}\n` +
+                  `⏱️ *Shift:* ${staffUser.shift || 'General'}\n` +
+                  `━━━━━━━━━━━━━━━━━━━━\n` +
+                  `🎮 *Bookings Done by You:* ${myStaffStats?.todayGamingCount || 0}\n` +
+                  `💵 *Cash to Handover (Drawer):* ₹${(myStaffStats?.todayCash || 0).toLocaleString('en-IN')}\n` +
+                  `📱 *UPI Payments:* ₹${(myStaffStats?.todayUpi || 0).toLocaleString('en-IN')}\n` +
+                  `💰 *Total Collected Today:* ₹${(myStaffStats?.todayCollection || 0).toLocaleString('en-IN')}\n` +
+                  `━━━━━━━━━━━━━━━━━━━━\n` +
+                  `✅ Shift Verified.`;
+                navigator.clipboard.writeText(text);
+                toast.success('Report Copied! 📋', 'Handover report copied to clipboard.');
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+            >
+              📋 Copy Shift Report
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                const text =
+                  `📋 *TS GAMING CAFÉ — SHIFT HANDOVER REPORT*\n` +
+                  `👤 *Staff:* ${staffUser.name} (${staffUser.role || 'Staff'})\n` +
+                  `📅 *Date:* ${todayStr}\n` +
+                  `⏱️ *Shift:* ${staffUser.shift || 'General'}\n` +
+                  `━━━━━━━━━━━━━━━━━━━━\n` +
+                  `🎮 *Bookings Done:* ${myStaffStats?.todayGamingCount || 0}\n` +
+                  `💵 *Cash in Hand:* ₹${(myStaffStats?.todayCash || 0).toLocaleString('en-IN')}\n` +
+                  `📱 *UPI Payments:* ₹${(myStaffStats?.todayUpi || 0).toLocaleString('en-IN')}\n` +
+                  `💰 *Total Collection:* ₹${(myStaffStats?.todayCollection || 0).toLocaleString('en-IN')}\n` +
+                  `✅ Ready for handover.`;
+                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+            >
+              📱 WhatsApp to Owner
+            </button>
+          </div>
+        </div>
+
+        {/* ── TODAY'S BOOKINGS HANDLED BY THIS STAFF ONLY ── */}
+        <section className="ts-dash-section" style={{ marginBottom: '1.5rem' }}>
+          <div className="ts-dash-section__header">
+            <h2 className="ts-dash-section__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Gamepad2 size={18} style={{ color: '#00ff66' }} />
+              Today's Bookings Done by You ({myTodayBookings.length})
+            </h2>
+            <Link to="/admin/bookings" className="ts-dash-view-all">
+              Open Booking Counter →
+            </Link>
+          </div>
+
+          {myTodayBookings.length === 0 ? (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '2.5rem 1rem',
+                color: '#94a3b8',
+                background: 'rgba(255,255,255,0.02)',
+                borderRadius: 12,
+                border: '1px dashed rgba(255,255,255,0.1)',
+              }}
+            >
+              🎮 You haven't started any bookings yet today. Open the Booking Counter to start games!
+            </div>
+          ) : (
+            <div className="ts-dash-table-wrap">
+              <table className="ts-dash-table">
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Console</th>
+                    <th>Timing</th>
+                    <th>Duration</th>
+                    <th>Payment</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myTodayBookings.map((b) => (
+                    <tr key={b.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <strong>{b.userName || 'Walk-in Gamer'}</strong>
+                          {b.userPhone && (
+                            <span
+                              style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 700,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                background: getGamerVisits(b.userPhone) >= 2 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+                                color: getGamerVisits(b.userPhone) >= 2 ? '#fbbf24' : '#4ade80',
+                                border: `1px solid ${getGamerVisits(b.userPhone) >= 2 ? 'rgba(245, 158, 11, 0.35)' : 'rgba(34, 197, 94, 0.25)'}`,
+                              }}
+                            >
+                              {getGamerVisits(b.userPhone) >= 2 ? `🔥 ${getGamerVisits(b.userPhone)} Visits` : '🌱 1st'}
+                            </span>
+                          )}
+                        </div>
+                        {b.userPhone && (
+                          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>📱 {b.userPhone}</div>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{ color: '#38bdf8', fontWeight: 700 }}>{b.setupName || 'Console'}</span>
+                      </td>
+                      <td>
+                        {b.startTime} → {b.endTime}
+                      </td>
+                      <td>{b.durationMins || 60} min</td>
+                      <td>
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            background:
+                              b.paymentStatus === 'paid_cash'
+                                ? 'rgba(34, 197, 94, 0.15)'
+                                : 'rgba(56, 189, 248, 0.15)',
+                            color: b.paymentStatus === 'paid_cash' ? '#22c55e' : '#38bdf8',
+                          }}
+                        >
+                          {b.paymentStatus === 'paid_cash' ? '💵 Cash' : '📱 UPI'}
+                        </span>
+                      </td>
+                      <td style={{ color: '#00ff66', fontWeight: 800 }}>₹{b.totalAmount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── TODAY'S CAFE ORDERS HANDLED BY THIS STAFF ONLY (IF ANY) ── */}
+        {myTodayFoodSales.length > 0 && (
+          <section className="ts-dash-section">
+            <div className="ts-dash-section__header">
+              <h2 className="ts-dash-section__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Coffee size={18} style={{ color: '#f59e0b' }} />
+                Cafe Orders Taken by You ({myTodayFoodSales.length})
+              </h2>
+              <Link to="/admin/food" className="ts-dash-view-all">
+                Open Cafe POS →
+              </Link>
+            </div>
+
+            <div className="ts-dash-table-wrap">
+              <table className="ts-dash-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Items</th>
+                    <th>Payment</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myTodayFoodSales.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <strong>{s.customerName || 'Counter Customer'}</strong>
+                      </td>
+                      <td>
+                        {Array.isArray(s.items)
+                          ? s.items.map((i) => `${i.name} x${i.quantity}`).join(', ')
+                          : 'Cafe Items'}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            background:
+                              s.paymentMethod === 'cash'
+                                ? 'rgba(34, 197, 94, 0.15)'
+                                : 'rgba(56, 189, 248, 0.15)',
+                            color: s.paymentMethod === 'cash' ? '#22c55e' : '#38bdf8',
+                          }}
+                        >
+                          {s.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
+                        </span>
+                      </td>
+                      <td style={{ color: '#f59e0b', fontWeight: 800 }}>₹{s.totalAmount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {showUpiQr && <UpiQrModal onClose={() => setShowUpiQr(false)} />}
+      </div>
+    );
+  }
 
   return (
     <div className="ts-dash-container">
@@ -319,7 +858,7 @@ export default function AdminDashboard() {
             }}
             title="Today's Cash Settlement & WhatsApp Summary"
           >
-            <TrendingUp size={14} /> 📊 Day Closing (हिशोब)
+            <TrendingUp size={14} /> 📊 Day Closing Report
           </button>
           <button
             type="button"
@@ -367,6 +906,52 @@ export default function AdminDashboard() {
         </div>
       </header>
 
+      {/* ── Date-wise Report Navigation Bar ── */}
+      <div className="ts-dash-date-bar">
+        <div className="ts-dash-date-bar__left">
+          <span className="ts-dash-date-bar__label">
+            <Calendar size={15} style={{ color: '#ff5500' }} />
+            <span>Report Date:</span>
+          </span>
+          <button
+            type="button"
+            className={`ts-dash-date-pill ${selectedDate === todayStr ? 'active' : ''}`}
+            onClick={() => setSelectedDate(todayStr)}
+          >
+            ⚡ Today ({bookings.filter((b) => b.date === todayStr && b.status !== 'cancelled').length} Bookings)
+          </button>
+          <button
+            type="button"
+            className={`ts-dash-date-pill ${selectedDate === yesterdayStr ? 'active' : ''}`}
+            onClick={() => setSelectedDate(yesterdayStr)}
+          >
+            ⏪ Yesterday ({bookings.filter((b) => b.date === yesterdayStr && b.status !== 'cancelled').length} Bookings)
+          </button>
+          <label className={`ts-dash-date-picker-label ${selectedDate !== todayStr && selectedDate !== yesterdayStr ? 'active' : ''}`}>
+            <span>📅 {selectedDate !== todayStr && selectedDate !== yesterdayStr ? selectedDate : 'Pick Custom Date'}</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+              className="ts-dash-date-native-input"
+            />
+          </label>
+        </div>
+
+        <div className="ts-dash-date-bar__right">
+          <span className="ts-dash-date-summary-badge">
+            🎮 <strong>{selectedDateBookings.length} Bookings</strong> on {selectedDate === todayStr ? 'Today' : selectedDate}
+          </span>
+          <button
+            type="button"
+            className="ts-dash-open-report-btn"
+            onClick={() => setShowDailyReport(true)}
+          >
+            <TrendingUp size={14} /> Full Day Report
+          </button>
+        </div>
+      </div>
+
       {/* ── Top 5 Stat KPI Cards Row ── */}
       <section className="ts-dash-stats-grid">
         {/* Card 1: Cash Collection */}
@@ -399,7 +984,9 @@ export default function AdminDashboard() {
           <div className="ts-dash-stat-body">
             <span className="ts-dash-stat-label">Gaming Sales</span>
             <span className="ts-dash-stat-val">₹{stats.gaming.toLocaleString('en-IN')}</span>
-            <span className="ts-dash-stat-sub">{stats.sessionsCount} Sessions</span>
+            <span className="ts-dash-stat-sub">
+              🎮 {selectedDateBookings.length} Bookings on {selectedDate === todayStr ? 'Today' : selectedDate}
+            </span>
           </div>
         </div>
 
@@ -415,13 +1002,13 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Card 5: Total Sales (Today) */}
+        {/* Card 5: Total Sales */}
         <div className="ts-dash-stat-card">
           <div className="ts-dash-stat-icon ts-dash-stat-icon--dark">
             <Calendar size={22} />
           </div>
           <div className="ts-dash-stat-body">
-            <span className="ts-dash-stat-label">Total Sales (Today)</span>
+            <span className="ts-dash-stat-label">Total Sales ({selectedDate === todayStr ? 'Today' : selectedDate})</span>
             <span className="ts-dash-stat-val">₹{stats.total.toLocaleString('en-IN')}</span>
           </div>
         </div>
@@ -664,12 +1251,16 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Card 2: Today's Bookings (All Stations) */}
+          {/* Card 2: Bookings for Selected Date (All Stations) */}
           <div className="ts-dash-card">
             <div className="ts-dash-card__header">
               <div className="ts-dash-card__title">
                 <Calendar size={16} style={{ color: '#38bdf8' }} />
-                <span>Today's Bookings (All Stations)</span>
+                <span>
+                  {selectedDate === todayStr
+                    ? `Today's Bookings (Total: ${selectedDateBookings.length})`
+                    : `Bookings on ${selectedDate} (Total: ${selectedDateBookings.length})`}
+                </span>
               </div>
               <Link to="/admin/bookings" className="ts-dash-card__link">
                 View All
@@ -691,33 +1282,49 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayBookings.map((b) => (
-                    <tr key={b.id}>
-                      <td style={{ color: '#94a3b8' }}>{b.index}</td>
-                      <td style={{ fontWeight: 600 }}>{b.time}</td>
-                      <td>
-                        <span style={{
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          background: 'rgba(255, 255, 255, 0.06)',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          color: '#38bdf8',
-                        }}>
-                          {b.station}
-                        </span>
-                      </td>
-                      <td>{b.players}</td>
-                      <td style={{ fontWeight: 600, color: '#fff' }}>{b.customer}</td>
-                      <td style={{ color: '#94a3b8' }}>{b.bookedBy}</td>
-                      <td style={{ fontWeight: 700, color: '#4ade80' }}>₹{b.amount}</td>
-                      <td>
-                        <span className={`ts-dash-badge ${b.status === 'Playing' ? 'ts-dash-badge--playing' : 'ts-dash-badge--confirmed'}`}>
-                          {b.status}
-                        </span>
+                  {displayBookings.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                        No bookings recorded on {selectedDate === todayStr ? 'Today' : selectedDate}.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    displayBookings.map((b) => (
+                      <tr key={b.id}>
+                        <td style={{ color: '#94a3b8' }}>{b.index}</td>
+                        <td style={{ fontWeight: 600 }}>{b.time}</td>
+                        <td>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: '#38bdf8',
+                          }}>
+                            {b.station}
+                          </span>
+                        </td>
+                        <td>{b.players}</td>
+                        <td style={{ fontWeight: 600, color: '#fff' }}>{b.customer}</td>
+                        <td style={{ color: '#94a3b8' }}>{b.bookedBy}</td>
+                        <td style={{ fontWeight: 700, color: '#4ade80' }}>₹{b.amount}</td>
+                        <td>
+                          <span
+                            className={`ts-dash-badge ${
+                              b.status === 'Playing'
+                                ? 'ts-dash-badge--playing'
+                                : b.status === 'Completed'
+                                ? 'ts-dash-badge--completed'
+                                : 'ts-dash-badge--confirmed'
+                            }`}
+                          >
+                            {b.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -909,9 +1516,13 @@ export default function AdminDashboard() {
       <DailyReportModal
         isOpen={showDailyReport}
         onClose={() => setShowDailyReport(false)}
+        allBookings={bookings}
+        allFoodSales={foodSales}
+        staffList={staffList}
+        initialDate={selectedDate}
         stats={stats}
         staffSales={displayStaffSales}
-        todayDateStr={todayStr}
+        todayDateStr={selectedDate}
       />
     </div>
   );

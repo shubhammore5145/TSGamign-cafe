@@ -17,8 +17,8 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #00ff66 50%, transparent 100%);
-  box-shadow: 0 0 15px rgba(0, 255, 102, 0.6);
+  background: linear-gradient(90deg, transparent 0%, #22d3ee 50%, transparent 100%);
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.6);
 }
 
 .footer__container {
@@ -46,7 +46,7 @@
 .footer__logo-badge {
   width: 38px;
   height: 38px;
-  background: linear-gradient(135deg, #00ff66 0%, #059669 50%, #a855f7 100%);
+  background: linear-gradient(135deg, #22d3ee 0%, #0891b2 50%, #a855f7 100%);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -55,7 +55,7 @@
   font-weight: 900;
   font-size: 1.1rem;
   color: #040806;
-  box-shadow: 0 0 14px rgba(0, 255, 102, 0.5);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.5);
 }
 
 .footer__logo-name {
@@ -71,7 +71,7 @@
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.16em;
-  color: #00ff66;
+  color: #22d3ee;
   text-transform: uppercase;
   margin-top: 2px;
 }
@@ -134,7 +134,7 @@
 }
 
 .footer__links a:hover {
-  color: #00ff66;
+  color: #22d3ee;
   transform: translateX(3px);
 }
 
@@ -159,8 +159,8 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(0, 255, 102, 0.12);
-  color: #00ff66;
+  background: rgba(34, 211, 238, 0.12);
+  color: #22d3ee;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -176,11 +176,11 @@
 }
 
 .footer__phone-link:hover {
-  color: #00ff66;
+  color: #22d3ee;
 }
 
 .footer__last-booking {
-  color: #00ff66;
+  color: #22d3ee;
   font-size: 0.82rem;
   font-weight: 600;
   margin-top: 3px;
@@ -242,12 +242,12 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(0, 255, 102, 0.15);
+  background: rgba(34, 211, 238, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #00ff66;
+  color: #22d3ee;
 }
 
 .footer__map-details {
@@ -272,7 +272,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: linear-gradient(135deg, #00ff66 0%, #059669 100%);
+  background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
   color: #040806;
   text-decoration: none;
   font-family: var(--font-heading);
@@ -281,13 +281,13 @@
   padding: 0.5rem 1rem;
   border-radius: 8px;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 255, 102, 0.35);
+  box-shadow: 0 4px 12px rgba(34, 211, 238, 0.35);
 }
 
 .footer__directions-btn:hover {
-  background: linear-gradient(135deg, #26ff7a 0%, #10b981 100%);
+  background: linear-gradient(135deg, #67e8f9 0%, #0ea5e9 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 255, 102, 0.55);
+  box-shadow: 0 6px 18px rgba(34, 211, 238, 0.55);
 }
 
 /* ── Bottom ── */
@@ -326,8 +326,8 @@
 }
 
 .footer__admin-link:hover {
-  color: #00ff66;
-  background: rgba(0, 255, 102, 0.12);
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.12);
 }
 
 /* ── Responsive ── */

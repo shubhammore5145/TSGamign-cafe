@@ -26,7 +26,7 @@ export default function AdminSessions() {
   const [sessions, setSessions] = useState([]);
   const [setups, setSetups] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [newSessionData, setNewSessionData] = useState({ name: '', setupId: '', duration: 60, photoDataUrl: null });
+  const [newSessionData, setNewSessionData] = useState({ name: '', phone: '', setupId: '', duration: 60, photoDataUrl: null });
   const [creating, setCreating] = useState(false);
   const toast = useToast();
 
@@ -145,9 +145,11 @@ export default function AdminSessions() {
       const endFormatted = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
 
       // 1. Create active real-time session
+      const cleanSessionPhone = (newSessionData.phone || '').replace(/\D/g, '').slice(-10);
       await createSession({
         userId: 'walk-in',
         userName: newSessionData.name.trim(),
+        userPhone: cleanSessionPhone,
         userImage: newSessionData.photoDataUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(newSessionData.name.trim())}&background=9333ea&color=fff`,
         setupId: setup.id,
         setupName: setup.name,
@@ -161,6 +163,8 @@ export default function AdminSessions() {
       await createBooking({
         userName: newSessionData.name.trim(),
         customerName: newSessionData.name.trim(),
+        userPhone: cleanSessionPhone,
+        customerPhone: cleanSessionPhone,
         setupId: setup.id,
         setupName: setup.name,
         date: dateStr,
@@ -179,7 +183,7 @@ export default function AdminSessions() {
       await updateSetup(setup.id, { status: 'occupied' });
       toast.success('Session Started', `${newSessionData.name} is now playing.`);
       setShowModal(false);
-      setNewSessionData({ name: '', setupId: '', duration: 60, photoDataUrl: null });
+      setNewSessionData({ name: '', phone: '', setupId: '', duration: 60, photoDataUrl: null });
     } catch (err) {
       toast.error('Failed to start session', err.message);
     } finally {
@@ -191,12 +195,16 @@ export default function AdminSessions() {
 
   return (
     <div>
-      <div className="admin-section-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-          <h2 className="admin-section-title">🟢 Live Sessions ({sessions.length})</h2>
-          <span className="badge badge-active">REAL-TIME</span>
+      <div className="admin-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <h2 className="admin-section-title" style={{ margin: 0 }}>🟢 Live Sessions ({sessions.length})</h2>
+          <span className="badge badge-active" style={{ fontSize: '0.68rem', padding: '3px 8px' }}>REAL-TIME</span>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+        <button
+          className="btn btn-primary btn-sm"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, padding: '8px 14px', borderRadius: 8 }}
+          onClick={() => setShowModal(true)}
+        >
           <Plus size={16} /> Start Session
         </button>
       </div>
@@ -255,6 +263,18 @@ export default function AdminSessions() {
               </div>
 
               <div className="form-group">
+                <label className="form-label">Mobile Phone Number (Optional / 10 Digits)</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="e.g. 9823456789 (Auto-saves to database)"
+                  maxLength={10}
+                  value={newSessionData.phone}
+                  onChange={e => setNewSessionData(d => ({ ...d, phone: e.target.value.replace(/\D/g, '') }))}
+                />
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Customer Photo (Optional)</label>
                 <CameraCapture onCapture={(url) => setNewSessionData(d => ({ ...d, photoDataUrl: url }))} />
               </div>
@@ -309,7 +329,13 @@ export default function AdminSessions() {
 }
 
 export function SessionCard({ session, onEnd, onExtend, onPause, onResume }) {
-  const { remaining, elapsed } = useSessionTimer(session, null);
+  const handleAlert = useCallback((alertType) => {
+    if (alertType === 'ended') {
+      onEnd?.(session);
+    }
+  }, [onEnd, session]);
+
+  const { remaining, elapsed } = useSessionTimer(session, handleAlert);
   const isEndingSoon = remaining !== null && remaining <= 600_000 && remaining > 0;
   const isPaused = session.status === 'paused';
 

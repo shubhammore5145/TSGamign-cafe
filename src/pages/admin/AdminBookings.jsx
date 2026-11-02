@@ -51,8 +51,11 @@ import {
   RefreshCw,
   Users,
   UserPlus,
+  TrendingUp,
 } from 'lucide-react';
 import ClockTimePicker from '../../components/ClockTimePicker';
+import SimpleWatchPicker from '../../components/SimpleWatchPicker';
+import DailyReportModal from '../../components/DailyReportModal';
 import './AdminBookings.css';
 import './AdminUsers.css';
 
@@ -82,7 +85,7 @@ const STATUS_TABS = [
   { id: 'active', label: '🟢 Live Playing' },
   { id: 'confirmed', label: 'Confirmed' },
   { id: 'pending', label: 'Pending' },
-  { id: 'completed', label: 'Completed' },
+  { id: 'completed', label: '📜 History / Completed' },
   { id: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -170,22 +173,22 @@ function format12to24(hour12, minute, period) {
   return `${String(h).padStart(2, '0')}:${m}`;
 }
 
-// Friendly Marathi time label for watch display
-function getFriendlyTimeMarathi(time24) {
+// Friendly English time label for watch display
+function getFriendlyTimeFormatted(time24) {
   if (!time24) return '';
   const [hStr, mStr] = time24.split(':');
   const h = Number(hStr) || 0;
   const m = Number(mStr) || 0;
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
-  const minText = m === 0 ? '' : `:${String(m).padStart(2, '0')}`;
+  const minText = `:${String(m).padStart(2, '0')}`;
 
-  let partOfDay = 'सकाळी';
-  if (h >= 12 && h < 16) partOfDay = 'दुपारी';
-  else if (h >= 16 && h < 20) partOfDay = 'संध्याकाळी';
-  else if (h >= 20 || h < 4) partOfDay = 'रात्री';
+  let partOfDay = 'Morning';
+  if (h >= 12 && h < 16) partOfDay = 'Afternoon';
+  else if (h >= 16 && h < 20) partOfDay = 'Evening';
+  else if (h >= 20 || h < 4) partOfDay = 'Night';
 
-  return `${hour12}${minText} ${period} (${partOfDay} ${hour12}${minText} वाजता)`;
+  return `${hour12}${minText} ${period} (${partOfDay})`;
 }
 
 // Calculate custom booking price for arbitrary duration in minutes with separate 30m base
@@ -313,16 +316,24 @@ export function getSetupLiveStatus(setupId, setups = [], activeSessions = [], bo
   const now = new Date();
   const current24 = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  // 1. Gather all active sessions for this setup
-  const setupSessions = activeSessions.filter(
-    ses => ses.setupId === setupId && ses.status !== 'completed'
-  );
+  // 1. Gather all active sessions for this setup (exclude any expired sessions)
+  const setupSessions = activeSessions.filter(ses => {
+    if (ses.setupId !== setupId || ses.status === 'completed') return false;
+    const end = ses.sessionEndTime?.toDate
+      ? ses.sessionEndTime.toDate()
+      : ses.sessionEndTime
+      ? new Date(ses.sessionEndTime)
+      : null;
+    if (end && end.getTime() <= now.getTime()) return false; // Time ended!
+    return true;
+  });
 
-  // 2. Gather active bookings overlapping current time (that don't already have an activeSession)
+  // 2. Gather active bookings overlapping current time (exclude any expired bookings)
   const setupBookings = bookings.filter(b => {
     if (b.setupId !== setupId || b.date !== todayStr) return false;
     if (b.status === 'cancelled' || b.status === 'completed') return false;
-    const isNow = b.status === 'active' || (b.startTime <= current24 && current24 < b.endTime);
+    if (b.endTime && b.endTime <= current24) return false; // Time passed!
+    const isNow = b.startTime <= current24 && current24 < b.endTime;
     if (!isNow) return false;
     // If a session already exists for this bookingId, don't count twice
     const hasSession = setupSessions.some(ses => ses.bookingId === b.id);
@@ -384,9 +395,11 @@ export function getSetupLiveStatus(setupId, setups = [], activeSessions = [], bo
     }
   });
 
-  // Check manual occupied flag if no real gamers are tracked
+  // If no real gamers or sessions are tracked, console is free!
   if (setupDoc && setupDoc.status === 'occupied' && occupiedSeats === 0) {
-    occupiedSeats = capacity;
+    try {
+      updateSetup(setupId, { status: 'available' });
+    } catch (_) {}
   }
 
   const remainingSeats = Math.max(0, capacity - occupiedSeats);
@@ -434,6 +447,7 @@ export default function AdminBookings() {
   const [submitting, setSubmitting] = useState(false);
   const [showCounterTimeEdit, setShowCounterTimeEdit] = useState(false);
   const [showModalTimeEdit, setShowModalTimeEdit] = useState(false);
+  const [showDateReportModal, setShowDateReportModal] = useState(false);
   const [staffList, setStaffList] = useState([]);
   const [staffFilter, setStaffFilter] = useState('all'); // 'all' | 'my' | specific staffId
 
@@ -520,6 +534,27 @@ export default function AdminBookings() {
       }));
     }
   }, [location?.state]);
+
+  // Fast map of customer visits by clean 10-digit phone
+  const customerVisitsMap = useMemo(() => {
+    const map = new Map();
+    bookings.forEach(b => {
+      if (!b || b.status === 'cancelled') return;
+      const p = getClean10Phone(b.userPhone || b.customerPhone);
+      if (p.length === 10) {
+        map.set(p, (map.get(p) || 0) + 1);
+      }
+    });
+    return map;
+  }, [bookings]);
+
+  const getGamerVisitCount = (phone, fallbackVisits = 0) => {
+    const clean = getClean10Phone(phone);
+    if (clean.length === 10 && customerVisitsMap.has(clean)) {
+      return Math.max(customerVisitsMap.get(clean), Number(fallbackVisits) || 0, 1);
+    }
+    return Number(fallbackVisits) || 1;
+  };
 
   // Auto-suggest registered gamers matching current input
   const suggestedGamers = useMemo(() => {
@@ -1299,6 +1334,14 @@ export default function AdminBookings() {
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }, []);
+  const yesterdayStr = useMemo(() => {
+    const t = new Date();
+    t.setDate(t.getDate() - 1);
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
   const todayBookings = useMemo(() => bookings.filter(b => b.date === todayStr), [bookings, todayStr]);
   const activeBookingsCount = useMemo(() => bookings.filter(b => b.status === 'active').length, [bookings]);
   const todayRevenue = useMemo(() => {
@@ -1306,6 +1349,28 @@ export default function AdminBookings() {
       .filter(b => b.status !== 'cancelled')
       .reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
   }, [todayBookings]);
+
+  // Selected Date Stats for Date Banner
+  const selectedDateBookings = useMemo(() => {
+    if (!dateFilter) return bookings.filter(b => b.status !== 'cancelled');
+    return bookings.filter(b => b.date === dateFilter && b.status !== 'cancelled');
+  }, [bookings, dateFilter]);
+
+  const selectedDateRevenue = useMemo(() => {
+    return selectedDateBookings.reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+  }, [selectedDateBookings]);
+
+  const selectedDateCash = useMemo(() => {
+    return selectedDateBookings
+      .filter(b => b.paymentStatus === 'paid_cash' || b.paymentMode === 'cash')
+      .reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+  }, [selectedDateBookings]);
+
+  const selectedDateUpi = useMemo(() => {
+    return selectedDateBookings
+      .filter(b => b.paymentStatus === 'paid_upi' || b.paymentMode === 'upi' || b.paymentStatus === 'paid_card')
+      .reduce((acc, b) => acc + (Number(b.totalAmount) || 0), 0);
+  }, [selectedDateBookings]);
 
   // Filtered Bookings for Table View
   const filteredBookings = useMemo(() => {
@@ -1732,16 +1797,14 @@ export default function AdminBookings() {
                     </button>
                   </div>
 
-                  {/* Exact Time Input */}
+                  {/* Exact Time Input with Simple Watch Picker */}
                   <div className="minimal-time-exact-row">
                     <label className="minimal-exact-label">
-                      🕒 Exact Start:
+                      ⌚ Exact Start:
                     </label>
-                    <input
-                      type="time"
-                      className="minimal-time-picker-input"
+                    <SimpleWatchPicker
                       value={bookingForm.startTime}
-                      onChange={e => handleBookingStartTimeChange(e.target.value)}
+                      onChange={newTime => handleBookingStartTimeChange(newTime)}
                     />
                     <span className="minimal-exact-end">
                       Ends at: <strong>{formatTime12h(bookingForm.endTime)}</strong>
@@ -1791,6 +1854,7 @@ export default function AdminBookings() {
                       </div>
                       {suggestedGamers.map(u => {
                         const clean10 = getClean10Phone(u.phone);
+                        const visits = getGamerVisitCount(u.phone, u.visitCount);
                         return (
                           <div
                             key={u.id}
@@ -1809,9 +1873,22 @@ export default function AdminBookings() {
                             </div>
                             <div className="desk-suggest-info">
                               <span className="desk-suggest-name">{u.name}</span>
-                              {clean10 && (
-                                <span className="desk-suggest-phone">📱 {clean10}</span>
-                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: 2 }}>
+                                {clean10 && (
+                                  <span className="desk-suggest-phone">📱 {clean10}</span>
+                                )}
+                                <span style={{
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700,
+                                  padding: '1px 5px',
+                                  borderRadius: 4,
+                                  background: visits >= 2 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+                                  color: visits >= 2 ? '#fbbf24' : '#4ade80',
+                                  border: `1px solid ${visits >= 2 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(34, 197, 94, 0.3)'}`,
+                                }}>
+                                  {visits >= 2 ? `🔥 ${visits} Visits` : '🌱 1st Visit'}
+                                </span>
+                              </div>
                             </div>
                             <span className="desk-suggest-pick">Pick</span>
                           </div>
@@ -1996,13 +2073,20 @@ export default function AdminBookings() {
               </button>
               <button
                 type="button"
+                className={`date-scope-pill ${dateFilter === yesterdayStr ? 'active' : ''}`}
+                onClick={() => setDateFilter(yesterdayStr)}
+              >
+                ⏪ Yesterday
+              </button>
+              <button
+                type="button"
                 className={`date-scope-pill ${dateFilter === tomorrowStr ? 'active' : ''}`}
                 onClick={() => handleDayOffset(1)}
               >
                 Tomorrow
               </button>
-              <label className={`date-scope-picker-btn ${dateFilter && dateFilter !== todayStr && dateFilter !== tomorrowStr ? 'active' : ''}`} title="Pick date">
-                <span>{dateFilter && dateFilter !== todayStr && dateFilter !== tomorrowStr ? `📅 ${dateFilter}` : '📅 Other Date'}</span>
+              <label className={`date-scope-picker-btn ${dateFilter && dateFilter !== todayStr && dateFilter !== tomorrowStr && dateFilter !== yesterdayStr ? 'active' : ''}`} title="Pick date">
+                <span>{dateFilter && dateFilter !== todayStr && dateFilter !== tomorrowStr && dateFilter !== yesterdayStr ? `📅 ${dateFilter}` : '📅 Other Date'}</span>
                 <input
                   type="date"
                   className="date-native-picker-hidden"
@@ -2010,6 +2094,21 @@ export default function AdminBookings() {
                   onChange={e => setDateFilter(e.target.value)}
                 />
               </label>
+
+              <button
+                type="button"
+                className="date-scope-pill"
+                onClick={() => setShowDateReportModal(true)}
+                style={{
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  border: '1px solid rgba(34, 197, 94, 0.35)',
+                  color: '#4ade80',
+                  fontWeight: 700,
+                  marginLeft: 'auto',
+                }}
+              >
+                <TrendingUp size={13} /> 📊 View Day Report
+              </button>
             </div>
 
             {/* Search Box */}
@@ -2032,6 +2131,20 @@ export default function AdminBookings() {
                   <X size={14} />
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Date Summary Banner */}
+          <div className="bookings-date-report-banner">
+            <div className="bookings-date-report-pill">
+              <Calendar size={15} style={{ color: '#38bdf8' }} />
+              <span>{getFormattedDateTitle(dateFilter)}</span>
+            </div>
+            <div className="bookings-date-report-stats">
+              <span className="badge badge-primary">🎮 {selectedDateBookings.length} Bookings on this date</span>
+              <span className="badge badge-success">💰 Total: ₹{selectedDateRevenue.toLocaleString('en-IN')}</span>
+              <span className="badge badge-info">💵 Cash: ₹{selectedDateCash.toLocaleString('en-IN')}</span>
+              <span className="badge badge-warning">📱 UPI: ₹{selectedDateUpi.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
@@ -2282,8 +2395,26 @@ export default function AdminBookings() {
                       </td>
 
                       <td>
-                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#ffffff' }}>
-                          {b.userName || 'Walk-in Gamer'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#ffffff' }}>
+                            {b.userName || 'Walk-in Gamer'}
+                          </span>
+                          {b.userPhone && (
+                            <span
+                              style={{
+                                fontSize: '0.64rem',
+                                fontWeight: 700,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                background: getGamerVisitCount(b.userPhone) >= 2 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+                                color: getGamerVisitCount(b.userPhone) >= 2 ? '#fbbf24' : '#4ade80',
+                                border: `1px solid ${getGamerVisitCount(b.userPhone) >= 2 ? 'rgba(245, 158, 11, 0.35)' : 'rgba(34, 197, 94, 0.25)'}`,
+                              }}
+                              title={`Customer visits: ${getGamerVisitCount(b.userPhone)}`}
+                            >
+                              {getGamerVisitCount(b.userPhone) >= 2 ? `🔥 ${getGamerVisitCount(b.userPhone)} Visits` : '🌱 1st'}
+                            </span>
+                          )}
                         </div>
                         {b.userPhone && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
@@ -2476,8 +2607,23 @@ export default function AdminBookings() {
                   {/* Top Row: Customer + Status */}
                   <div className="mobile-card-top-row">
                     <div className="mobile-card-user-info">
-                      <div className="mobile-card-name">
-                        {b.userName || 'Walk-in Gamer'}
+                      <div className="mobile-card-name" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span>{b.userName || 'Walk-in Gamer'}</span>
+                        {b.userPhone && (
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              background: getGamerVisitCount(b.userPhone) >= 2 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+                              color: getGamerVisitCount(b.userPhone) >= 2 ? '#fbbf24' : '#4ade80',
+                              border: `1px solid ${getGamerVisitCount(b.userPhone) >= 2 ? 'rgba(245, 158, 11, 0.35)' : 'rgba(34, 197, 94, 0.25)'}`,
+                            }}
+                          >
+                            {getGamerVisitCount(b.userPhone) >= 2 ? `🔥 ${getGamerVisitCount(b.userPhone)} Visits` : '🌱 1st'}
+                          </span>
+                        )}
                       </div>
                       {b.userPhone && (
                         <div className="mobile-card-phone-row">
@@ -3440,14 +3586,11 @@ export default function AdminBookings() {
 
                       <div className="live-walkin-exact-row">
                         <label style={{ fontSize: '0.78rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                          🕒 Exact Start:
+                          ⌚ Exact Start:
                         </label>
-                        <input
-                          type="time"
-                          className="form-input"
-                          style={{ padding: '6px 10px', fontSize: '0.85rem', width: 'auto' }}
+                        <SimpleWatchPicker
                           value={bookingForm.startTime}
-                          onChange={e => handleBookingStartTimeChange(e.target.value)}
+                          onChange={newTime => handleBookingStartTimeChange(newTime)}
                         />
                         <span style={{ fontSize: '0.78rem', color: '#00f5d4', fontWeight: 700 }}>
                           Ends: {formatTime12h(bookingForm.endTime)}
@@ -3792,7 +3935,7 @@ export default function AdminBookings() {
             <div className="gamer-modal-header">
               <div className="gamer-modal-title">
                 <UserPlus size={18} style={{ color: '#a855f7' }} />
-                <span>Quick Add Gamer (नवा गेमर ॲड करा)</span>
+                <span>Quick Add Gamer</span>
               </div>
               <button
                 type="button"
@@ -3882,6 +4025,15 @@ export default function AdminBookings() {
           </div>
         </div>
       )}
+
+      {/* ── Date Report / Day Closing Modal ── */}
+      <DailyReportModal
+        isOpen={showDateReportModal}
+        onClose={() => setShowDateReportModal(false)}
+        allBookings={bookings}
+        staffList={staffList}
+        initialDate={dateFilter || todayStr}
+      />
 
       {/* ── Mobile Floating Quick Counter Button (FAB) ── */}
       {viewMode !== 'counter' && (

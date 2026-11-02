@@ -1,13 +1,33 @@
 {
-  "name": "TS Gaming Café — Admin Portal",
+  "id": "/",
+  "name": "TS Gaming Café | Waluj, Aurangabad",
   "short_name": "TS Gaming",
-  "description": "PlayStation 1-Hour Slot Booking & Live Session Manager",
+  "description": "PlayStation gaming lounge in Waluj, Aurangabad — book PS4/PS5 slots, see games & setups, and browse the food menu.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#060608",
-  "theme_color": "#9333ea",
-  "orientation": "any",
+  "background_color": "#04060a",
+  "theme_color": "#22d3ee",
+  "orientation": "portrait",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["games", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "Book a Slot",
+      "short_name": "Book",
+      "description": "Book a PlayStation gaming slot",
+      "url": "/booking",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Browse Games",
+      "short_name": "Games",
+      "description": "See the games available at TS Gaming",
+      "url": "/games",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

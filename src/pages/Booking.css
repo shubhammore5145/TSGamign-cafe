@@ -875,8 +875,8 @@
 }
 
 .checkout-pay-option.active {
-  border-color: #00ff66;
-  background: rgba(0, 255, 102, 0.1);
+  border-color: #22d3ee;
+  background: rgba(34, 211, 238, 0.1);
   color: #ffffff;
 }
 
@@ -1035,7 +1035,7 @@
   display: block;
   font-size: 0.62rem;
   font-weight: 800;
-  color: #00ff66;
+  color: #22d3ee;
   margin-top: 2px;
 }
 

@@ -1,0 +1,448 @@
+/* ═════════════════════════════════════════════════════════════
+   SIMPLE WATCH PICKER — BEAUTIFUL 12-HOUR ANALOG & DIGITAL WATCH
+   ═════════════════════════════════════════════════════════════ */
+
+.simple-watch-container {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+}
+
+/* ── 1. The Main Watch Trigger Box ── */
+.simple-watch-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(13, 18, 31, 0.85);
+  border: 1.5px solid rgba(0, 245, 212, 0.35);
+  border-radius: 10px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 245, 212, 0.1);
+  outline: none;
+}
+
+.simple-watch-trigger:hover,
+.simple-watch-trigger.active {
+  border-color: #00f5d4;
+  background: rgba(0, 245, 212, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 245, 212, 0.25), 0 0 15px rgba(0, 245, 212, 0.2);
+  transform: translateY(-1px);
+}
+
+.simple-watch-trigger-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 245, 212, 0.15);
+  color: #00f5d4;
+  flex-shrink: 0;
+}
+
+.simple-watch-trigger-time {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.simple-watch-digits {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+}
+
+.simple-watch-ampm {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #00f5d4;
+  text-transform: uppercase;
+}
+
+.simple-watch-sublabel {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  padding-left: 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  margin-left: 4px;
+}
+
+.simple-watch-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+/* ── 2. Popover Dialog ── */
+.simple-watch-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 99999;
+  width: 320px;
+  background: #0d121f;
+  border: 1px solid rgba(0, 245, 212, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 30px rgba(0, 245, 212, 0.15);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  backdrop-filter: blur(16px);
+  animation: watchPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes watchPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.simple-watch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.simple-watch-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+}
+
+.simple-watch-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.simple-watch-close-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* Big Display & Stepper Card */
+.simple-watch-display-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.simple-watch-stepper-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.simple-watch-arrow-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.simple-watch-arrow-btn:hover {
+  color: #00f5d4;
+  background: rgba(0, 245, 212, 0.12);
+}
+
+.simple-watch-display-val {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #ffffff;
+  padding: 2px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 50px;
+  text-align: center;
+}
+
+.simple-watch-display-val:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.simple-watch-display-val.active-mode {
+  background: rgba(0, 245, 212, 0.15);
+  border-color: #00f5d4;
+  color: #00f5d4;
+  box-shadow: 0 0 12px rgba(0, 245, 212, 0.3);
+}
+
+.simple-watch-colon {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #64748b;
+  margin-top: -14px;
+}
+
+.simple-watch-unit-label {
+  font-size: 0.62rem;
+  color: #64748b;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+/* AM / PM Column */
+.simple-watch-ampm-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.simple-watch-period-btn {
+  padding: 5px 10px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.simple-watch-period-btn.active {
+  background: #00f5d4;
+  border-color: #00f5d4;
+  color: #000;
+  font-weight: 900;
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.4);
+}
+
+/* Dial Wrap */
+.simple-watch-dial-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.simple-watch-dial-svg {
+  filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.6));
+}
+
+.simple-watch-rim {
+  fill: #060913;
+  stroke: rgba(0, 245, 212, 0.35);
+  stroke-width: 2.5;
+}
+
+.simple-watch-face {
+  fill: #0a0f1d;
+  stroke: rgba(255, 255, 255, 0.04);
+  stroke-width: 1;
+}
+
+.simple-watch-num-group {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.simple-watch-num-hit {
+  fill: transparent;
+  transition: fill 0.15s;
+}
+
+.simple-watch-num-group:hover .simple-watch-num-hit {
+  fill: rgba(0, 245, 212, 0.2);
+}
+
+.simple-watch-num-text {
+  fill: #cbd5e1;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.simple-watch-num-group.selected .simple-watch-num-hit {
+  fill: #00f5d4;
+}
+
+.simple-watch-num-group.selected .simple-watch-num-text {
+  fill: #000;
+  font-weight: 900;
+}
+
+.simple-watch-hand-hour {
+  stroke: #ffffff;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.simple-watch-hand-minute {
+  stroke: #00f5d4;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.simple-watch-center-dot {
+  fill: #00f5d4;
+}
+
+/* Mode Switcher Pills */
+.simple-watch-mode-pills {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.simple-watch-mode-pill {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.simple-watch-mode-pill.active {
+  background: rgba(0, 245, 212, 0.15);
+  border-color: #00f5d4;
+  color: #00f5d4;
+}
+
+/* Quick Minutes Pills */
+.simple-watch-quick-minutes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.simple-watch-quick-label {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 700;
+  margin-right: 2px;
+}
+
+.simple-watch-quick-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.simple-watch-quick-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.simple-watch-quick-btn.active {
+  background: rgba(0, 245, 212, 0.2);
+  border-color: #00f5d4;
+  color: #00f5d4;
+  font-weight: 900;
+}
+
+/* Footer Actions */
+.simple-watch-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.simple-watch-now-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.simple-watch-now-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.simple-watch-done-btn {
+  flex: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #00f5d4;
+  background: linear-gradient(135deg, #00f5d4, #0891b2);
+  color: #000;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 245, 212, 0.3);
+  transition: all 0.15s;
+}
+
+.simple-watch-done-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+

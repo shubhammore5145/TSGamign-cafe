@@ -12,6 +12,37 @@
   padding-bottom: 32px;
 }
 
+/* Date Summary Report Banner */
+.bookings-date-report-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(13, 18, 31, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  margin-top: 4px;
+  backdrop-filter: blur(8px);
+}
+
+.bookings-date-report-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.bookings-date-report-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ── 1. Top Executive Header Bar ── */
 .bookings-hero-header {
   display: flex;

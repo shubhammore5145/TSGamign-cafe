@@ -60,8 +60,8 @@ export function isFoodSaleHandledByStaff(sale, staffId, staffName) {
 /**
  * Calculates collection and booking/sales statistics for a single staff member
  */
-export function calculateStaffStats(staffId, staffName, bookings = [], foodSales = []) {
-  const today = getTodayString();
+export function calculateStaffStats(staffId, staffName, bookings = [], foodSales = [], targetDate = null) {
+  const today = targetDate || getTodayString();
 
   const validBookings = bookings.filter((b) => b && b.status !== 'cancelled');
 
@@ -160,9 +160,9 @@ export function calculateStaffStats(staffId, staffName, bookings = [], foodSales
 /**
  * Calculates collection statistics for all staff members together
  */
-export function calculateAllStaffSummary(staffList = [], bookings = [], foodSales = []) {
+export function calculateAllStaffSummary(staffList = [], bookings = [], foodSales = [], targetDate = null) {
   const summary = staffList.map((staff) => {
-    const stats = calculateStaffStats(staff.id, staff.name, bookings, foodSales);
+    const stats = calculateStaffStats(staff.id, staff.name, bookings, foodSales, targetDate);
     return {
       staff,
       ...stats,

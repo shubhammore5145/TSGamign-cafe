@@ -37,6 +37,7 @@ export default function AdminTimer() {
 
 function LargeTimerCard({ session }) {
   const { remaining, elapsed } = useSessionTimer(session, null);
+  const isEnded = remaining !== null && remaining <= 0;
   const isEndingSoon = remaining !== null && remaining <= 600_000 && remaining > 0;
 
   return (

@@ -15,11 +15,15 @@ import {
   ShieldCheck,
   ExternalLink,
   Coffee,
+  Contact,
 } from 'lucide-react';
-import PWAInstallModal from '../../components/PWAInstallModal';
+import { useBookingAutoManager } from '../../hooks/useBookingAutoManager';
 import './Admin.css';
 
 export default function AdminLayout() {
+  // Real-time automatic manager: auto-frees PS console & marks booking completed when time ends
+  useBookingAutoManager();
+
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -34,9 +38,12 @@ export default function AdminLayout() {
 
   // Role-based Navigation Links (Available to both Admin & Staff!)
   const navLinks = [
-    ...(isAdmin
-      ? [{ to: '/admin/dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard }]
-      : []),
+    {
+      to: '/admin/dashboard',
+      label: isAdmin ? 'Dashboard' : 'Duty Dashboard',
+      shortLabel: 'Dashboard',
+      icon: LayoutDashboard,
+    },
     {
       to: '/admin/bookings',
       label: isAdmin ? 'PlayStation Bookings & Counter' : 'Staff Booking Counter',
@@ -174,50 +181,28 @@ export default function AdminLayout() {
       <div className="admin-main">
         {/* Topbar */}
         <header className="admin-topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+          <div className="admin-topbar__brand-wrap">
             <button
               className="btn btn-icon btn-ghost admin-mobile-toggle"
               onClick={() => setSidebarOpen((v) => !v)}
               id="admin-sidebar-toggle"
+              aria-label="Toggle navigation menu"
             >
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="admin-topbar__title">⚡ TS Gaming</span>
+            <span className="admin-topbar__title">
+              ⚡ TS Gaming Café
+            </span>
           </div>
 
-          <div className="admin-topbar__user" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* PWA Install Button */}
-            <PWAInstallModal />
-
+          <div className="admin-topbar__user">
             {/* Role Chip */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '4px 10px',
-              borderRadius: 20,
-              background: isAdmin ? 'rgba(245, 158, 11, 0.15)' : 'rgba(147, 51, 234, 0.15)',
-              border: `1px solid ${isAdmin ? 'rgba(245, 158, 11, 0.3)' : 'rgba(147, 51, 234, 0.3)'}`,
-            }}>
-              <div style={{
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                background: isAdmin ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #9333ea, #06b6d4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.75rem',
-                color: '#fff',
-              }}>
+            <div className={`admin-topbar__role-chip ${isAdmin ? 'is-admin' : ''}`}>
+              <div className="admin-topbar__role-avatar">
                 {isAdmin ? '👑' : '👤'}
               </div>
-              <span style={{
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                color: isAdmin ? '#f59e0b' : 'var(--color-primary-light)',
-              }}>
-                {isAdmin ? 'Super Admin' : `${staffUser?.name || 'Staff'}`}
+              <span className="admin-topbar__role-text">
+                {isAdmin ? 'Super Admin' : (staffUser?.name || 'Staff Desk')}
               </span>
             </div>
           </div>

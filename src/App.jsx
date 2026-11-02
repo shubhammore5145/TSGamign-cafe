@@ -30,6 +30,7 @@ const AdminStaff = lazy(() => import('./pages/admin/AdminStaff'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminFood = lazy(() => import('./pages/admin/AdminFood'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminCustomers = lazy(() => import('./pages/admin/AdminCustomers'));
 
 // CSS
 import './pages/admin/AdminSetups.css';
@@ -65,8 +66,8 @@ function AppContent() {
               </AdminRoute>
             }
           >
-            <Route index element={<AdminRoute adminOnly><AdminDashboard /></AdminRoute>} />
-            <Route path="dashboard" element={<AdminRoute adminOnly><AdminDashboard /></AdminRoute>} />
+            <Route index element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="sessions" element={<AdminSessions />} />
             <Route path="timer" element={<AdminTimer />} />
@@ -74,6 +75,7 @@ function AppContent() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="setups" element={<AdminSetups />} />
             <Route path="staff" element={<AdminStaff />} />
+            <Route path="customers" element={<AdminCustomers />} />
           </Route>
 
           {/* ── Fallback ── */}

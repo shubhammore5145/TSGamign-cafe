@@ -8,10 +8,12 @@ import {
   updateStaff,
   deleteStaff,
 } from '../../firebase/firestore';
-import { isAdminLoggedIn } from '../../utils/adminAuth';
+import { isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
 import {
   calculateStaffStats,
   calculateAllStaffSummary,
+  isBookingHandledByStaff,
+  isFoodSaleHandledByStaff,
   formatINR,
   formatPhoneNumber,
   getClean10Phone,
@@ -37,6 +39,7 @@ import {
   TrendingUp,
   Receipt,
   LayoutGrid,
+  Layers,
   Table,
   MessageSquare,
   Copy,
@@ -49,6 +52,7 @@ import {
   Filter,
   Calendar,
   Zap,
+  LayoutDashboard,
 } from 'lucide-react';
 import './Admin.css';
 import './AdminStaff.css';
@@ -70,6 +74,8 @@ const SHIFTS = [
 
 export default function AdminStaff() {
   const isAdmin = isAdminLoggedIn();
+  const isStaff = isStaffLoggedIn();
+  const staffUser = getStaffUser();
   const toast = useToast();
 
   const [staffList, setStaffList] = useState([]);
@@ -82,7 +88,7 @@ export default function AdminStaff() {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
   const [roleFilter, setRoleFilter] = useState('all');
   const [shiftFilter, setShiftFilter] = useState('all');
-  const [viewTab, setViewTab] = useState('cards'); // 'cards' | 'report'
+  const [viewTab, setViewTab] = useState('overview'); // 'overview' | 'cards' | 'report'
 
   // PIN visibility map { [staffId]: boolean }
   const [showPins, setShowPins] = useState({});
@@ -134,6 +140,91 @@ export default function AdminStaff() {
   const onDutyCount = useMemo(() => {
     return staffList.filter((s) => isStaffCurrentlyOnShift(s.shift, s.status)).length;
   }, [staffList]);
+
+  // ── Full Business Overview (Overview Dashboard tab) ──
+  const overview = useMemo(() => {
+    const today = getTodayString();
+    const validBookings = bookings.filter((b) => b && b.status !== 'cancelled');
+    const todayBookings = validBookings.filter((b) => b.date === today);
+    const todayFood = foodSales.filter((s) => s && s.date === today);
+
+    const todayGamingRevenue = todayBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+    const todayGamingCash = todayBookings
+      .filter((b) => b.paymentStatus === 'paid_cash')
+      .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+    const todayGamingUpi = todayBookings
+      .filter((b) => b.paymentStatus === 'paid_upi' || b.paymentStatus === 'paid_card')
+      .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+
+    const todayFoodRevenue = todayFood.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const todayFoodCash = todayFood
+      .filter((s) => s.paymentMethod === 'cash')
+      .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const todayFoodUpi = todayFood
+      .filter((s) => s.paymentMethod === 'upi')
+      .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+
+    const todayFoodItems = todayFood.reduce((sum, s) => {
+      if (Array.isArray(s.items)) {
+        return sum + s.items.reduce((iSum, i) => iSum + (Number(i.quantity) || 1), 0);
+      }
+      return sum + (Number(s.totalItemsCount) || 1);
+    }, 0);
+
+    const allTimeGaming = validBookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+    const allTimeFood = foodSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+
+    // Last 7 days (including today) revenue trend
+    const fmtLocal = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const week = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = fmtLocal(d);
+      const gaming = validBookings
+        .filter((b) => b.date === dateStr)
+        .reduce((s, b) => s + (Number(b.totalAmount) || 0), 0);
+      const food = foodSales
+        .filter((s) => s && s.date === dateStr)
+        .reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
+      return {
+        dateStr,
+        label: d.toLocaleDateString('en-IN', { weekday: 'short' }),
+        gaming,
+        food,
+        total: gaming + food,
+      };
+    });
+    const weekMax = Math.max(1, ...week.map((w) => w.total));
+
+    return {
+      todayGamingSessions: todayBookings.length,
+      todayGamingRevenue,
+      todayGamingCash,
+      todayGamingUpi,
+      todayFoodOrders: todayFood.length,
+      todayFoodRevenue,
+      todayFoodCash,
+      todayFoodUpi,
+      todayFoodItems,
+      todayCash: todayGamingCash + todayFoodCash,
+      todayUpi: todayGamingUpi + todayFoodUpi,
+      todayTotal: todayGamingRevenue + todayFoodRevenue,
+      allTimeGaming,
+      allTimeFood,
+      allTimeTotal: allTimeGaming + allTimeFood,
+      totalBookings: validBookings.length,
+      totalFoodSales: foodSales.length,
+      week,
+      weekMax,
+    };
+  }, [bookings, foodSales]);
+
+  const topPerformers = useMemo(() => {
+    return [...staffSummaryList]
+      .sort((a, b) => b.todayCollection - a.todayCollection)
+      .slice(0, 4);
+  }, [staffSummaryList]);
 
   const togglePinVisibility = (id) => {
     setShowPins((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -306,8 +397,19 @@ export default function AdminStaff() {
     window.print();
   };
 
-  // If non-admin logged in and tries to access Staff Management
+  // If non-admin logged in (Staff member), show their Personal Duty Dashboard!
   if (!isAdmin) {
+    if (isStaff && staffUser) {
+      return (
+        <StaffPersonalDashboard
+          staffUser={staffUser}
+          bookings={bookings}
+          foodSales={foodSales}
+          toast={toast}
+        />
+      );
+    }
+
     return (
       <div
         style={{
@@ -340,7 +442,7 @@ export default function AdminStaff() {
           Access Restricted
         </h2>
         <p style={{ color: '#94a3b8', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: 1.6 }}>
-          Staff Management and Collection Analytics are restricted to the Cafe Owner / Super Admin.
+          Staff Management is restricted to Cafe Owners and Authorized Staff Members.
         </p>
         <Link
           to="/admin"
@@ -412,6 +514,13 @@ export default function AdminStaff() {
           {/* Tab Switcher: Cards vs Report Table */}
           <div className="staff-view-switcher">
             <button
+              onClick={() => setViewTab('overview')}
+              className={viewTab === 'overview' ? 'active' : ''}
+              type="button"
+            >
+              <LayoutDashboard size={14} /> Overview Dashboard
+            </button>
+            <button
               onClick={() => setViewTab('cards')}
               className={viewTab === 'cards' ? 'active' : ''}
               type="button"
@@ -426,6 +535,14 @@ export default function AdminStaff() {
               <Table size={14} /> Handover & Performance
             </button>
           </div>
+
+          <Link
+            to="/admin/dashboard"
+            className="staff-header-dash-btn"
+            title="Open Main Cafe Business Dashboard"
+          >
+            <LayoutDashboard size={15} /> Main Dashboard
+          </Link>
 
           <button
             onClick={handleOpenAdd}
@@ -541,104 +658,292 @@ export default function AdminStaff() {
         </div>
       </div>
 
-      {/* ── Filters & Search Control Bar ── */}
-      <div className="staff-filter-bar">
-        {/* Search */}
-        <div className="staff-search-input-wrap">
-          <Search size={16} className="staff-search-icon" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search staff by name, phone, role..."
-            className="staff-search-input"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              style={{
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-              }}
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
-
-        {/* Filter Groups */}
-        <div className="staff-filter-groups">
-          {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="staff-filter-select"
-          >
-            <option value="all">All Roles</option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-
-          {/* Shift Filter */}
-          <select
-            value={shiftFilter}
-            onChange={(e) => setShiftFilter(e.target.value)}
-            className="staff-filter-select"
-          >
-            <option value="all">All Shifts</option>
-            <option value="morning">Morning Shift</option>
-            <option value="evening">Evening Shift</option>
-            <option value="full day">Full Day</option>
-            <option value="flexible">Flexible</option>
-          </select>
-
-          {/* Status Pills */}
-          <div className="staff-status-pills">
-            {['all', 'active', 'inactive'].map((tab) => (
+      {/* ── Filters & Search Control Bar (Only for Staff Cards and Report) ── */}
+      {viewTab !== 'overview' && (
+        <div className="staff-filter-bar">
+          {/* Search */}
+          <div className="staff-search-input-wrap">
+            <Search size={16} className="staff-search-icon" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search staff by name, phone, role..."
+              className="staff-search-input"
+            />
+            {searchTerm && (
               <button
-                key={tab}
-                onClick={() => setStatusFilter(tab)}
-                className={`staff-status-pill-btn ${statusFilter === tab ? 'active' : ''}`}
-                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                }}
               >
-                {tab === 'all' ? 'All' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                <X size={15} />
               </button>
-            ))}
+            )}
           </div>
 
-          {(searchTerm || roleFilter !== 'all' || shiftFilter !== 'all' || statusFilter !== 'all') && (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setRoleFilter('all');
-                setShiftFilter('all');
-                setStatusFilter('all');
-              }}
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#ef4444',
-                padding: '6px 12px',
-                borderRadius: 8,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+          {/* Filter Groups */}
+          <div className="staff-filter-groups">
+            {/* Role Filter */}
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="staff-filter-select"
             >
-              Reset
-            </button>
-          )}
+              <option value="all">All Roles</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+
+            {/* Shift Filter */}
+            <select
+              value={shiftFilter}
+              onChange={(e) => setShiftFilter(e.target.value)}
+              className="staff-filter-select"
+            >
+              <option value="all">All Shifts</option>
+              <option value="morning">Morning Shift</option>
+              <option value="evening">Evening Shift</option>
+              <option value="full day">Full Day</option>
+              <option value="flexible">Flexible</option>
+            </select>
+
+            {/* Status Pills */}
+            <div className="staff-status-pills">
+              {['all', 'active', 'inactive'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setStatusFilter(tab)}
+                  className={`staff-status-pill-btn ${statusFilter === tab ? 'active' : ''}`}
+                  type="button"
+                >
+                  {tab === 'all' ? 'All' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {(searchTerm || roleFilter !== 'all' || shiftFilter !== 'all' || statusFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setRoleFilter('all');
+                  setShiftFilter('all');
+                  setStatusFilter('all');
+                }}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ef4444',
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── VIEW 0: ALL-OVERVIEW DASHBOARD ── */}
+      {viewTab === 'overview' && (
+        <div className="staff-dashboard">
+          {/* ── Business KPI Grid ── */}
+          <div className="sd-kpi-grid">
+            <div className="sd-kpi-card sd-kpi--total">
+              <div className="sd-kpi-icon"><TrendingUp size={22} /></div>
+              <div className="sd-kpi-body">
+                <div className="sd-kpi-label">Today's Total Collection</div>
+                <div className="sd-kpi-value">{formatINR(overview.todayTotal)}</div>
+                <div className="sd-kpi-note">
+                  {overview.todayGamingSessions} gaming sessions · {overview.todayFoodOrders} food orders
+                </div>
+              </div>
+            </div>
+
+            <div className="sd-kpi-card sd-kpi--cash">
+              <div className="sd-kpi-icon"><Receipt size={22} /></div>
+              <div className="sd-kpi-body">
+                <div className="sd-kpi-label">Cash Today</div>
+                <div className="sd-kpi-value">{formatINR(overview.todayCash)}</div>
+                <div className="sd-kpi-note">In register / drawer</div>
+              </div>
+            </div>
+
+            <div className="sd-kpi-card sd-kpi--upi">
+              <div className="sd-kpi-icon"><Zap size={22} /></div>
+              <div className="sd-kpi-body">
+                <div className="sd-kpi-label">UPI Today</div>
+                <div className="sd-kpi-value">{formatINR(overview.todayUpi)}</div>
+                <div className="sd-kpi-note">Online + card payments</div>
+              </div>
+            </div>
+
+            <div className="sd-kpi-card sd-kpi--gaming">
+              <div className="sd-kpi-icon"><Gamepad2 size={22} /></div>
+              <div className="sd-kpi-body">
+                <div className="sd-kpi-label">Gaming Today</div>
+                <div className="sd-kpi-value">{formatINR(overview.todayGamingRevenue)}</div>
+                <div className="sd-kpi-note">{overview.todayGamingSessions} sessions booked</div>
+              </div>
+            </div>
+
+            <div className="sd-kpi-card sd-kpi--food">
+              <div className="sd-kpi-icon"><Coffee size={22} /></div>
+              <div className="sd-kpi-body">
+                <div className="sd-kpi-label">Food & Drinks Today</div>
+                <div className="sd-kpi-value">{formatINR(overview.todayFoodRevenue)}</div>
+                <div className="sd-kpi-note">{overview.todayFoodItems} items sold</div>
+              </div>
+            </div>
+
+            <div className="sd-kpi-card sd-kpi--alltime">
+              <div className="sd-kpi-icon"><Layers size={22} /></div>
+              <div className="sd-kpi-body">
+                <div className="sd-kpi-label">All-Time Revenue</div>
+                <div className="sd-kpi-value">{formatINR(overview.allTimeTotal)}</div>
+                <div className="sd-kpi-note">Across {overview.totalBookings} bookings & {overview.totalFoodSales} food sales</div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Weekly Revenue Trend + On-Duty Roster ── */}
+          <div className="sd-mid-grid">
+            <div className="sd-panel">
+              <div className="sd-panel-title">
+                <TrendingUp size={16} style={{ color: '#22d3ee' }} /> Revenue — Last 7 Days
+              </div>
+              <div className="sd-week-chart">
+                {overview.week.map((w) => (
+                  <div className="sd-week-col" key={w.dateStr} title={`${w.dateStr}: ${formatINR(w.total)}`}>
+                    <div className="sd-week-bars">
+                      <div
+                        className="sd-week-bar sd-week-bar--gaming"
+                        style={{ height: `${Math.max(6, Math.round((w.gaming / overview.weekMax) * 100))}%` }}
+                      />
+                      <div
+                        className="sd-week-bar sd-week-bar--food"
+                        style={{ height: `${Math.max(6, Math.round((w.food / overview.weekMax) * 100))}%` }}
+                      />
+                    </div>
+                    <div className="sd-week-label">{w.label}</div>
+                    <div className="sd-week-value">{formatINR(w.total)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="sd-panel">
+              <div className="sd-panel-title">
+                <Clock size={16} style={{ color: '#f59e0b' }} /> On-Duty Roster ({onDutyCount})
+              </div>
+              {staffList.filter((s) => isStaffCurrentlyOnShift(s.shift, s.status)).length === 0 ? (
+                <div className="sd-empty">No one is on duty right now.</div>
+              ) : (
+                <div className="sd-duty-list">
+                  {staffList
+                    .filter((s) => isStaffCurrentlyOnShift(s.shift, s.status))
+                    .slice(0, 6)
+                    .map((s) => (
+                      <div className="sd-duty-row" key={s.id}>
+                        <div className="sd-duty-avatar">{(s.name || 'S')[0].toUpperCase()}</div>
+                        <div className="sd-duty-info">
+                          <div className="sd-duty-name">{s.name}</div>
+                          <div className="sd-duty-role">{s.role}</div>
+                        </div>
+                        <span className="sd-duty-badge">On Duty</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Lower Grid: split analysis + top performers ── */}
+          <div className="sd-lower-grid">
+            {/* Payment Mix */}
+            <div className="sd-panel">
+              <div className="sd-panel-title">
+                <Receipt size={16} style={{ color: '#f59e0b' }} /> Today's Payment Mix
+              </div>
+              <div className="sd-split-bar">
+                <div
+                  className="sd-split-seg sd-split-seg--cash"
+                  style={{ width: `${overview.todayTotal > 0 ? Math.round((overview.todayCash / overview.todayTotal) * 100) : 0}%` }}
+                />
+                <div
+                  className="sd-split-seg sd-split-seg--upi"
+                  style={{ width: `${overview.todayTotal > 0 ? Math.round((overview.todayUpi / overview.todayTotal) * 100) : 100}%` }}
+                />
+              </div>
+              <div className="sd-split-legend">
+                <span><i className="sd-dot sd-dot--cash" /> Cash · {formatINR(overview.todayCash)} ({overview.todayTotal > 0 ? Math.round((overview.todayCash / overview.todayTotal) * 100) : 0}%)</span>
+                <span><i className="sd-dot sd-dot--upi" /> UPI · {formatINR(overview.todayUpi)} ({overview.todayTotal > 0 ? Math.round((overview.todayUpi / overview.todayTotal) * 100) : 0}%)</span>
+              </div>
+            </div>
+
+            {/* Revenue split: gaming vs food */}
+            <div className="sd-panel">
+              <div className="sd-panel-title">
+                <Layers size={16} style={{ color: '#00e5ff' }} /> Today's Revenue Split
+              </div>
+              <div className="sd-split-bar">
+                <div
+                  className="sd-split-seg sd-split-seg--gaming"
+                  style={{ width: `${overview.todayTotal > 0 ? Math.round((overview.todayGamingRevenue / overview.todayTotal) * 100) : 0}%` }}
+                />
+                <div
+                  className="sd-split-seg sd-split-seg--food"
+                  style={{ width: `${overview.todayTotal > 0 ? Math.round((overview.todayFoodRevenue / overview.todayTotal) * 100) : 100}%` }}
+                />
+              </div>
+              <div className="sd-split-legend">
+                <span><i className="sd-dot sd-dot--gaming" /> Gaming · {formatINR(overview.todayGamingRevenue)} ({overview.todayTotal > 0 ? Math.round((overview.todayGamingRevenue / overview.todayTotal) * 100) : 0}%)</span>
+                <span><i className="sd-dot sd-dot--food" /> Food · {formatINR(overview.todayFoodRevenue)} ({overview.todayTotal > 0 ? Math.round((overview.todayFoodRevenue / overview.todayTotal) * 100) : 0}%)</span>
+              </div>
+            </div>
+
+            {/* Top performers */}
+            <div className="sd-panel sd-performers-panel">
+              <div className="sd-panel-title">
+                <Users size={16} style={{ color: '#ff5500' }} /> Top Performers Today
+              </div>
+              {topPerformers.length === 0 ? (
+                <div className="sd-empty">No staff collections recorded yet today.</div>
+              ) : (
+                <div className="sd-performers">
+                  {topPerformers.map((p, idx) => (
+                    <div className="sd-performer-row" key={p.staff.id || idx}>
+                      <span className={`sd-rank ${idx === 0 ? 'sd-rank--gold' : idx === 1 ? 'sd-rank--silver' : ''}`}>
+                        {idx + 1}
+                      </span>
+                      <div className="sd-performer-info">
+                        <div className="sd-performer-name">{p.staff.name}</div>
+                        <div className="sd-performer-role">{p.staff.role} · {isStaffCurrentlyOnShift(p.staff.shift, p.staff.status) ? 'On Duty' : 'Off Shift'}</div>
+                      </div>
+                      <div className="sd-performer-amount">{formatINR(p.todayCollection)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── VIEW 1: STAFF CARDS VIEW ── */}
       {viewTab === 'cards' && (
@@ -1706,6 +2011,291 @@ export default function AdminStaff() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Personal Staff Duty Desk & Dashboard (for Staff role) ──
+function StaffPersonalDashboard({ staffUser, bookings, foodSales, toast }) {
+  const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'bookings' | 'food'
+
+  const myStats = useMemo(() => {
+    if (!staffUser) return null;
+    return calculateStaffStats(staffUser.id, staffUser.name, bookings, foodSales);
+  }, [staffUser, bookings, foodSales]);
+
+  const isOnShift = staffUser ? isStaffCurrentlyOnShift(staffUser.shift, staffUser.status) : false;
+  const todayStr = useMemo(() => getTodayString(), []);
+
+  const myTodayBookings = useMemo(() => {
+    if (!staffUser) return [];
+    return (bookings || []).filter(
+      (b) => b && b.date === todayStr && isBookingHandledByStaff(b, staffUser.id, staffUser.name)
+    );
+  }, [bookings, staffUser, todayStr]);
+
+  const myTodayFood = useMemo(() => {
+    if (!staffUser) return [];
+    return (foodSales || []).filter(
+      (s) => s && s.date === todayStr && isFoodSaleHandledByStaff(s, staffUser.id, staffUser.name)
+    );
+  }, [foodSales, staffUser, todayStr]);
+
+  const handleCopyHandover = () => {
+    if (!staffUser || !myStats) return;
+    const text =
+      `📋 *TS GAMING CAFÉ — SHIFT HANDOVER REPORT*\n` +
+      `👤 *Staff:* ${staffUser.name} (${staffUser.role || 'Staff'})\n` +
+      `📅 *Date:* ${getTodayString()}\n` +
+      `⏱️ *Shift:* ${staffUser.shift || 'General'}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `💵 *Cash to Handover (In Drawer):* ${formatINR(myStats.todayCash)}\n` +
+      `📱 *UPI / Online Payments:* ${formatINR(myStats.todayUpi)}\n` +
+      `💰 *Total Collected Today:* ${formatINR(myStats.todayCollection)}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🎮 *Gaming Sessions Handled:* ${myStats.todayGamingCount} (${formatINR(myStats.todayGamingCash)} Cash / ${formatINR(myStats.todayGamingUpi)} UPI)\n` +
+      `🍔 *Cafe POS Orders Handled:* ${myStats.todayFoodCount} (${formatINR(myStats.todayFoodCash)} Cash / ${formatINR(myStats.todayFoodUpi)} UPI)\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `✅ Handover Verified.`;
+
+    navigator.clipboard.writeText(text);
+    toast.success('Report Copied! 📋', 'Handover summary copied to clipboard.');
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!staffUser || !myStats) return;
+    const text =
+      `📋 *TS GAMING CAFÉ — SHIFT HANDOVER REPORT*\n` +
+      `👤 *Staff:* ${staffUser.name} (${staffUser.role || 'Staff'})\n` +
+      `📅 *Date:* ${getTodayString()}\n` +
+      `⏱️ *Shift:* ${staffUser.shift || 'General'}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `💵 *Cash to Handover:* ${formatINR(myStats.todayCash)}\n` +
+      `📱 *UPI Payments:* ${formatINR(myStats.todayUpi)}\n` +
+      `💰 *Total Collection:* ${formatINR(myStats.todayCollection)}\n` +
+      `🎮 *Gaming Sessions:* ${myStats.todayGamingCount}\n` +
+      `🍔 *Cafe Sales:* ${myStats.todayFoodCount}\n` +
+      `✅ Ready for Shift Close.`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  return (
+    <div className="admin-staff-page">
+      {/* ── Staff Hero Header ── */}
+      <div className="staff-duty-hero">
+        <div className="staff-duty-hero__info">
+          <div className="staff-duty-avatar">
+            {(staffUser.name || 'S').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div className="staff-page-eyebrow">
+              <Sparkles size={12} /> PERSONAL DUTY DESK
+            </div>
+            <h2 className="staff-duty-title">
+              Welcome, {staffUser.name}
+            </h2>
+            <div className="staff-duty-meta">
+              <span className="staff-duty-role">{staffUser.role || 'Staff Operator'}</span>
+              <span className="staff-duty-dot">·</span>
+              <span className="staff-duty-shift">⏱️ {staffUser.shift || 'General Shift'}</span>
+              <span className={`staff-duty-status-badge ${isOnShift ? 'on-shift' : 'off-shift'}`}>
+                {isOnShift ? '🟢 On Duty Now' : '⚪ Shift Off'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="staff-duty-hero__actions">
+          <Link to="/admin/bookings" className="btn btn-primary btn-sm">
+            <Gamepad2 size={15} /> Booking Counter
+          </Link>
+          <Link to="/admin/food" className="btn btn-secondary btn-sm">
+            <Coffee size={15} /> Cafe POS
+          </Link>
+          <Link to="/admin/dashboard" className="btn btn-ghost btn-sm">
+            <LayoutDashboard size={15} /> Main Dashboard
+          </Link>
+        </div>
+      </div>
+
+      {/* ── Personal KPI Grid ── */}
+      <div className="sd-kpi-grid" style={{ marginBottom: '1.5rem' }}>
+        <div className="sd-kpi-card sd-kpi--total">
+          <div className="sd-kpi-icon"><TrendingUp size={22} /></div>
+          <div className="sd-kpi-body">
+            <div className="sd-kpi-label">Your Total Collection Today</div>
+            <div className="sd-kpi-value">{formatINR(myStats?.todayCollection || 0)}</div>
+            <div className="sd-kpi-note">
+              {myStats?.todayGamingCount || 0} gaming · {myStats?.todayFoodCount || 0} cafe orders
+            </div>
+          </div>
+        </div>
+
+        <div className="sd-kpi-card sd-kpi--cash">
+          <div className="sd-kpi-icon"><Receipt size={22} /></div>
+          <div className="sd-kpi-body">
+            <div className="sd-kpi-label">Cash In Drawer (To Handover)</div>
+            <div className="sd-kpi-value">{formatINR(myStats?.todayCash || 0)}</div>
+            <div className="sd-kpi-note">Count physical cash in register</div>
+          </div>
+        </div>
+
+        <div className="sd-kpi-card sd-kpi--upi">
+          <div className="sd-kpi-icon"><Zap size={22} /></div>
+          <div className="sd-kpi-body">
+            <div className="sd-kpi-label">UPI Online Payments</div>
+            <div className="sd-kpi-value">{formatINR(myStats?.todayUpi || 0)}</div>
+            <div className="sd-kpi-note">Collected via Scanner / Online</div>
+          </div>
+        </div>
+
+        <div className="sd-kpi-card sd-kpi--gaming">
+          <div className="sd-kpi-icon"><Gamepad2 size={22} /></div>
+          <div className="sd-kpi-body">
+            <div className="sd-kpi-label">Gaming Sessions Booked</div>
+            <div className="sd-kpi-value">{myStats?.todayGamingCount || 0}</div>
+            <div className="sd-kpi-note">{formatINR(myStats?.todayGamingCollection || 0)} gaming value</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Handover & Settlement Card ── */}
+      <div className="sd-panel" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: '1rem' }}>
+          <div>
+            <div className="sd-panel-title" style={{ margin: 0 }}>
+              <Receipt size={18} style={{ color: '#22c55e' }} /> Shift Handover Summary
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
+              Handover this exact cash amount to the manager or next duty staff at the end of your shift.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleCopyHandover}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Copy size={14} /> Copy Handover Report
+            </button>
+            <button
+              type="button"
+              onClick={handleShareWhatsApp}
+              className="btn btn-primary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Share2 size={14} /> Send on WhatsApp
+            </button>
+          </div>
+        </div>
+
+        <div className="sd-split-bar">
+          <div
+            className="sd-split-seg sd-split-seg--cash"
+            style={{ width: `${(myStats?.todayCollection || 0) > 0 ? Math.round(((myStats?.todayCash || 0) / myStats.todayCollection) * 100) : 0}%` }}
+          />
+          <div
+            className="sd-split-seg sd-split-seg--upi"
+            style={{ width: `${(myStats?.todayCollection || 0) > 0 ? Math.round(((myStats?.todayUpi || 0) / myStats.todayCollection) * 100) : 100}%` }}
+          />
+        </div>
+        <div className="sd-split-legend">
+          <span><i className="sd-dot sd-dot--cash" /> Cash to Handover · {formatINR(myStats?.todayCash || 0)}</span>
+          <span><i className="sd-dot sd-dot--upi" /> UPI Collected · {formatINR(myStats?.todayUpi || 0)}</span>
+          <span><i className="sd-dot sd-dot--gaming" /> Total · {formatINR(myStats?.todayCollection || 0)}</span>
+        </div>
+      </div>
+
+      {/* ── Today's Handled Activity Tabs ── */}
+      <div className="sd-panel">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: '1rem' }}>
+          <div className="sd-panel-title" style={{ margin: 0 }}>
+            <Clock size={16} style={{ color: '#00f5d4' }} /> Today's Handled Records
+          </div>
+          <div className="staff-view-switcher">
+            <button
+              type="button"
+              className={activeTab === 'summary' ? 'active' : ''}
+              onClick={() => setActiveTab('summary')}
+            >
+              All Records ({myTodayBookings.length + myTodayFood.length})
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'bookings' ? 'active' : ''}
+              onClick={() => setActiveTab('bookings')}
+            >
+              🎮 Gaming ({myTodayBookings.length})
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'food' ? 'active' : ''}
+              onClick={() => setActiveTab('food')}
+            >
+              ☕ Cafe Orders ({myTodayFood.length})
+            </button>
+          </div>
+        </div>
+
+        {myTodayBookings.length === 0 && myTodayFood.length === 0 ? (
+          <div className="sd-empty">
+            No bookings or orders recorded under your name yet today. Start bookings at the counter to track them here!
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="staff-table" style={{ width: '100%', fontSize: '0.82rem' }}>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Customer / Details</th>
+                  <th>Timing</th>
+                  <th>Payment</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(activeTab === 'summary' || activeTab === 'bookings') &&
+                  myTodayBookings.map((b) => (
+                    <tr key={b.id}>
+                      <td><span style={{ color: '#00ff66', fontWeight: 700 }}>🎮 Gaming</span></td>
+                      <td><strong>{b.userName || 'Walk-in Gamer'}</strong> · {b.setupName || 'Console'}</td>
+                      <td>{b.startTime} - {b.endTime} ({b.durationMins || 60}m)</td>
+                      <td>
+                        <span className={`staff-shift-badge ${b.paymentStatus === 'paid_cash' ? 'shift-morning' : 'shift-evening'}`}>
+                          {b.paymentStatus === 'paid_cash' ? '💵 Cash' : '📱 UPI'}
+                        </span>
+                      </td>
+                      <td style={{ color: '#00ff66', fontWeight: 800 }}>{formatINR(b.totalAmount)}</td>
+                    </tr>
+                  ))}
+                {(activeTab === 'summary' || activeTab === 'food') &&
+                  myTodayFood.map((s) => (
+                    <tr key={s.id}>
+                      <td><span style={{ color: '#f59e0b', fontWeight: 700 }}>☕ Cafe</span></td>
+                      <td>
+                        <strong>{s.customerName || 'Counter Customer'}</strong> (
+                        {Array.isArray(s.items)
+                          ? s.items.map((i) => `${i.name} x${i.quantity}`).join(', ')
+                          : 'Cafe Items'}
+                        )
+                      </td>
+                      <td>{s.time || 'Today'}</td>
+                      <td>
+                        <span className={`staff-shift-badge ${s.paymentMethod === 'cash' ? 'shift-morning' : 'shift-evening'}`}>
+                          {s.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
+                        </span>
+                      </td>
+                      <td style={{ color: '#f59e0b', fontWeight: 800 }}>{formatINR(s.totalAmount)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

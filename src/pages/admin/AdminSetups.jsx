@@ -89,7 +89,7 @@ const DEFAULT_PS_SEED = [
     pricePer30Min: 20,
     capacity: 6,
     status: 'available',
-    specs: ['6-Player Multi-Seat Setup (6 लोकांची जागा)', 'DualShock 2 Controllers', 'Memory Card 64MB', 'CRT / Gaming Display'],
+    specs: ['6-Player Multi-Seat Setup (6 Seats Capacity)', 'DualShock 2 Controllers', 'Memory Card 64MB', 'CRT / Gaming Display'],
     games: ['GTA San Andreas', 'GTA Vice City', 'WWE SmackDown Here Comes The Pain', 'God of War II', 'Tekken 5', 'Need for Speed Most Wanted'],
     image: '',
   },
@@ -194,7 +194,7 @@ export default function AdminSetups() {
       rate = 30;
       rate30 = 20;
       cap = 6;
-      specs = '6-Player Multi-Seat Setup (6 लोकांची जागा)\nDualShock 2 Controllers\nMemory Card 64MB';
+      specs = '6-Player Multi-Seat Setup (6 Seats Capacity)\nDualShock 2 Controllers\nMemory Card 64MB';
       games = 'GTA San Andreas\nGTA Vice City\nWWE SmackDown Here Comes The Pain\nGod of War II\nTekken 5';
     } else if (type === 'PC') {
       rate = 70;
@@ -584,7 +584,7 @@ export default function AdminSetups() {
 
                 <div className="form-group">
                   <label className="form-label" style={{ color: '#00ff66' }}>
-                    👥 Seat Capacity (जागा / Players)
+                    👥 Seat Capacity (Seats / Players)
                   </label>
                   <input
                     type="number"

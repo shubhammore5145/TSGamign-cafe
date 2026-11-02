@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { subscribeToAllUsers, addUser, updateUser, deleteUser } from '../../firebase/firestore';
+import {
+  subscribeToAllUsers,
+  addUser,
+  updateUser,
+  deleteUser,
+  subscribeToAllBookings,
+  syncMissingCustomersFromBookings,
+} from '../../firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 import {
   Users,
@@ -18,15 +25,22 @@ import {
   MessageSquare,
   RefreshCw,
   ExternalLink,
+  Flame,
+  ArrowUpDown,
+  Calendar,
+  Wallet,
 } from 'lucide-react';
 import { formatPhoneNumber, getClean10Phone } from '../../utils/staffStats';
 import './AdminUsers.css';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'user' | 'admin'
+  const [filterTab, setFilterTab] = useState('all'); // 'all' | 'repeat' | 'first' | 'admin'
+  const [sortBy, setSortBy] = useState('most_visits'); // 'most_visits' | 'recent' | 'spend' | 'name'
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [newGamer, setNewGamer] = useState({
@@ -41,28 +55,115 @@ export default function AdminUsers() {
   const toast = useToast();
   const navigate = useNavigate();
 
-  // Real-time synchronization of users collection
+  // Real-time synchronization of users & bookings collections
   useEffect(() => {
     setLoading(true);
-    const unsub = subscribeToAllUsers(
+    let unsubUsers = null;
+    let unsubBookings = null;
+
+    unsubUsers = subscribeToAllUsers(
       (data) => {
-        setUsers(data);
+        setUsers(data || []);
         setLoading(false);
       },
       (err) => {
-        toast.error('Sync Error', 'Could not sync users: ' + (err?.message || 'Check Firestore'));
+        console.warn('subscribeToAllUsers warning:', err?.message);
         setLoading(false);
       }
     );
-    return () => unsub && unsub();
+
+    unsubBookings = subscribeToAllBookings((data) => {
+      setBookings(data || []);
+    });
+
+    return () => {
+      if (unsubUsers) unsubUsers();
+      if (unsubBookings) unsubBookings();
+    };
   }, []);
 
-  // Filtered users list
-  const filteredUsers = useMemo(() => {
-    let list = [...users];
+  // Compute live visits & stats for every user
+  const gamersWithStats = useMemo(() => {
+    // 1. Group bookings by clean 10-digit phone and by userId
+    const bookingsByPhone = new Map();
+    const bookingsByUid = new Map();
 
-    if (roleFilter !== 'all') {
-      list = list.filter((u) => (u.role || 'user').toLowerCase() === roleFilter.toLowerCase());
+    bookings.forEach((b) => {
+      if (!b || b.status === 'cancelled') return;
+      const cleanP = getClean10Phone(b.userPhone || b.customerPhone || b.phone);
+      if (cleanP.length >= 10) {
+        const list = bookingsByPhone.get(cleanP) || [];
+        list.push(b);
+        bookingsByPhone.set(cleanP, list);
+      }
+      if (b.userId) {
+        const list = bookingsByUid.get(b.userId) || [];
+        list.push(b);
+        bookingsByUid.set(b.userId, list);
+      }
+    });
+
+    return users.map((u) => {
+      const cleanP = getClean10Phone(u.phone);
+      const phoneBookings = cleanP.length >= 10 ? (bookingsByPhone.get(cleanP) || []) : [];
+      const uidBookings = u.id ? (bookingsByUid.get(u.id) || []) : [];
+
+      // Combine unique bookings
+      const bSet = new Set();
+      const combined = [];
+      [...phoneBookings, ...uidBookings].forEach((b) => {
+        if (!bSet.has(b.id)) {
+          bSet.add(b.id);
+          combined.push(b);
+        }
+      });
+
+      // Accurate visit count: Math.max of stored visitCount and actual matching bookings
+      const storedVisits = Number(u.visitCount) || 0;
+      const totalVisits = Math.max(storedVisits, combined.length, 1);
+
+      // Total money spent on cafe & PlayStation
+      const bookingsSpend = combined.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+      const totalSpend = Math.max(Number(u.totalSpent) || 0, bookingsSpend);
+
+      // Find latest visit date
+      let lastVisitDate = u.lastVisit || null;
+      combined.forEach((b) => {
+        if (b.date && (!lastVisitDate || b.date > lastVisitDate)) {
+          lastVisitDate = b.date;
+        }
+      });
+
+      return {
+        ...u,
+        clean10Phone: cleanP,
+        visitsCount: totalVisits,
+        totalSpend,
+        lastVisitDate,
+        bookingsCount: combined.length,
+      };
+    });
+  }, [users, bookings]);
+
+  // Metric counts
+  const phoneCount = useMemo(() => gamersWithStats.filter((u) => u.clean10Phone.length >= 10).length, [gamersWithStats]);
+  const adminCount = useMemo(() => gamersWithStats.filter((u) => u.role === 'admin').length, [gamersWithStats]);
+  const repeatCount = useMemo(() => gamersWithStats.filter((u) => u.visitsCount >= 2 && u.role !== 'admin').length, [gamersWithStats]);
+  const firstTimerCount = useMemo(() => gamersWithStats.filter((u) => u.visitsCount === 1 && u.role !== 'admin').length, [gamersWithStats]);
+  const totalVisitsSum = useMemo(() => gamersWithStats.reduce((sum, u) => sum + (u.visitsCount || 1), 0), [gamersWithStats]);
+
+  // Filtered & Sorted gamers list
+  const filteredGamers = useMemo(() => {
+    let list = [...gamersWithStats];
+
+    if (filterTab === 'repeat') {
+      list = list.filter((u) => u.visitsCount >= 2 && u.role !== 'admin');
+    } else if (filterTab === 'first') {
+      list = list.filter((u) => u.visitsCount === 1 && u.role !== 'admin');
+    } else if (filterTab === 'admin') {
+      list = list.filter((u) => u.role === 'admin');
+    } else if (filterTab === 'user') {
+      list = list.filter((u) => u.role !== 'admin');
     }
 
     if (search.trim()) {
@@ -72,28 +173,45 @@ export default function AdminUsers() {
         const nameMatch = (u.name || '').toLowerCase().includes(q);
         const emailMatch = (u.email || '').toLowerCase().includes(q);
         const tagMatch = (u.gamerTag || '').toLowerCase().includes(q);
-        const phoneMatch = cleanDigits
-          ? getClean10Phone(u.phone).includes(cleanDigits)
-          : false;
+        const phoneMatch = cleanDigits ? u.clean10Phone.includes(cleanDigits) : false;
         return nameMatch || emailMatch || tagMatch || phoneMatch;
       });
     }
 
+    list.sort((a, b) => {
+      if (sortBy === 'most_visits') {
+        return (b.visitsCount || 0) - (a.visitsCount || 0);
+      }
+      if (sortBy === 'spend') {
+        return (b.totalSpend || 0) - (a.totalSpend || 0);
+      }
+      if (sortBy === 'recent') {
+        const dateA = a.lastVisitDate || (a.createdAt?.toDate ? a.createdAt.toDate().toISOString() : '0');
+        const dateB = b.lastVisitDate || (b.createdAt?.toDate ? b.createdAt.toDate().toISOString() : '0');
+        return dateB.localeCompare(dateA);
+      }
+      if (sortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return 0;
+    });
+
     return list;
-  }, [users, roleFilter, search]);
+  }, [gamersWithStats, filterTab, search, sortBy]);
 
-  // Metric counts
-  const phoneCount = useMemo(() => users.filter((u) => u.phone && getClean10Phone(u.phone).length >= 10).length, [users]);
-  const adminCount = useMemo(() => users.filter((u) => u.role === 'admin').length, [users]);
-
-  // Handle Role Toggle
-  const toggleRole = async (user) => {
-    const newRole = user.role === 'admin' ? 'user' : 'admin';
+  // Handle Sync from Bookings History
+  const handleSyncFromBookings = async () => {
+    setSyncing(true);
     try {
-      await updateUser(user.id, { role: newRole });
-      toast.success('Role Updated', `${user.name || 'Gamer'} is now ${newRole.toUpperCase()}.`);
+      const res = await syncMissingCustomersFromBookings();
+      toast.success(
+        'Synced with History! 🎮',
+        `Processed ${res.totalAggregated} customer phones (${res.createdCount} new registered, ${res.updatedCount} visits updated).`
+      );
     } catch (err) {
-      toast.error('Error', err.message);
+      toast.error('Sync Failed', err.message);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -131,6 +249,8 @@ export default function AdminUsers() {
         gamerTag: newGamer.gamerTag.trim() || '',
         notes: newGamer.notes.trim() || '',
         role: newGamer.role || 'user',
+        visitCount: 1,
+        totalSpent: 0,
       });
 
       toast.success('Gamer Registered! 🎮', `${newGamer.name} added to database.`);
@@ -156,7 +276,7 @@ export default function AdminUsers() {
       <div className="users-page-header">
         <div className="users-page-heading">
           <div className="users-page-eyebrow">
-            <Users size={12} /> Gamers & Customers
+            <Users size={12} /> Gamers & Customers Database
           </div>
           <h2 className="admin-section-title">
             <div className="users-title-icon-wrap">
@@ -164,7 +284,7 @@ export default function AdminUsers() {
             </div>
             Customer Profiles
             <span className="users-badge-count">
-              👥 {users.length} Registered
+              👥 {gamersWithStats.length} Registered
             </span>
           </h2>
         </div>
@@ -172,12 +292,23 @@ export default function AdminUsers() {
         <div className="users-page-actions">
           <button
             type="button"
+            className="users-sync-btn"
+            onClick={handleSyncFromBookings}
+            disabled={syncing}
+            title="Sync all customers and their visit counts from past booking records"
+          >
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Syncing...' : 'Sync From Bookings'}</span>
+          </button>
+
+          <button
+            type="button"
             className="btn btn-primary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
             onClick={() => setShowAddModal(true)}
           >
             <UserPlus size={16} />
-            <span>Add New Gamer (ॲड करा)</span>
+            <span>Add Gamer</span>
           </button>
         </div>
       </div>
@@ -189,8 +320,28 @@ export default function AdminUsers() {
             <Users size={18} />
           </div>
           <div>
-            <div className="users-stat-val">{users.length}</div>
+            <div className="users-stat-val">{gamersWithStats.length}</div>
             <div className="users-stat-lbl">Total Gamers</div>
+          </div>
+        </div>
+
+        <div className="users-stat-card" style={{ borderColor: 'rgba(245, 158, 11, 0.35)' }}>
+          <div className="users-stat-icon amber" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+            <Flame size={18} />
+          </div>
+          <div>
+            <div className="users-stat-val" style={{ color: '#fbbf24' }}>{repeatCount}</div>
+            <div className="users-stat-lbl">Repeat Gamers (2+ Visits)</div>
+          </div>
+        </div>
+
+        <div className="users-stat-card">
+          <div className="users-stat-icon cyan">
+            <Gamepad2 size={18} />
+          </div>
+          <div>
+            <div className="users-stat-val">{totalVisitsSum}</div>
+            <div className="users-stat-lbl">Total Visits</div>
           </div>
         </div>
 
@@ -200,53 +351,61 @@ export default function AdminUsers() {
           </div>
           <div>
             <div className="users-stat-val">{phoneCount}</div>
-            <div className="users-stat-lbl">Phone Numbers</div>
-          </div>
-        </div>
-
-        <div className="users-stat-card">
-          <div className="users-stat-icon cyan">
-            <Shield size={18} />
-          </div>
-          <div>
-            <div className="users-stat-val">{adminCount}</div>
-            <div className="users-stat-lbl">Admins & Staff</div>
+            <div className="users-stat-lbl">With Mobile No.</div>
           </div>
         </div>
       </div>
 
-      {/* ── Filter / Search Bar ── */}
+      {/* ── Filter / Search / Sort Bar ── */}
       <div className="users-filter-bar">
         <div className="users-search-box">
           <Search size={16} className="users-search-icon" />
           <input
             type="text"
             className="users-search-input"
-            placeholder="Search gamer name, phone, or email..."
+            placeholder="Search gamer name, phone, or tag..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
+        {/* Filter Tabs */}
         <div className="users-role-filters">
           {[
-            { id: 'all', label: `All (${users.length})` },
-            { id: 'user', label: `Gamers (${users.filter((u) => u.role !== 'admin').length})` },
+            { id: 'all', label: `All (${gamersWithStats.length})` },
+            { id: 'repeat', label: `🔥 Regulars (${repeatCount})` },
+            { id: 'first', label: `🌱 1st Visit (${firstTimerCount})` },
             { id: 'admin', label: `Admins (${adminCount})` },
           ].map((r) => (
             <button
               key={r.id}
               type="button"
-              className={`users-filter-btn ${roleFilter === r.id ? 'active' : ''}`}
-              onClick={() => setRoleFilter(r.id)}
+              className={`users-filter-btn ${filterTab === r.id ? 'active' : ''}`}
+              onClick={() => setFilterTab(r.id)}
             >
               {r.label}
             </button>
           ))}
         </div>
+
+        {/* Sort Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ArrowUpDown size={14} style={{ color: '#94a3b8' }} />
+          <select
+            className="users-sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            title="Sort gamers list"
+          >
+            <option value="most_visits">🔥 Most Visits</option>
+            <option value="recent">🕒 Recently Visited</option>
+            <option value="spend">💰 Highest Spend</option>
+            <option value="name">🔤 Name (A-Z)</option>
+          </select>
+        </div>
       </div>
 
-      {/* ── Loading & Empty States ── */}
+      {/* ── Loading State ── */}
       {loading && (
         <div className="users-empty-state">
           <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 10px' }} />
@@ -254,14 +413,15 @@ export default function AdminUsers() {
         </div>
       )}
 
-      {!loading && filteredUsers.length === 0 && (
+      {/* ── Empty State ── */}
+      {!loading && filteredGamers.length === 0 && (
         <div className="users-empty-state">
           <div className="users-empty-icon">
             <Users size={26} />
           </div>
           <h3 style={{ color: '#fff', fontSize: '1.1rem', marginBottom: 6 }}>No gamers found</h3>
           <p style={{ margin: 0, fontSize: '0.85rem' }}>
-            {search ? 'No gamer matches your search query.' : 'Click "Add New Gamer" above to register your first gamer!'}
+            {search ? 'No gamer matches your search query.' : 'Click "Add Gamer" above or make a booking to save customer details!'}
           </p>
           <button
             type="button"
@@ -275,14 +435,14 @@ export default function AdminUsers() {
       )}
 
       {/* ── Gamers Cards Grid (Thumb & Mobile Friendly) ── */}
-      {!loading && filteredUsers.length > 0 && (
+      {!loading && filteredGamers.length > 0 && (
         <div className="users-cards-grid">
-          {filteredUsers.map((u) => {
-            const clean10 = getClean10Phone(u.phone);
-            const hasPhone = clean10.length >= 10;
-            const waLink = hasPhone ? `https://wa.me/91${clean10}` : null;
-            const callLink = hasPhone ? `tel:+91${clean10}` : null;
+          {filteredGamers.map((u) => {
+            const hasPhone = u.clean10Phone.length >= 10;
+            const waLink = hasPhone ? `https://wa.me/91${u.clean10Phone}` : null;
+            const callLink = hasPhone ? `tel:+91${u.clean10Phone}` : null;
             const isAdmin = u.role === 'admin';
+            const visits = u.visitsCount || 1;
 
             return (
               <div key={u.id} className={`gamer-card ${isAdmin ? 'is-admin' : ''}`}>
@@ -306,14 +466,30 @@ export default function AdminUsers() {
                         </span>
                       )}
                     </div>
-                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span className={`gamer-role-badge ${isAdmin ? 'admin' : 'user'}`}>
                         {isAdmin ? <Shield size={10} /> : <User size={10} />}
                         {isAdmin ? 'ADMIN' : 'GAMER'}
                       </span>
-                      <span className="gamer-joined-date">
-                        Joined: {u.createdAt?.toDate?.()?.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) || 'Recent'}
-                      </span>
+
+                      {/* Prominent Visit Count Badge (Customer Visit Count) */}
+                      {!isAdmin && (
+                        <span
+                          className={`gamer-visit-badge ${
+                            visits >= 5 ? 'vip' : visits >= 2 ? 'repeat' : 'first'
+                          }`}
+                          title={`Customer visit count: ${visits} times`}
+                        >
+                          {visits >= 5 ? (
+                            <>👑 <strong>{visits} Visits</strong> (VIP Regular)</>
+                          ) : visits >= 2 ? (
+                            <>🔥 <strong>{visits} Visits</strong> (Regular)</>
+                          ) : (
+                            <>🌱 <strong>1st Visit</strong> (New Gamer)</>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -328,17 +504,48 @@ export default function AdminUsers() {
                   </button>
                 </div>
 
+                {/* Customer Gaming Activity Strip (Visits, Spend, Last Visit) */}
+                {!isAdmin && (
+                  <div className="gamer-metrics-strip">
+                    <div className="gamer-metric-pill" title="Total Visits to TS Gaming Cafe">
+                      <span className="metric-icon">🔁</span>
+                      <div>
+                        <div className="metric-val">{visits} Visits</div>
+                        <div className="metric-lbl">Total Visits</div>
+                      </div>
+                    </div>
+
+                    <div className="gamer-metric-pill" title="Total Spent on Gaming & Cafe">
+                      <span className="metric-icon">💰</span>
+                      <div>
+                        <div className="metric-val">₹{Number(u.totalSpend || 0).toLocaleString('en-IN')}</div>
+                        <div className="metric-lbl">Total Spent</div>
+                      </div>
+                    </div>
+
+                    <div className="gamer-metric-pill" title="Latest Visit Date">
+                      <span className="metric-icon">📅</span>
+                      <div>
+                        <div className="metric-val">
+                          {u.lastVisitDate ? u.lastVisitDate : 'Recent'}
+                        </div>
+                        <div className="metric-lbl">Last Visit</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Contact Information */}
                 <div className="gamer-contact-row">
                   <div className="gamer-contact-item">
-                    <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Mobile:</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Mobile Number:</span>
                     {hasPhone ? (
                       <a href={callLink} className="gamer-phone-link">
                         <Phone size={12} />
                         {formatPhoneNumber(u.phone)}
                       </a>
                     ) : (
-                      <span style={{ color: '#64748b' }}>No phone</span>
+                      <span style={{ color: '#64748b' }}>No phone saved</span>
                     )}
                   </div>
                   {u.email && (
@@ -350,7 +557,10 @@ export default function AdminUsers() {
                     </div>
                   )}
                   {u.notes && (
-                    <div className="gamer-contact-item" style={{ borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: 4 }}>
+                    <div
+                      className="gamer-contact-item"
+                      style={{ borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: 4 }}
+                    >
                       <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Note:</span>
                       <span style={{ color: '#e2e8f0', fontSize: '0.75rem' }}>{u.notes}</span>
                     </div>
@@ -381,12 +591,11 @@ export default function AdminUsers() {
                     type="button"
                     className="gamer-action-btn book"
                     onClick={() => {
-                      // Navigate to staff booking counter with customer prefilled
                       navigate('/admin/bookings', {
                         state: {
                           prefillUser: {
                             name: u.name,
-                            phone: clean10,
+                            phone: u.clean10Phone,
                           },
                         },
                       });
@@ -410,7 +619,7 @@ export default function AdminUsers() {
             <div className="gamer-modal-header">
               <div className="gamer-modal-title">
                 <UserPlus size={18} style={{ color: '#a855f7' }} />
-                <span>Add New Gamer (नवा गेमर ॲड करा)</span>
+                <span>Add New Gamer</span>
               </div>
               <button
                 type="button"
@@ -518,7 +727,7 @@ export default function AdminUsers() {
                   ) : (
                     <Check size={14} />
                   )}
-                  <span>Save Gamer (जतन करा)</span>
+                  <span>Save Gamer</span>
                 </button>
               </div>
             </form>

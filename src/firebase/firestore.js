@@ -46,6 +46,200 @@ export const subscribeToAllUsers = (callback, onError) =>
     }
   );
 
+// Helper to extract clean 10-digit phone
+function getCleanPhoneDigits(val) {
+  if (!val) return '';
+  const digits = String(val).replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+/**
+ * Automatically creates or updates customer profile in `users` collection.
+ * Tracks customer visit count ("to user kiti vela aala"), total spend, and contact details.
+ */
+export const saveOrUpdateCustomer = async ({
+  name,
+  phone,
+  email,
+  notes,
+  amount = 0,
+  source = 'booking',
+}) => {
+  const cleanPhone = getCleanPhoneDigits(phone);
+  const cleanName = (name || '').trim();
+
+  // If both phone and a non-generic name are absent, nothing to save
+  const isGenericName =
+    !cleanName || ['walk-in gamer', 'customer', 'gamer', 'player', 'your name'].includes(cleanName.toLowerCase());
+  if (!cleanPhone && isGenericName) return null;
+
+  try {
+    let existingDoc = null;
+    let existingId = null;
+
+    if (cleanPhone && cleanPhone.length === 10) {
+      // Find user by 10-digit phone number in users collection
+      const q = query(collection(db, 'users'), where('phone', '==', cleanPhone), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        existingDoc = snap.docs[0].data();
+        existingId = snap.docs[0].id;
+      }
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const addedSpend = Number(amount) || 0;
+
+    if (existingId) {
+      // User exists: increment visitCount and update totalSpent & lastVisit
+      const currentVisits = Number(existingDoc.visitCount) || 1;
+      const currentSpend = Number(existingDoc.totalSpent) || 0;
+      const updateData = {
+        visitCount: currentVisits + 1,
+        lastVisit: todayStr,
+        lastVisitTimestamp: serverTimestamp(),
+        totalSpent: currentSpend + addedSpend,
+        updatedAt: serverTimestamp(),
+      };
+
+      const oldNameLower = (existingDoc.name || '').toLowerCase().trim();
+      const isOldGeneric = !existingDoc.name || ['gamer', 'walk-in gamer', 'customer', 'player', 'your name'].includes(oldNameLower);
+      if (isOldGeneric && !isGenericName) {
+        updateData.name = cleanName;
+      }
+      if (email && !existingDoc.email) {
+        updateData.email = email.trim();
+      }
+      if (notes && !existingDoc.notes) {
+        updateData.notes = notes.trim();
+      }
+
+      await updateDoc(doc(db, 'users', existingId), updateData);
+      return { id: existingId, ...existingDoc, ...updateData };
+    } else {
+      // New user: register in users collection
+      const newGamer = {
+        name: !isGenericName ? cleanName : (cleanPhone ? `Gamer ${cleanPhone.slice(-4)}` : 'Customer'),
+        phone: cleanPhone || '',
+        email: email ? email.trim() : '',
+        role: 'user',
+        notes: notes ? notes.trim() : '',
+        source: source || 'booking',
+        visitCount: 1,
+        lastVisit: todayStr,
+        lastVisitTimestamp: serverTimestamp(),
+        totalSpent: addedSpend,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const docRef = await addDoc(collection(db, 'users'), newGamer);
+      return { id: docRef.id, ...newGamer };
+    }
+  } catch (err) {
+    console.warn('[saveOrUpdateCustomer] error:', err?.message);
+    return null;
+  }
+};
+
+/**
+ * Syncs any missing customers and updates visit counts from existing booking history.
+ */
+export const syncMissingCustomersFromBookings = async () => {
+  try {
+    const bookingsSnap = await getDocs(collection(db, 'bookings'));
+    const allBookings = bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const userByPhone = new Map();
+    allUsers.forEach(u => {
+      const p = getCleanPhoneDigits(u.phone);
+      if (p.length === 10) {
+        userByPhone.set(p, u);
+      }
+    });
+
+    const phoneAgg = new Map();
+    allBookings.forEach(b => {
+      if (!b || b.status === 'cancelled') return;
+      const p = getCleanPhoneDigits(b.userPhone || b.customerPhone || b.phone);
+      if (p.length !== 10) return;
+
+      const agg = phoneAgg.get(p) || {
+        phone: p,
+        name: '',
+        email: '',
+        visits: 0,
+        totalSpent: 0,
+        lastVisit: null,
+      };
+
+      agg.visits += 1;
+      agg.totalSpent += Number(b.totalAmount) || 0;
+
+      const bName = (b.userName || b.customerName || '').trim();
+      const isGeneric = !bName || ['walk-in gamer', 'customer', 'gamer', 'player', 'your name'].includes(bName.toLowerCase());
+      if (!isGeneric && (!agg.name || isGeneric)) {
+        agg.name = bName;
+      }
+      if (b.userEmail || b.customerEmail) {
+        agg.email = b.userEmail || b.customerEmail;
+      }
+      if (b.date) {
+        if (!agg.lastVisit || b.date > agg.lastVisit) {
+          agg.lastVisit = b.date;
+        }
+      }
+
+      phoneAgg.set(p, agg);
+    });
+
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    for (const [phone, agg] of phoneAgg.entries()) {
+      const existing = userByPhone.get(phone);
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      if (!existing) {
+        await addDoc(collection(db, 'users'), {
+          name: agg.name || `Gamer ${phone.slice(-4)}`,
+          phone,
+          email: agg.email || '',
+          role: 'user',
+          notes: 'Auto-synced from booking history',
+          source: 'booking_sync',
+          visitCount: agg.visits,
+          lastVisit: agg.lastVisit || todayStr,
+          totalSpent: agg.totalSpent,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        createdCount++;
+      } else {
+        const currentVisits = Number(existing.visitCount) || 0;
+        const currentSpent = Number(existing.totalSpent) || 0;
+        if (agg.visits > currentVisits || agg.totalSpent > currentSpent) {
+          await updateDoc(doc(db, 'users', existing.id), {
+            visitCount: Math.max(currentVisits, agg.visits),
+            totalSpent: Math.max(currentSpent, agg.totalSpent),
+            lastVisit: agg.lastVisit || existing.lastVisit || todayStr,
+            updatedAt: serverTimestamp(),
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    return { success: true, createdCount, updatedCount, totalAggregated: phoneAgg.size };
+  } catch (err) {
+    console.error('syncMissingCustomersFromBookings error:', err);
+    throw err;
+  }
+};
+
 // ─── GAMING SETUPS ───────────────────────────────────────────
 export const getSetups = () => getDocs(collection(db, 'gamingSetups'));
 
@@ -67,12 +261,35 @@ export const subscribeToSetups = (callback, onError) =>
   );
 
 // ─── BOOKINGS ────────────────────────────────────────────────
-export const createBooking = (data) =>
-  addDoc(collection(db, 'bookings'), {
+export const createBooking = async (data) => {
+  const docRef = await addDoc(collection(db, 'bookings'), {
     status: 'confirmed',
     ...data,
     createdAt: serverTimestamp(),
   });
+
+  // Auto save/update gamer profile and visit count in admin users collection
+  try {
+    const rawPhone = data.userPhone || data.customerPhone || data.phone;
+    const rawName = data.userName || data.customerName || data.name;
+    const rawEmail = data.userEmail || data.customerEmail || data.email;
+    const rawAmount = data.totalAmount || data.amount || 0;
+
+    if (rawPhone || rawName) {
+      saveOrUpdateCustomer({
+        name: rawName,
+        phone: rawPhone,
+        email: rawEmail,
+        amount: rawAmount,
+        source: data.source || 'booking',
+      }).catch((e) => console.warn('[createBooking auto-customer save error]:', e?.message));
+    }
+  } catch (e) {
+    console.warn('[createBooking] customer auto-save failed:', e?.message);
+  }
+
+  return docRef;
+};
 
 export const getBooking = (id) => getDoc(doc(db, 'bookings', id));
 
