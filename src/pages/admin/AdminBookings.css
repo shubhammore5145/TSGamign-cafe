@@ -891,6 +891,101 @@
   border-color: #00ff66;
 }
 
+.live-walkin-time-banner-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.live-walkin-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(0, 245, 212, 0.12);
+  border: 1px solid rgba(0, 245, 212, 0.4);
+  color: #00f5d4;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.live-walkin-edit-btn:hover,
+.live-walkin-edit-btn.active {
+  background: rgba(0, 245, 212, 0.25);
+  border-color: #00f5d4;
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.3);
+  color: #ffffff;
+}
+
+.live-walkin-time-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 245, 212, 0.25);
+  border-radius: var(--radius-md);
+  animation: slideDownFade 0.2s ease-out;
+}
+
+.live-walkin-offsets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.offsets-title {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 700;
+  margin-right: 2px;
+}
+
+.time-offset-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.time-offset-btn:hover {
+  background: rgba(0, 245, 212, 0.2);
+  border-color: #00f5d4;
+  color: #00f5d4;
+  transform: translateY(-1px);
+}
+
+.time-offset-btn--now {
+  background: rgba(0, 255, 102, 0.15);
+  border-color: rgba(0, 255, 102, 0.4);
+  color: #00ff66;
+}
+
+.time-offset-btn--now:hover {
+  background: rgba(0, 255, 102, 0.3);
+  border-color: #00ff66;
+  color: #00ff66;
+}
+
+.live-walkin-exact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
 /* ── Advance 1-Click Slot Selector ── */
 .advance-slots-grid {
   display: grid;
@@ -1926,6 +2021,186 @@
   font-weight: 800;
 }
 
+/* ── Minimal Counter Time Section ── */
+.minimal-time-section {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.minimal-time-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.minimal-time-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 255, 102, 0.12);
+  color: #00ff66;
+  border: 1px solid rgba(0, 255, 102, 0.3);
+}
+
+.minimal-time-tag.custom {
+  background: rgba(0, 245, 212, 0.15);
+  color: #00f5d4;
+  border-color: rgba(0, 245, 212, 0.4);
+}
+
+.minimal-time-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(0, 245, 212, 0.1);
+  border: 1px solid rgba(0, 245, 212, 0.35);
+  color: #00f5d4;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.minimal-time-toggle-btn:hover,
+.minimal-time-toggle-btn.active {
+  background: rgba(0, 245, 212, 0.22);
+  border-color: #00f5d4;
+  color: #ffffff;
+}
+
+.minimal-time-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 255, 102, 0.35);
+  color: #00ff66;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.minimal-time-sync-btn:hover {
+  background: rgba(0, 255, 102, 0.2);
+  border-color: #00ff66;
+}
+
+.minimal-time-display-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(0, 255, 102, 0.08), rgba(0, 245, 212, 0.05));
+  border: 1px solid rgba(0, 255, 102, 0.25);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.minimal-time-display-pill:hover {
+  background: linear-gradient(135deg, rgba(0, 255, 102, 0.14), rgba(0, 245, 212, 0.1));
+  border-color: #00ff66;
+}
+
+.minimal-time-display-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.minimal-time-range {
+  font-size: 0.82rem;
+  color: #e2e8f0;
+}
+
+.minimal-time-range strong {
+  color: #00f5d4;
+  font-weight: 800;
+}
+
+.minimal-time-dur-badge {
+  font-size: 0.72rem;
+  color: #c084fc;
+  font-weight: 700;
+}
+
+.minimal-time-edit-inline {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #00f5d4;
+}
+
+.minimal-time-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(0, 245, 212, 0.3);
+  animation: slideDownFade 0.2s ease-out;
+}
+
+.minimal-time-offsets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.minimal-offsets-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.minimal-time-exact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.minimal-exact-label {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.minimal-time-picker-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(0, 245, 212, 0.4);
+  border-radius: 6px;
+  color: #ffffff;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  outline: none;
+  font-family: inherit;
+}
+
+.minimal-time-picker-input:focus {
+  border-color: #00ff66;
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.3);
+}
+
+.minimal-exact-end {
+  font-size: 0.76rem;
+  color: #00f5d4;
+  margin-left: auto;
+}
+
 /* Text Input */
 .minimal-text-input {
   width: 100%;
@@ -2622,4 +2897,16 @@
   border-radius: 4px;
   background: rgba(168, 85, 247, 0.15);
 }
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 

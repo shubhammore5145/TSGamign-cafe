@@ -126,7 +126,7 @@ function getDurationPrice(hours, hourlyRate, pricePer30Min) {
 function addMinutesToTime(timeStr, mins) {
   if (!timeStr) return '';
   const [h, m] = timeStr.split(':').map(Number);
-  const total = ((h || 0) * 60 + (m || 0) + (Number(mins) || 0)) % 1440;
+  const total = ((((h || 0) * 60 + (m || 0) + (Number(mins) || 0)) % 1440) + 1440) % 1440;
   const endH = Math.floor(total / 60);
   const endM = total % 60;
   return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
@@ -432,6 +432,8 @@ export default function AdminBookings() {
   const [selectedSlotBooking, setSelectedSlotBooking] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showCounterTimeEdit, setShowCounterTimeEdit] = useState(false);
+  const [showModalTimeEdit, setShowModalTimeEdit] = useState(false);
   const [staffList, setStaffList] = useState([]);
   const [staffFilter, setStaffFilter] = useState('all'); // 'all' | 'my' | specific staffId
 
@@ -826,6 +828,7 @@ export default function AdminBookings() {
       paymentStatus: 'paid_cash',
       startSessionNow: Boolean(startSessionNow),
     });
+    setShowModalTimeEdit(false);
     setShowBookingModal(true);
   };
 
@@ -1006,9 +1009,12 @@ export default function AdminBookings() {
     setSubmitting(true);
     try {
       const setup = setups.find(s => s.id === bookingForm.setupId);
-      const now = new Date();
-      const startFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const startFormatted = bookingForm.startTime || getCurrentTime24();
+      const [startH, startM] = startFormatted.split(':').map(Number);
+      const sessionStartDate = new Date();
+      sessionStartDate.setHours(startH || 0, startM || 0, 0, 0);
       const computedEndTime = addMinutesToTime(startFormatted, bookingForm.durationMins);
+      const sessionEndDate = new Date(sessionStartDate.getTime() + Number(bookingForm.durationMins) * 60000);
       const durHours = Math.round((Number(bookingForm.durationMins) / 60) * 100) / 100;
 
       const staffNameToSave = isStaff ? (currentStaffUser?.name || 'Staff') : 'Super Admin';
@@ -1045,7 +1051,6 @@ export default function AdminBookings() {
 
       const docRef = await createBooking(payload);
 
-      const endDate = new Date(now.getTime() + Number(bookingForm.durationMins) * 60000);
       await createSession({
         bookingId: docRef.id,
         userId: 'admin-walkin',
@@ -1056,8 +1061,8 @@ export default function AdminBookings() {
         userImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=00ff66&color=040806`,
         setupId: bookingForm.setupId,
         setupName: payload.setupName,
-        sessionStartTime: toFirestoreTimestamp(now),
-        sessionEndTime: toFirestoreTimestamp(endDate),
+        sessionStartTime: toFirestoreTimestamp(sessionStartDate),
+        sessionEndTime: toFirestoreTimestamp(sessionEndDate),
         duration: durHours,
         handledBy: staffNameToSave,
       });
@@ -1071,11 +1076,12 @@ export default function AdminBookings() {
 
       toast.success(
         '⚡ Live Session Started!',
-        `🎮 ${customerName} (${playersToBook} seats) started on ${payload.setupName} (${bookingForm.durationMins} min) • ₹${bookingForm.totalAmount}`
+        `🎮 ${customerName} (${playersToBook} seats) started on ${payload.setupName} (${formatTime12h(startFormatted)} – ${formatTime12h(computedEndTime)}) • ₹${bookingForm.totalAmount}`
       );
 
       // Auto-select another available console for next walk-in
       const nextAvail = setups.find(s => s.id !== bookingForm.setupId && s.status === 'available') || setups[0];
+      const curNow = getCurrentTime24();
       setBookingForm(prev => ({
         ...prev,
         userName: 'Walk-in Gamer',
@@ -1083,7 +1089,10 @@ export default function AdminBookings() {
         players: 1,
         setupId: nextAvail?.id || prev.setupId,
         setupName: nextAvail?.name || prev.setupName,
+        startTime: curNow,
+        endTime: addMinutesToTime(curNow, prev.durationMins || 60),
       }));
+      setShowCounterTimeEdit(false);
     } catch (err) {
       toast.error('Failed to start session', err.message);
     } finally {
@@ -1568,11 +1577,15 @@ export default function AdminBookings() {
                         key={opt.mins}
                         type="button"
                         className={`minimal-pill ${isSel ? 'active' : ''}`}
-                        onClick={() => setBookingForm(prev => ({
-                          ...prev,
-                          durationMins: opt.mins,
-                          totalAmount: price,
-                        }))}
+                        onClick={() => setBookingForm(prev => {
+                          const curStart = prev.startTime || getCurrentTime24();
+                          return {
+                            ...prev,
+                            durationMins: opt.mins,
+                            totalAmount: price,
+                            endTime: addMinutesToTime(curStart, opt.mins),
+                          };
+                        })}
                       >
                         <span className="pill-main">{opt.label}</span>
                         <span className="pill-cost">₹{price}</span>
@@ -1604,11 +1617,145 @@ export default function AdminBookings() {
               </div>
             </div>
 
-            {/* 5. Gamer Name & Phone (Quick, Auto-Suggest & + Add Gamer) */}
+            {/* 5. Session Time & Edit Options */}
+            <div className="minimal-time-section">
+              <div className="minimal-time-header">
+                <div className="minimal-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Clock size={13} style={{ color: 'var(--color-primary)' }} />
+                  <span>5. Session Time</span>
+                  <span className={`minimal-time-tag ${bookingForm.startTime !== getCurrentTime24() ? 'custom' : ''}`}>
+                    {bookingForm.startTime === getCurrentTime24() ? '⚡ Right Now' : '✏️ Edited Time'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    className={`minimal-time-toggle-btn ${showCounterTimeEdit ? 'active' : ''}`}
+                    onClick={() => setShowCounterTimeEdit(prev => !prev)}
+                    title="Edit start time"
+                  >
+                    <Edit2 size={12} />
+                    <span>{showCounterTimeEdit ? 'Done' : 'Edit Time'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="minimal-time-sync-btn"
+                    onClick={() => {
+                      const now = getCurrentTime24();
+                      handleBookingStartTimeChange(now);
+                    }}
+                    title="Sync to current time"
+                  >
+                    <RefreshCw size={11} />
+                    <span>Now</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="minimal-time-display-pill" onClick={() => !showCounterTimeEdit && setShowCounterTimeEdit(true)}>
+                <div className="minimal-time-display-left">
+                  <span className="live-pulse-dot" style={{ width: 7, height: 7 }} />
+                  <span className="minimal-time-range">
+                    🕒 <strong>{formatTime12h(bookingForm.startTime)}</strong> → <strong>{formatTime12h(bookingForm.endTime)}</strong>
+                  </span>
+                  <span className="minimal-time-dur-badge">
+                    ({bookingForm.durationMins} min)
+                  </span>
+                </div>
+                {!showCounterTimeEdit && (
+                  <span className="minimal-time-edit-inline">
+                    ✏️ Change Time
+                  </span>
+                )}
+              </div>
+
+              {showCounterTimeEdit && (
+                <div className="minimal-time-editor">
+                  {/* Quick offset buttons */}
+                  <div className="minimal-time-offsets">
+                    <span className="minimal-offsets-label">Quick Adjust:</span>
+                    <button
+                      type="button"
+                      className="time-offset-btn"
+                      onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, -15))}
+                      title="Started 15 mins ago"
+                    >
+                      -15m
+                    </button>
+                    <button
+                      type="button"
+                      className="time-offset-btn"
+                      onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, -10))}
+                      title="Started 10 mins ago"
+                    >
+                      -10m
+                    </button>
+                    <button
+                      type="button"
+                      className="time-offset-btn"
+                      onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, -5))}
+                      title="Started 5 mins ago"
+                    >
+                      -5m
+                    </button>
+                    <button
+                      type="button"
+                      className="time-offset-btn time-offset-btn--now"
+                      onClick={() => handleBookingStartTimeChange(getCurrentTime24())}
+                      title="Reset to right now"
+                    >
+                      ⚡ Now
+                    </button>
+                    <button
+                      type="button"
+                      className="time-offset-btn"
+                      onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, 5))}
+                      title="Add 5 mins"
+                    >
+                      +5m
+                    </button>
+                    <button
+                      type="button"
+                      className="time-offset-btn"
+                      onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, 15))}
+                      title="Add 15 mins"
+                    >
+                      +15m
+                    </button>
+                    <button
+                      type="button"
+                      className="time-offset-btn"
+                      onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, 30))}
+                      title="Add 30 mins"
+                    >
+                      +30m
+                    </button>
+                  </div>
+
+                  {/* Exact Time Input */}
+                  <div className="minimal-time-exact-row">
+                    <label className="minimal-exact-label">
+                      🕒 Exact Start:
+                    </label>
+                    <input
+                      type="time"
+                      className="minimal-time-picker-input"
+                      value={bookingForm.startTime}
+                      onChange={e => handleBookingStartTimeChange(e.target.value)}
+                    />
+                    <span className="minimal-exact-end">
+                      Ends at: <strong>{formatTime12h(bookingForm.endTime)}</strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 6. Gamer Name & Phone (Quick, Auto-Suggest & + Add Gamer) */}
             <div style={{ marginTop: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <div className="minimal-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>5. Customer / Gamer</span>
+                  <span>6. Customer / Gamer</span>
                   <span style={{ fontSize: '0.72rem', color: '#c084fc', fontWeight: 700 }}>
                     (👥 {usersList.length} Gamers)
                   </span>
@@ -3187,32 +3334,127 @@ export default function AdminBookings() {
 
               {/* 3. Time & Date Selection (Streamlined for Staff) */}
               {bookingForm.startSessionNow ? (
-                /* ── FAST WALK-IN: Locked to Now, Zero Friction (No Clock Dragging) ── */
-                <div className="live-walkin-time-banner">
-                  <div className="live-walkin-time-left">
-                    <span className="live-pulse-dot" />
-                    <div>
-                      <div className="live-walkin-time-title">
-                        ⚡ Session Starts RIGHT NOW (Live Session)
-                      </div>
-                      <div className="live-walkin-time-sub">
-                        🕒 <strong>{formatTime12h(bookingForm.startTime)}</strong> → <strong>{formatTime12h(bookingForm.endTime)}</strong>
-                        <span className="live-walkin-dur-pill">({bookingForm.durationMins} minutes)</span>
+                /* ── FAST WALK-IN: Locked to Now by default, with 1-Tap Edit & Offset Adjustments ── */
+                <div className="live-walkin-time-banner-wrap">
+                  <div className="live-walkin-time-banner">
+                    <div className="live-walkin-time-left">
+                      <span className="live-pulse-dot" />
+                      <div>
+                        <div className="live-walkin-time-title">
+                          {bookingForm.startTime === getCurrentTime24()
+                            ? '⚡ Session Starts RIGHT NOW (Live Session)'
+                            : `⚡ Live Session (Starts at ${formatTime12h(bookingForm.startTime)})`}
+                        </div>
+                        <div className="live-walkin-time-sub">
+                          🕒 <strong>{formatTime12h(bookingForm.startTime)}</strong> → <strong>{formatTime12h(bookingForm.endTime)}</strong>
+                          <span className="live-walkin-dur-pill">({bookingForm.durationMins} minutes)</span>
+                        </div>
                       </div>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        type="button"
+                        className={`live-walkin-edit-btn ${showModalTimeEdit ? 'active' : ''}`}
+                        onClick={() => setShowModalTimeEdit(p => !p)}
+                        title="Edit start time"
+                      >
+                        <Edit2 size={12} />
+                        <span>{showModalTimeEdit ? 'Done' : 'Edit Time'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="live-walkin-sync-btn"
+                        onClick={() => {
+                          const now = getCurrentTime24();
+                          handleBookingStartTimeChange(now);
+                        }}
+                        title="Sync to exact current minute"
+                      >
+                        <RefreshCw size={13} />
+                        <span>Now</span>
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="live-walkin-sync-btn"
-                    onClick={() => {
-                      const now = getCurrentTime24();
-                      handleBookingStartTimeChange(now);
-                    }}
-                    title="Sync to exact current minute"
-                  >
-                    <RefreshCw size={13} />
-                    <span>Sync</span>
-                  </button>
+
+                  {showModalTimeEdit && (
+                    <div className="live-walkin-time-editor">
+                      <div className="live-walkin-offsets">
+                        <span className="offsets-title">Quick Adjust:</span>
+                        <button
+                          type="button"
+                          className="time-offset-btn"
+                          onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, -15))}
+                          title="Started 15 mins ago"
+                        >
+                          -15m
+                        </button>
+                        <button
+                          type="button"
+                          className="time-offset-btn"
+                          onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, -10))}
+                          title="Started 10 mins ago"
+                        >
+                          -10m
+                        </button>
+                        <button
+                          type="button"
+                          className="time-offset-btn"
+                          onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, -5))}
+                          title="Started 5 mins ago"
+                        >
+                          -5m
+                        </button>
+                        <button
+                          type="button"
+                          className="time-offset-btn time-offset-btn--now"
+                          onClick={() => handleBookingStartTimeChange(getCurrentTime24())}
+                          title="Reset to right now"
+                        >
+                          ⚡ Now
+                        </button>
+                        <button
+                          type="button"
+                          className="time-offset-btn"
+                          onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, 5))}
+                          title="Add 5 mins"
+                        >
+                          +5m
+                        </button>
+                        <button
+                          type="button"
+                          className="time-offset-btn"
+                          onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, 15))}
+                          title="Add 15 mins"
+                        >
+                          +15m
+                        </button>
+                        <button
+                          type="button"
+                          className="time-offset-btn"
+                          onClick={() => handleBookingStartTimeChange(addMinutesToTime(bookingForm.startTime, 30))}
+                          title="Add 30 mins"
+                        >
+                          +30m
+                        </button>
+                      </div>
+
+                      <div className="live-walkin-exact-row">
+                        <label style={{ fontSize: '0.78rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                          🕒 Exact Start:
+                        </label>
+                        <input
+                          type="time"
+                          className="form-input"
+                          style={{ padding: '6px 10px', fontSize: '0.85rem', width: 'auto' }}
+                          value={bookingForm.startTime}
+                          onChange={e => handleBookingStartTimeChange(e.target.value)}
+                        />
+                        <span style={{ fontSize: '0.78rem', color: '#00f5d4', fontWeight: 700 }}>
+                          Ends: {formatTime12h(bookingForm.endTime)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* ── ADVANCE RESERVATION: Date + 1-Tap Slot Selector ── */
