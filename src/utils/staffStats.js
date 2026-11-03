@@ -277,3 +277,84 @@ Hello *${staff.name}*, here are your login details:
 ⚠️ _Keep your PIN secure and punch in at the start of your shift!_`;
 }
 
+/**
+ * Generates an automated, professional WhatsApp booking confirmation slip for customers
+ */
+export function generateBookingWhatsAppMessage(booking) {
+  if (!booking) return '';
+
+  const customerName = (booking.userName || booking.customerName || 'Gamer').trim();
+  const setupName = booking.setupName || booking.stationName || 'PlayStation Console';
+  const date = booking.date || getTodayString();
+  const startTime = booking.startTime || '';
+  const endTime = booking.endTime || '';
+  const timeSlot = booking.timeSlotRange || (startTime && endTime ? `${startTime} – ${endTime}` : startTime);
+  const duration = booking.durationMins
+    ? `${booking.durationMins} Mins`
+    : (booking.durationLabel || `${booking.duration || 1} Hr`);
+  const players = booking.players || booking.playerCount || 1;
+  const amount = Number(booking.totalAmount || booking.gamingAmount || 0);
+
+  let paymentText = 'Pay at Counter (Cash / UPI)';
+  if (booking.paymentStatus === 'paid_cash' || booking.paymentMode === 'cash') {
+    paymentText = 'Paid via Cash ✅';
+  } else if (booking.paymentStatus === 'paid_upi' || booking.paymentMode === 'upi') {
+    paymentText = 'Paid via UPI ✅';
+  } else if (booking.paymentStatus === 'paid') {
+    paymentText = 'Paid ✅';
+  }
+
+  let foodText = '';
+  if (booking.foodItems && booking.foodItems.length > 0) {
+    foodText =
+      `\n🍔 *Snacks Added:* ` +
+      booking.foodItems.map((i) => `${i.name} (x${i.quantity})`).join(', ');
+  }
+
+  return `🎮 *TS GAMING CAFÉ — BOOKING CONFIRMATION* 🎮
+━━━━━━━━━━━━━━━━━━━━
+Hi *${customerName}*, your PlayStation booking is confirmed! 🔥
+
+📋 *Booking Details:*
+• 🕹️ *Console:* ${setupName}
+• 📅 *Date:* ${date}
+• ⏰ *Time Slot:* ${timeSlot} (${duration})
+• 👥 *Players:* ${players}
+• 💰 *Total Amount:* ₹${amount.toLocaleString('en-IN')}
+• 💳 *Payment:* ${paymentText}${foodText}
+
+📍 *Location:* TS Gaming Café, Waluj, Chhatrapati Sambhajinagar
+📞 *Helpline:* +91 79724 30951
+
+Thank you for choosing TS Gaming Café! Enjoy your gaming session! 🚀🎮`;
+}
+
+/**
+ * Returns the wa.me link directly targeting customer's 10-digit phone
+ */
+export function getCustomerWhatsAppUrl(booking) {
+  if (!booking) return '';
+  const phone = booking.userPhone || booking.customerPhone || booking.phone;
+  const cleanPhone = getClean10Phone(phone);
+  if (!cleanPhone || cleanPhone.length !== 10) return '';
+  const text = generateBookingWhatsAppMessage(booking);
+  return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(text)}`;
+}
+
+import { autoSendBookingConfirmation } from '../services/whatsappAutoService';
+
+/**
+ * Automatically triggers WhatsApp receipt to customer's mobile number.
+ * Uses WhatsApp Gateway API for 100% background delivery if configured,
+ * or falls back to pre-filled WhatsApp link.
+ */
+export async function sendBookingWhatsAppAuto(booking) {
+  try {
+    return await autoSendBookingConfirmation(booking);
+  } catch (err) {
+    console.warn('[WhatsApp] Auto send failed:', err?.message);
+    return false;
+  }
+}
+
+

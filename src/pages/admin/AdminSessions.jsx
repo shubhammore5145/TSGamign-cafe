@@ -4,6 +4,7 @@ import {
   subscribeToSetups,
   createSession,
   createBooking,
+  updateBooking,
   updateSession,
   updateSetup,
   addNotification,
@@ -13,6 +14,7 @@ import {
 import { useSessionTimer, formatTime } from '../../hooks/useSessionTimer';
 import { useToast } from '../../context/ToastContext';
 import { getStaffUser, isStaffLoggedIn } from '../../utils/adminAuth';
+import { sendBookingWhatsAppAuto } from '../../utils/staffStats';
 import { Play, Pause, Square, Plus, AlertTriangle, Camera } from 'lucide-react';
 import CameraCapture from '../../components/CameraCapture';
 
@@ -41,6 +43,13 @@ export default function AdminSessions() {
   const handleEndSession = async (session) => {
     try {
       await updateSession(session.id, { status: 'completed' });
+      if (session.bookingId) {
+        try {
+          await updateBooking(session.bookingId, { status: 'completed' });
+        } catch (e) {
+          console.warn('[handleEndSession] booking update err:', e);
+        }
+      }
       // Only set setup to available if all remaining sessions on this setup are below capacity
       const remainingActive = sessions.filter(
         ses => ses.setupId === session.setupId && ses.id !== session.id && ses.status !== 'completed'
@@ -144,9 +153,33 @@ export default function AdminSessions() {
       const startFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const endFormatted = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
 
-      // 1. Create active real-time session
+      // 1. Record in bookings collection so dashboard revenue & staff sales sync immediately
       const cleanSessionPhone = (newSessionData.phone || '').replace(/\D/g, '').slice(-10);
+      const sessionBookingData = {
+        userName: newSessionData.name.trim(),
+        customerName: newSessionData.name.trim(),
+        userPhone: cleanSessionPhone,
+        customerPhone: cleanSessionPhone,
+        setupId: setup.id,
+        setupName: setup.name,
+        date: dateStr,
+        startTime: startFormatted,
+        endTime: endFormatted,
+        duration: durationHours,
+        durationMins: newSessionData.duration,
+        players: 1,
+        totalAmount: amount,
+        status: 'active',
+        paymentStatus: 'paid_cash',
+        paymentMode: 'cash',
+        handledBy: staffName,
+        source: 'admin_sessions',
+      };
+      const bookingRef = await createBooking(sessionBookingData);
+
+      // 2. Create active real-time session linked to booking
       await createSession({
+        bookingId: bookingRef.id,
         userId: 'walk-in',
         userName: newSessionData.name.trim(),
         userPhone: cleanSessionPhone,
@@ -159,26 +192,14 @@ export default function AdminSessions() {
         handledBy: staffName,
       });
 
-      // 2. Also record in bookings collection so dashboard revenue & staff sales sync immediately
-      await createBooking({
-        userName: newSessionData.name.trim(),
-        customerName: newSessionData.name.trim(),
-        userPhone: cleanSessionPhone,
-        customerPhone: cleanSessionPhone,
-        setupId: setup.id,
-        setupName: setup.name,
-        date: dateStr,
-        startTime: startFormatted,
-        endTime: endFormatted,
-        duration: durationHours,
-        players: 1,
-        totalAmount: amount,
-        status: 'active',
-        paymentStatus: 'paid_cash',
-        paymentMode: 'cash',
-        handledBy: staffName,
-        source: 'admin_sessions',
-      });
+      // Auto-send WhatsApp receipt to customer if 10-digit phone provided
+      if (cleanSessionPhone.length === 10) {
+        sendBookingWhatsAppAuto(sessionBookingData).then((res) => {
+          if (res?.background) {
+            toast.success('WhatsApp Sent! 💬', `Auto confirmation sent to +91 ${cleanSessionPhone}!`);
+          }
+        });
+      }
 
       await updateSetup(setup.id, { status: 'occupied' });
       toast.success('Session Started', `${newSessionData.name} is now playing.`);

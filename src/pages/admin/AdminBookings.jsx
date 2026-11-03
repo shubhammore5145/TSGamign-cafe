@@ -22,6 +22,9 @@ import {
   isBookingHandledByStaff,
   formatPhoneNumber,
   getClean10Phone,
+  generateBookingWhatsAppMessage,
+  getCustomerWhatsAppUrl,
+  sendBookingWhatsAppAuto,
 } from '../../utils/staffStats';
 import {
   Search,
@@ -56,6 +59,7 @@ import {
 import ClockTimePicker from '../../components/ClockTimePicker';
 import SimpleWatchPicker from '../../components/SimpleWatchPicker';
 import DailyReportModal from '../../components/DailyReportModal';
+import WhatsAppSettingsModal from '../../components/WhatsAppSettingsModal';
 import './AdminBookings.css';
 import './AdminUsers.css';
 
@@ -448,6 +452,7 @@ export default function AdminBookings() {
   const [showCounterTimeEdit, setShowCounterTimeEdit] = useState(false);
   const [showModalTimeEdit, setShowModalTimeEdit] = useState(false);
   const [showDateReportModal, setShowDateReportModal] = useState(false);
+  const [showWhatsAppSettings, setShowWhatsAppSettings] = useState(false);
   const [staffList, setStaffList] = useState([]);
   const [staffFilter, setStaffFilter] = useState('all'); // 'all' | 'my' | specific staffId
 
@@ -1009,6 +1014,15 @@ export default function AdminBookings() {
         );
       }
 
+      // Auto-send confirmation message to customer's WhatsApp if 10-digit phone exists
+      if (getClean10Phone(payload.userPhone).length === 10) {
+        sendBookingWhatsAppAuto(payload).then((res) => {
+          if (res?.background) {
+            toast.success('WhatsApp Sent! 💬', `Auto confirmation sent to +91 ${getClean10Phone(payload.userPhone)}!`);
+          }
+        });
+      }
+
       setShowBookingModal(false);
     } catch (err) {
       toast.error('Booking Error', err.message);
@@ -1113,6 +1127,16 @@ export default function AdminBookings() {
         '⚡ Live Session Started!',
         `🎮 ${customerName} (${playersToBook} seats) started on ${payload.setupName} (${formatTime12h(startFormatted)} – ${formatTime12h(computedEndTime)}) • ₹${bookingForm.totalAmount}`
       );
+
+      // Auto-send WhatsApp receipt to customer if 10-digit phone provided
+      const cleanCustomerPhone = getClean10Phone(payload.userPhone);
+      if (cleanCustomerPhone.length === 10) {
+        sendBookingWhatsAppAuto(payload).then((res) => {
+          if (res?.background) {
+            toast.success('WhatsApp Sent! 💬', `Auto confirmation sent to +91 ${cleanCustomerPhone}!`);
+          }
+        });
+      }
 
       // Auto-select another available console for next walk-in
       const nextAvail = setups.find(s => s.id !== bookingForm.setupId && s.status === 'available') || setups[0];
@@ -1302,9 +1326,13 @@ export default function AdminBookings() {
     if (!confirm(`Cancel slot for ${b.userName}? Slot ${formatTime12h(b.startTime)} - ${formatTime12h(b.endTime)} will become FREE immediately.`)) return;
     try {
       await updateBooking(b.id, { status: 'cancelled' });
-      if (b.status === 'active') {
-        await updateSetup(b.setupId, { status: 'available' });
+      await updateSetup(b.setupId, { status: 'available' });
+
+      const matchingSession = activeSessions.find(s => s.bookingId === b.id || (s.setupId === b.setupId && s.status !== 'completed'));
+      if (matchingSession) {
+        await updateSession(matchingSession.id, { status: 'completed' });
       }
+
       toast.info('Slot Cancelled', `Slot ${formatTime12h(b.startTime)} - ${formatTime12h(b.endTime)} is now FREE.`);
       setShowSlotDetailsModal(false);
       setShowEditModal(false);
@@ -1432,6 +1460,15 @@ export default function AdminBookings() {
             onClick={() => setViewMode('table')}
           >
             <List size={14} /> Bookings ({bookings.length})
+          </button>
+          <button
+            type="button"
+            className="minimal-desk-tab"
+            style={{ color: '#25D366' }}
+            onClick={() => setShowWhatsAppSettings(true)}
+            title="Configure Automatic WhatsApp Background Delivery"
+          >
+            <MessageSquare size={14} /> Auto WA
           </button>
         </div>
       </div>
@@ -2426,11 +2463,11 @@ export default function AdminBookings() {
                               {formatPhoneNumber(b.userPhone)}
                             </a>
                             <a
-                              href={`https://wa.me/91${getClean10Phone(b.userPhone)}`}
+                              href={getCustomerWhatsAppUrl(b) || `https://wa.me/91${getClean10Phone(b.userPhone)}`}
                               target="_blank"
                               rel="noreferrer"
                               style={{ color: '#25D366', marginLeft: 4 }}
-                              title="WhatsApp"
+                              title="Send WhatsApp Confirmation Slip"
                             >
                               <MessageSquare size={12} />
                             </a>
@@ -2631,7 +2668,7 @@ export default function AdminBookings() {
                             <Phone size={10} /> {formatPhoneNumber(b.userPhone)}
                           </a>
                           <a
-                            href={`https://wa.me/91${getClean10Phone(b.userPhone)}`}
+                            href={getCustomerWhatsAppUrl(b) || `https://wa.me/91${getClean10Phone(b.userPhone)}`}
                             target="_blank"
                             rel="noreferrer"
                             className="whatsapp-quick-btn"
@@ -2889,7 +2926,7 @@ export default function AdminBookings() {
                       Call
                     </a>
                     <a
-                      href={`https://wa.me/91${getClean10Phone(selectedSlotBooking.booking.userPhone)}`}
+                      href={getCustomerWhatsAppUrl(selectedSlotBooking.booking) || `https://wa.me/91${getClean10Phone(selectedSlotBooking.booking.userPhone)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="btn btn-sm btn-ghost"
@@ -4033,6 +4070,12 @@ export default function AdminBookings() {
         allBookings={bookings}
         staffList={staffList}
         initialDate={dateFilter || todayStr}
+      />
+
+      {/* ── WhatsApp Background Auto-Delivery Settings Modal ── */}
+      <WhatsAppSettingsModal
+        isOpen={showWhatsAppSettings}
+        onClose={() => setShowWhatsAppSettings(false)}
       />
 
       {/* ── Mobile Floating Quick Counter Button (FAB) ── */}

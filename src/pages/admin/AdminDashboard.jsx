@@ -34,6 +34,7 @@ import {
   Target,
   QrCode,
   FileText,
+  MessageSquare,
 } from 'lucide-react';
 import { isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
 import {
@@ -45,10 +46,12 @@ import {
   getTodayString,
   formatINR,
   getClean10Phone,
+  getCustomerWhatsAppUrl,
 } from '../../utils/staffStats';
 import { useToast } from '../../context/ToastContext';
 import UpiQrModal from '../../components/UpiQrModal';
 import DailyReportModal from '../../components/DailyReportModal';
+import WhatsAppSettingsModal from '../../components/WhatsAppSettingsModal';
 import './AdminDashboard.css';
 
 export default function AdminDashboard() {
@@ -57,9 +60,10 @@ export default function AdminDashboard() {
   const isStaff = isStaffLoggedIn();
   const staffUser = getStaffUser();
 
-  // Counter UPI QR & Daily Closing Report Modals
+  // Counter UPI QR, Daily Closing Report & Auto WhatsApp Modals
   const [showUpiQr, setShowUpiQr] = useState(false);
   const [showDailyReport, setShowDailyReport] = useState(false);
+  const [showWhatsAppSettings, setShowWhatsAppSettings] = useState(false);
 
   // Firestore Subscriptions
   const [activeSessions, setActiveSessions] = useState([]);
@@ -699,7 +703,18 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         {b.userPhone && (
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>📱 {b.userPhone}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>
+                            <span>📱 {b.userPhone}</span>
+                            <a
+                              href={getCustomerWhatsAppUrl(b) || `https://wa.me/91${getClean10Phone(b.userPhone)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: '#25D366' }}
+                              title="Send WhatsApp Confirmation Slip"
+                            >
+                              <MessageSquare size={12} />
+                            </a>
+                          </div>
                         )}
                       </td>
                       <td>
@@ -873,6 +888,20 @@ export default function AdminDashboard() {
             title="Instant UPI Payment QR Code"
           >
             <QrCode size={14} /> 📱 Counter UPI QR
+          </button>
+          <button
+            type="button"
+            className="ts-dash-nav-btn"
+            onClick={() => setShowWhatsAppSettings(true)}
+            style={{
+              background: 'rgba(37, 211, 102, 0.18)',
+              border: '1px solid rgba(37, 211, 102, 0.4)',
+              color: '#25D366',
+              fontWeight: 700,
+            }}
+            title="Auto WhatsApp Background Gateway Settings"
+          >
+            <MessageSquare size={14} /> 💬 Auto WhatsApp
           </button>
         </nav>
 
@@ -1523,6 +1552,12 @@ export default function AdminDashboard() {
         stats={stats}
         staffSales={displayStaffSales}
         todayDateStr={selectedDate}
+      />
+
+      {/* ── WhatsApp Background Auto-Delivery Settings Modal ── */}
+      <WhatsAppSettingsModal
+        isOpen={showWhatsAppSettings}
+        onClose={() => setShowWhatsAppSettings(false)}
       />
     </div>
   );

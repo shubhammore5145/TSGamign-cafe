@@ -27,6 +27,7 @@ import {
 } from '../firebase/firestore';
 import UpiQrModal from '../components/UpiQrModal';
 import CustomerAuthModal from '../components/CustomerAuthModal';
+import { sendBookingWhatsAppAuto, getCustomerWhatsAppUrl } from '../utils/staffStats';
 import './Booking.css';
 
 const DURATION_OPTIONS = [
@@ -434,8 +435,32 @@ export default function Booking() {
       endDate.setHours(startH, startM + selectedDuration.durationMins, 0, 0);
       const computedEndTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
+      // Find an available setup of this console type that does not conflict with another booking
       const matchingSetups = currentStation.setups || [];
-      const assignedSetup = matchingSetups[0] || null;
+      const reqStart = timeToMins(selectedSlot.start);
+      const reqEnd = reqStart + selectedDuration.durationMins;
+
+      let assignedSetup = null;
+      for (const s of matchingSetups) {
+        const isConflict = allBookings.some((b) => {
+          if (!b || b.status === 'cancelled') return false;
+          if (b.date !== selectedDate) return false;
+          if (b.setupId !== s.id) return false;
+          const bStart = timeToMins(b.startTime);
+          const bEnd = b.endTime ? timeToMins(b.endTime) : (bStart + (Number(b.duration) || 1) * 60);
+          return reqStart < bEnd && reqEnd > bStart;
+        });
+        if (!isConflict) {
+          assignedSetup = s;
+          break;
+        }
+      }
+      if (!assignedSetup && matchingSetups.length > 0) {
+        assignedSetup = matchingSetups[0];
+      }
+
+      const finalSetupId = assignedSetup?.id || 'general-setup';
+      const finalSetupName = assignedSetup?.name || currentStation.name;
 
       const payload = {
         userId: user?.uid || 'guest-web-user',
@@ -443,8 +468,8 @@ export default function Booking() {
         customerName: customerName.trim(),
         userPhone: cleanPhone,
         customerPhone: cleanPhone,
-        setupId: assignedSetup?.id || 'general-setup',
-        setupName: currentStation.name,
+        setupId: finalSetupId,
+        setupName: finalSetupName,
         stationName: currentStation.name,
         date: selectedDate,
         startTime: selectedSlot.start,
@@ -468,6 +493,13 @@ export default function Booking() {
       const docRef = await createBooking(payload);
       const finalBooking = { ...payload, id: docRef?.id || String(Date.now()).slice(-6) };
       setBookingSuccess(finalBooking);
+
+      // Automatically send confirmation message to customer's WhatsApp
+      sendBookingWhatsAppAuto(finalBooking).then((res) => {
+        if (res?.background) {
+          toast.success('WhatsApp Receipt Sent! 💬', 'Confirmation delivered automatically to your phone.');
+        }
+      });
 
       toast.show('Booking Confirmed! See you at TS Gaming Cafe.', 'success');
 
@@ -613,9 +645,12 @@ export default function Booking() {
 
               <div className="success-actions-col">
                 <a
-                  href={`https://wa.me/917972430951?text=${encodeURIComponent(
-                    `🎮 *TS Gaming Cafe — Booking Slip*\n👤 Gamer: ${bookingSuccess.userName}\n🕹️ Setup: ${bookingSuccess.setupName}\n👥 Players: ${bookingSuccess.playerCount === 5 ? '5+' : bookingSuccess.playerCount}\n⏱️ Duration: ${bookingSuccess.durationLabel}${bookingSuccess.complimentaryItems?.length ? '\n🎁 Free: 1 Cold Drink + 1 Chips' : ''}\n📅 Date: ${getSelectedDateDisplay()}\n⏰ Time: ${selectedSlot?.label} - ${formatTimeLabel(bookingSuccess.endTime)}\n💰 Total: ₹${bookingSuccess.totalAmount}\n📍 Waluj, Sambhajinagar`
-                  )}`}
+                  href={
+                    getCustomerWhatsAppUrl(bookingSuccess) ||
+                    `https://wa.me/917972430951?text=${encodeURIComponent(
+                      `🎮 *TS Gaming Cafe — Booking Slip*\n👤 Gamer: ${bookingSuccess.userName}\n🕹️ Setup: ${bookingSuccess.setupName}\n👥 Players: ${bookingSuccess.playerCount === 5 ? '5+' : bookingSuccess.playerCount}\n⏱️ Duration: ${bookingSuccess.durationLabel}${bookingSuccess.complimentaryItems?.length ? '\n🎁 Free: 1 Cold Drink + 1 Chips' : ''}\n📅 Date: ${getSelectedDateDisplay()}\n⏰ Time: ${selectedSlot?.label} - ${formatTimeLabel(bookingSuccess.endTime)}\n💰 Total: ₹${bookingSuccess.totalAmount}\n📍 Waluj, Sambhajinagar`
+                    )}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-whatsapp-slip"

@@ -32,6 +32,7 @@ import {
   DEFAULT_FOOD_ITEMS,
 } from '../firebase/firestore';
 import CustomerAuthModal from '../components/CustomerAuthModal';
+import { sendBookingWhatsAppAuto, getCustomerWhatsAppUrl } from '../utils/staffStats';
 import './Home.css';
 import './admin/AdminDashboard.css';
 
@@ -519,6 +520,14 @@ export default function Home() {
 
     try {
       await createBooking(bookingPayload);
+
+      // Auto-send WhatsApp confirmation directly to customer
+      sendBookingWhatsAppAuto(bookingPayload).then((res) => {
+        if (res?.background) {
+          toast.success('WhatsApp Receipt Sent! 💬', 'Confirmation delivered automatically to your phone.');
+        }
+      });
+
       toast.success(
         bookingMode === 'now' ? 'Walk-In Started!' : 'Slot Booked!',
         bookingMode === 'now'
@@ -536,25 +545,7 @@ export default function Home() {
 
   const getWhatsAppBookingUrl = (booking) => {
     if (!booking) return '';
-    const modeText = booking.isWalkIn ? '⚡ Walk-In / Play Right Now' : '📅 Advance Slot Booking';
-    let foodText = '';
-    if (booking.foodItems && booking.foodItems.length > 0) {
-      foodText = `\n🍔 *Snacks Ordered:* ` + booking.foodItems.map((i) => `${i.name} (x${i.quantity})`).join(', ') + ` (₹${booking.snacksAmount || 0})`;
-    }
-    const message = `🎮 *New Booking from TS Gaming Cafe Website*
-🕹️ Type: ${modeText}
-👤 Name: ${booking.customerName}
-📞 Phone: ${booking.customerPhone}
-🎮 Station: ${booking.stationName} (${booking.stationFullName || booking.stationName})
-👥 Players: ${booking.playerCount}
-⏱️ Duration: ${booking.durationLabel}
-📅 Date: ${booking.date}
-⏰ Time: ${booking.timeSlotRange} ${booking.isWalkIn ? '(Starting Immediately)' : ''}${foodText}
-💰 Gaming: ₹${booking.gamingAmount || booking.totalAmount}
-${booking.snacksAmount > 0 ? `🍔 Snacks: ₹${booking.snacksAmount}\n` : ''}🔥 *Grand Total: ₹${booking.totalAmount}*
-📍 Location: Waluj, Aurangabad`;
-
-    return `https://wa.me/917972430951?text=${encodeURIComponent(message)}`;
+    return getCustomerWhatsAppUrl(booking) || `https://wa.me/917972430951`;
   };
 
   return (

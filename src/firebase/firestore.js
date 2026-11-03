@@ -851,6 +851,72 @@ export const subscribeToFoodSales = (callback) => {
   }
 };
 
+/**
+ * Delete a Food Sale / Bill record and optionally restore stock of its items
+ */
+export const deleteFoodSale = async (sale, restoreStock = true) => {
+  if (!sale || !sale.id) return;
+  const saleId = sale.id;
+
+  // 1. Restore stock if requested and items exist
+  if (restoreStock && Array.isArray(sale.items)) {
+    for (const item of sale.items) {
+      if (item.id && item.quantity) {
+        try {
+          const docRef = doc(db, 'foodItems', item.id);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const curStock = Number(snap.data().stock) || 0;
+            await updateDoc(docRef, { stock: curStock + Number(item.quantity) });
+          }
+        } catch (stockErr) {
+          console.warn('Could not restore stock in Firestore:', stockErr);
+        }
+      }
+    }
+  }
+
+  // 2. Delete the food sale document
+  try {
+    await deleteDoc(doc(db, 'foodSales', saleId));
+  } catch (err) {
+    console.warn('deleteFoodSale firestore error, falling back to local:', err);
+  }
+
+  // 3. Update localStorage fallback
+  try {
+    const local = JSON.parse(localStorage.getItem('ts_food_sales') || '[]');
+    const filtered = local.filter((s) => s.id !== saleId);
+    localStorage.setItem('ts_food_sales', JSON.stringify(filtered));
+  } catch (localErr) {
+    console.warn('LocalStorage sales update error:', localErr);
+  }
+};
+
+/**
+ * Update an existing Food Sale / Bill record
+ */
+export const updateFoodSale = async (saleId, updateData) => {
+  if (!saleId) return;
+  try {
+    const docRef = doc(db, 'foodSales', saleId);
+    await updateDoc(docRef, updateData);
+  } catch (err) {
+    console.warn('updateFoodSale firestore error, updating local:', err);
+  }
+
+  try {
+    const local = JSON.parse(localStorage.getItem('ts_food_sales') || '[]');
+    const idx = local.findIndex((s) => s.id === saleId);
+    if (idx !== -1) {
+      local[idx] = { ...local[idx], ...updateData };
+      localStorage.setItem('ts_food_sales', JSON.stringify(local));
+    }
+  } catch (localErr) {
+    console.warn('LocalStorage sales update error:', localErr);
+  }
+};
+
 // ─── HELPERS ─────────────────────────────────────────────────
 export const tsToDate = (ts) => {
   if (!ts) return null;

@@ -23,6 +23,10 @@ import {
   Minus,
   Receipt,
   MessageCircle,
+  Printer,
+  Share2,
+  UploadCloud,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   subscribeToFoodItems,
@@ -32,9 +36,13 @@ import {
   updateFoodStock,
   recordFoodSale,
   subscribeToFoodSales,
+  deleteFoodSale,
+  updateFoodSale,
 } from '../../firebase/firestore';
 import { isAdminLoggedIn, isStaffLoggedIn, getStaffUser } from '../../utils/adminAuth';
 import { useToast } from '../../context/ToastContext';
+import { processAndCompressImage, MAX_IMAGE_SIZE_KB } from '../../utils/imageCompressor';
+import './AdminFood.css';
 
 // Available preset images for quick selection
 const PRESET_IMAGES = [
@@ -82,6 +90,8 @@ export default function AdminFood() {
     desc: '',
     isAvailable: true,
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedFileInfo, setUploadedFileInfo] = useState(null);
 
   // Stock Adjustment Modal
   const [stockModalItem, setStockModalItem] = useState(null);
@@ -90,10 +100,22 @@ export default function AdminFood() {
   // POS / Quick Sale Cart State
   const [cart, setCart] = useState([]);
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [tableOrStation, setTableOrStation] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi'
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [lastCompletedSale, setLastCompletedSale] = useState(null);
+  const [selectedBillSale, setSelectedBillSale] = useState(null); // Thermal Bill Receipt Modal
+
+  // Edit Bill / Sales Record State
+  const [editingSale, setEditingSale] = useState(null);
+  const [editSaleForm, setEditSaleForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    stationNumber: '',
+    paymentMethod: 'cash',
+    items: [],
+  });
 
   // Subscribe to real-time food items and sales
   useEffect(() => {
@@ -141,13 +163,14 @@ export default function AdminFood() {
   // Open Add Product Modal
   const handleOpenAdd = () => {
     setEditingItem(null);
+    setUploadedFileInfo(null);
     setFormData({
       name: '',
       category: 'Snacks',
       price: '',
       stock: '20',
       unit: 'pcs',
-      image: '/images/more-items.jpg',
+      image: '',
       desc: '',
       isAvailable: true,
     });
@@ -157,6 +180,7 @@ export default function AdminFood() {
   // Open Edit Product Modal
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setUploadedFileInfo(null);
     setFormData({
       name: item.name || '',
       category: item.category || 'Snacks',
@@ -185,7 +209,7 @@ export default function AdminFood() {
         price: Number(formData.price) || 0,
         stock: Number(formData.stock) || 0,
         unit: formData.unit.trim() || 'pcs',
-        image: formData.image,
+        image: formData.image || '/images/more-items.jpg',
         desc: formData.desc.trim(),
         isAvailable: Number(formData.stock) > 0 && formData.isAvailable,
       };
@@ -200,6 +224,33 @@ export default function AdminFood() {
       setIsModalOpen(false);
     } catch (err) {
       toast.error('Error', err.message || 'Failed to save product.');
+    }
+  };
+
+  // Upload image from user device and strictly enforce 500KB limit
+  const handleImageFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const res = await processAndCompressImage(file, MAX_IMAGE_SIZE_KB, 1200);
+      setFormData((prev) => ({ ...prev, image: res.dataUrl }));
+      setUploadedFileInfo({
+        name: res.fileName,
+        sizeKB: res.sizeKB,
+        originalKB: res.originalKB,
+      });
+      toast.success(
+        'Image Uploaded! 📷',
+        `${res.fileName} optimized to ${res.sizeKB}KB (within 500KB limit).`
+      );
+    } catch (err) {
+      console.warn('Image upload error:', err);
+      toast.error('Image Error', err.message || 'Failed to process image under 500KB.');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -244,6 +295,83 @@ export default function AdminFood() {
       setStockModalItem(null);
     } catch (err) {
       toast.error('Error', 'Failed to update stock.');
+    }
+  };
+
+  // ─── BILL EDIT & DELETE HANDLERS ─────────────────────────────
+  const handleOpenEditBill = (sale) => {
+    setEditingSale(sale);
+    setEditSaleForm({
+      customerName: sale.customerName || '',
+      customerPhone: sale.customerPhone || '',
+      stationNumber: sale.tableOrStation || sale.stationNumber || '',
+      paymentMethod: sale.paymentMethod || 'cash',
+      items: Array.isArray(sale.items) ? sale.items.map((i) => ({ ...i })) : [],
+    });
+  };
+
+  const handleEditBillItemQty = (index, delta) => {
+    setEditSaleForm((prev) => {
+      const items = [...prev.items];
+      const newQty = (items[index].quantity || 1) + delta;
+      if (newQty <= 0) {
+        items.splice(index, 1);
+      } else {
+        items[index] = { ...items[index], quantity: newQty };
+      }
+      return { ...prev, items };
+    });
+  };
+
+  const handleSaveEditBill = async (e) => {
+    e.preventDefault();
+    if (!editingSale) return;
+
+    if (editSaleForm.items.length === 0) {
+      toast.warning('Empty Bill', 'Bill must have at least one item. Or delete the bill instead.');
+      return;
+    }
+
+    const newTotal = editSaleForm.items.reduce(
+      (acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+
+    try {
+      const updatedData = {
+        customerName: editSaleForm.customerName.trim() || 'Walk-in Customer',
+        customerPhone: editSaleForm.customerPhone.trim(),
+        tableOrStation: editSaleForm.stationNumber.trim() || 'Counter',
+        paymentMethod: editSaleForm.paymentMethod,
+        items: editSaleForm.items,
+        totalAmount: newTotal,
+      };
+
+      await updateFoodSale(editingSale.id, updatedData);
+      toast.success('Bill Updated 🧾', `Bill updated successfully (New Total: ₹${newTotal}).`);
+
+      const merged = { ...editingSale, ...updatedData };
+      setEditingSale(null);
+      if (selectedBillSale?.id === editingSale.id) setSelectedBillSale(merged);
+      if (lastCompletedSale?.id === editingSale.id) setLastCompletedSale(merged);
+    } catch (err) {
+      toast.error('Update Error', err.message || 'Could not update bill.');
+    }
+  };
+
+  const handleDeleteBill = async (sale) => {
+    const saleIdShort = sale.id ? sale.id.slice(0, 8) : 'Sale';
+    const confirmMsg = `Are you sure you want to delete Bill #${saleIdShort} (₹${sale.totalAmount})?\n\nThis will restore sold items back into cafe inventory.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await deleteFoodSale(sale, true);
+      toast.success('Bill Deleted 🗑️', `Bill for ₹${sale.totalAmount} deleted & stock restored.`);
+      if (selectedBillSale?.id === sale.id) setSelectedBillSale(null);
+      if (lastCompletedSale?.id === sale.id) setLastCompletedSale(null);
+      if (editingSale?.id === sale.id) setEditingSale(null);
+    } catch (err) {
+      toast.error('Delete Error', err.message || 'Could not delete bill record.');
     }
   };
 
@@ -317,7 +445,8 @@ export default function AdminFood() {
       totalAmount: cartTotalAmount,
       totalItemsCount: cart.reduce((sum, i) => sum + i.quantity, 0),
       customerName: customerName.trim() || 'Walk-in Gamer',
-      tableOrStation: tableOrStation.trim() || 'Counter',
+      customerPhone: customerPhone.trim(),
+      tableOrStation: tableOrStation.trim() || 'Counter Desk',
       paymentMethod, // 'cash' | 'upi'
       handledBy: handlerName,
       staffId: handlerId,
@@ -328,10 +457,13 @@ export default function AdminFood() {
 
     try {
       const saleId = await recordFoodSale(salePayload);
+      const completedObj = { ...salePayload, id: saleId };
       toast.success('Sale Completed!', `₹${cartTotalAmount} billed via ${paymentMethod.toUpperCase()}.`);
-      setLastCompletedSale({ ...salePayload, id: saleId });
+      setLastCompletedSale(completedObj);
+      setSelectedBillSale(completedObj);
       clearCart();
       setCustomerName('');
+      setCustomerPhone('');
       setTableOrStation('');
     } catch (err) {
       toast.error('Sale Error', err.message || 'Failed to record sale.');
@@ -340,24 +472,48 @@ export default function AdminFood() {
     }
   };
 
-  // WhatsApp Bill Generator
+  // Formats WhatsApp Receipt Message for Cafe POS
+  const generateFoodWhatsAppMessage = (sale) => {
+    if (!sale) return '';
+    const invoiceNum = sale.id ? String(sale.id).slice(-6).toUpperCase() : String(Date.now()).slice(-6);
+    const paymentBadge = sale.paymentMethod === 'cash' ? '💵 Paid via Cash' : '📱 Paid via UPI';
+    const operatorName = (sale.handledBy || 'Staff').replace(/\s*\(Staff\)/gi, '');
+
+    const itemLines = (sale.items || [])
+      .map(
+        (i, idx) =>
+          `  ${idx + 1}. *${i.name}*\n     ${i.quantity} × ₹${i.price} = *₹${i.subtotal}*`
+      )
+      .join('\n');
+
+    return `🍟 *TS GAMING CAFÉ — FOOD & DRINKS BILL* 🥤
+━━━━━━━━━━━━━━━━━━━━━━
+🧾 *Bill No:* #TS-F${invoiceNum}
+📅 *Date:* ${sale.date} (${sale.time || ''})
+👤 *Customer:* ${sale.customerName || 'Walk-in Gamer'}
+🎮 *Table / Station:* ${sale.tableOrStation || 'Counter Desk'}
+━━━━━━━━━━━━━━━━━━━━━━
+📋 *ITEMS BILLED:*
+${itemLines}
+
+━━━━━━━━━━━━━━━━━━━━━━
+💰 *Grand Total:* ₹${Number(sale.totalAmount || 0).toLocaleString('en-IN')}
+💳 *Payment Mode:* ${paymentBadge} ✅
+👨‍💼 *Billed By:* ${operatorName}
+
+📍 *TS Gaming Café*, Waluj, Chhatrapati Sambhajinagar
+📞 *Helpline / Orders:* +91 79724 30951
+🙏 _Thank you for ordering! Enjoy your gaming session!_ 🚀🎮`;
+  };
+
+  // WhatsApp Bill Generator URL
   const getWhatsAppReceiptUrl = (sale) => {
     if (!sale) return '';
-    const itemLines = sale.items
-      .map((i) => `• ${i.name} x ${i.quantity} = ₹${i.subtotal}`)
-      .join('\n');
-    const msg = `🧾 *TS GAMING CAFE — Food & Snacks Bill*
-👤 Customer: ${sale.customerName}
-🎮 Station/Table: ${sale.tableOrStation}
-📅 Date: ${sale.date} (${sale.time})
-------------------------
-${itemLines}
-------------------------
-💰 *Total Amount: ₹${sale.totalAmount}*
-💳 Payment: ${sale.paymentMethod.toUpperCase()}
-👨‍💼 Billed by: ${sale.handledBy}
-📍 TS Gaming Cafe, Waluj, Aurangabad`;
-
+    const cleanPhone = (sale.customerPhone || '').replace(/\D/g, '').slice(-10);
+    const msg = generateFoodWhatsAppMessage(sale);
+    if (cleanPhone && cleanPhone.length === 10) {
+      return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    }
     return `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
@@ -593,15 +749,28 @@ ${itemLines}
                   }}
                 >
                   {/* Top Image & Badge */}
-                  <div style={{ position: 'relative', height: '140px', background: '#0a0b10' }}>
+                  <div style={{
+                    position: 'relative',
+                    height: '160px',
+                    background: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '8px',
+                    overflow: 'hidden',
+                  }}>
                     <img
                       src={item.image || '/images/more-items.jpg'}
                       alt={item.name}
                       style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        filter: isOutOfStock ? 'grayscale(0.8) brightness(0.6)' : 'none',
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        width: 'auto',
+                        height: 'auto',
+                        objectFit: 'contain',
+                        display: 'block',
+                        margin: '0 auto',
+                        filter: isOutOfStock ? 'grayscale(0.8) opacity(0.5)' : 'none',
                       }}
                       onError={(e) => {
                         e.target.src = '/images/more-items.jpg';
@@ -781,28 +950,65 @@ ${itemLines}
           <div>
             <div style={{
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '12px',
+              flexDirection: 'column',
+              gap: '10px',
+              marginBottom: '14px',
             }}>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-                Select Items to Bill
-              </h2>
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                  Select Items to Bill
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleOpenAdd}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #ff5500 0%, #ff8800 100%)',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(255, 85, 0, 0.35)',
+                    }}
+                  >
+                    <Plus size={14} /> Add Product
+                  </button>
+                  <span style={{ fontSize: '0.78rem', color: '#ff7700', fontWeight: 700 }}>
+                    ({filteredItems.length})
+                  </span>
+                </div>
+              </div>
+
+              {/* Horizontal Scrollable Categories */}
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                overflowX: 'auto',
+                paddingBottom: '4px',
+                scrollbarWidth: 'none',
+              }}>
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
                     style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
                       border: '1px solid',
-                      borderColor: selectedCategory === cat ? 'var(--color-primary)' : 'var(--color-border)',
-                      background: selectedCategory === cat ? 'rgba(255, 85, 0, 0.15)' : 'transparent',
-                      color: selectedCategory === cat ? '#ff5500' : 'var(--color-text-dim)',
-                      fontSize: '0.75rem',
+                      borderColor: selectedCategory === cat ? '#ff5500' : 'rgba(255, 255, 255, 0.12)',
+                      background: selectedCategory === cat ? 'linear-gradient(135deg, #ff5500 0%, #ff8800 100%)' : 'rgba(255, 255, 255, 0.05)',
+                      color: selectedCategory === cat ? '#ffffff' : '#94a3b8',
+                      fontSize: '0.8rem',
                       fontWeight: 700,
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
                     }}
                   >
                     {cat}
@@ -811,11 +1017,7 @@ ${itemLines}
               </div>
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '12px',
-            }}>
+            <div className="admin-pos-products-grid">
               {filteredItems.map((item) => {
                 const isOutOfStock = Number(item.stock) <= 0;
                 const inCart = cart.find((i) => i.id === item.id);
@@ -825,21 +1027,70 @@ ${itemLines}
                     key={item.id}
                     onClick={() => !isOutOfStock && addToCart(item)}
                     style={{
-                      background: inCart ? 'rgba(255, 85, 0, 0.1)' : 'var(--color-bg-card)',
-                      border: `1.5px solid ${inCart ? '#ff5500' : 'var(--color-border)'}`,
-                      borderRadius: '10px',
+                      background: inCart ? 'rgba(255, 85, 0, 0.12)' : 'var(--color-bg-card)',
+                      border: `1.5px solid ${inCart ? '#ff5500' : 'rgba(255, 255, 255, 0.08)'}`,
+                      borderRadius: '12px',
                       padding: '10px',
                       cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                       opacity: isOutOfStock ? 0.5 : 1,
                       transition: 'all 0.15s ease',
                       position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
                     }}
                   >
-                    <div style={{ height: '80px', borderRadius: '6px', overflow: 'hidden', marginBottom: '8px' }}>
+                    {/* Top Category Badge & Stock */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '6px',
+                    }}>
+                      <span style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        color: '#ff7700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.4px',
+                        background: 'rgba(255, 85, 0, 0.12)',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                      }}>
+                        {item.category || 'Item'}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: isOutOfStock ? '#ef4444' : '#94a3b8', fontWeight: 600 }}>
+                        {isOutOfStock ? 'Out' : `${item.stock} left`}
+                      </span>
+                    </div>
+
+                    {/* Full Product Photo Container (No Cropping) */}
+                    <div style={{
+                      height: '135px',
+                      borderRadius: '10px',
+                      overflow: 'hidden',
+                      marginBottom: '8px',
+                      background: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '6px',
+                      boxShadow: 'inset 0 0 8px rgba(0,0,0,0.06)',
+                    }}>
                       <img
                         src={item.image || '/images/more-items.jpg'}
                         alt={item.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          objectFit: 'contain',
+                          display: 'block',
+                          margin: '0 auto',
+                        }}
+                        onError={(e) => {
+                          e.target.src = '/images/more-items.jpg';
+                        }}
                       />
                     </div>
 
@@ -882,14 +1133,17 @@ ${itemLines}
           </div>
 
           {/* Right Column: POS Cart & Checkout Panel */}
-          <div style={{
-            background: 'var(--color-bg-card)',
-            border: '1.5px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '1.25rem',
-            position: 'sticky',
-            top: '80px',
-          }}>
+          <div
+            id="pos-checkout-panel"
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1.5px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.25rem',
+              position: 'sticky',
+              top: '80px',
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShoppingCart size={20} color="#ff5500" />
@@ -972,11 +1226,11 @@ ${itemLines}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
                 <div>
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                    Customer Name
+                    Customer / Gamer Name
                   </label>
                   <input
                     type="text"
-                    placeholder="Staff name"
+                    placeholder="e.g. Rahul, Shubham"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="admin-form-input"
@@ -985,17 +1239,32 @@ ${itemLines}
                 </div>
                 <div>
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                    Station / Table
+                    Phone (for WhatsApp Bill)
                   </label>
                   <input
-                    type="text"
-                    placeholder="Station name"
-                    value={tableOrStation}
-                    onChange={(e) => setTableOrStation(e.target.value)}
+                    type="tel"
+                    placeholder="10-digit mobile"
+                    maxLength={10}
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
                     className="admin-form-input"
                     style={{ fontSize: '0.85rem', padding: '6px 10px', width: '100%' }}
                   />
                 </div>
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  Station / Table / Location
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. PS5 Pro #1, Table 2, Counter"
+                  value={tableOrStation}
+                  onChange={(e) => setTableOrStation(e.target.value)}
+                  className="admin-form-input"
+                  style={{ fontSize: '0.85rem', padding: '6px 10px', width: '100%' }}
+                />
               </div>
 
               {/* Payment Method Selector */}
@@ -1076,13 +1345,13 @@ ${itemLines}
             {lastCompletedSale && (
               <div style={{
                 marginTop: '14px',
-                padding: '10px',
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                borderRadius: '8px',
+                padding: '12px',
+                background: 'rgba(34, 197, 94, 0.12)',
+                border: '1px solid rgba(34, 197, 94, 0.35)',
+                borderRadius: '10px',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#4ade80' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#4ade80' }}>
                     ✅ Bill Completed (₹{lastCompletedSale.totalAmount})
                   </span>
                   <button
@@ -1094,29 +1363,92 @@ ${itemLines}
                   </button>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginBottom: '8px' }}>
-                  Customer: <strong>{lastCompletedSale.customerName}</strong> • {lastCompletedSale.paymentMethod.toUpperCase()}
+                  Customer: <strong>{lastCompletedSale.customerName}</strong> • {lastCompletedSale.paymentMethod === 'cash' ? '💵 Cash' : '📱 UPI'}
                 </div>
-                <a
-                  href={getWhatsAppReceiptUrl(lastCompletedSale)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn"
-                  style={{
-                    background: '#25d366',
-                    color: '#fff',
-                    padding: '5px 10px',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    width: '100%',
-                    justifyContent: 'center',
-                    textDecoration: 'none',
-                  }}
-                >
-                  <MessageCircle size={14} /> Send Receipt on WhatsApp
-                </a>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{
+                      flex: 1,
+                      padding: '6px 8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                    onClick={() => setSelectedBillSale(lastCompletedSale)}
+                  >
+                    <Receipt size={14} /> View & Print Slip
+                  </button>
+                  <a
+                    href={getWhatsAppReceiptUrl(lastCompletedSale)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn"
+                    style={{
+                      background: '#25d366',
+                      color: '#fff',
+                      padding: '6px 8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <MessageCircle size={14} /> WhatsApp Bill
+                  </a>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Mobile Sticky Floating Cart Bar */}
+          {cart.length > 0 && (
+            <div
+              className="mobile-pos-cart-bar"
+              onClick={() => {
+                document.getElementById('pos-checkout-panel')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  background: '#ff5500',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: '0.88rem'
+                }}>
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fff' }}>
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)} item{cart.length > 1 ? 's' : ''} in Bill
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Tap to view checkout & print slip</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ff5500' }}>
+                  ₹{cartTotalAmount}
+                </span>
+                <span className="btn-checkout-pill">
+                  View Bill →
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1146,7 +1478,7 @@ ${itemLines}
               </span>
             </div>
 
-            <div className="table-responsive">
+            <div className="table-responsive food-sales-desktop-table">
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -1157,6 +1489,7 @@ ${itemLines}
                     <th>Payment</th>
                     <th>Billed By</th>
                     <th style={{ textAlign: 'right' }}>Total Amount</th>
+                    <th style={{ textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1168,6 +1501,9 @@ ${itemLines}
                       </td>
                       <td>
                         <strong>{sale.customerName || 'Walk-in'}</strong>
+                        {sale.customerPhone && (
+                          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>📱 {sale.customerPhone}</div>
+                        )}
                       </td>
                       <td>{sale.tableOrStation || 'Counter'}</td>
                       <td>
@@ -1195,18 +1531,150 @@ ${itemLines}
                       <td style={{ textAlign: 'right', fontWeight: 900, color: '#ff5500', fontSize: '1rem' }}>
                         ₹{sale.totalAmount}
                       </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            onClick={() => setSelectedBillSale(sale)}
+                            title="View / Print Receipt Slip"
+                          >
+                            <Receipt size={12} /> Bill
+                          </button>
+                          <a
+                            href={getWhatsAppReceiptUrl(sale)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: '#25D366', padding: '4px 6px' }}
+                            title="Send on WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </a>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: '#38bdf8', padding: '4px 6px' }}
+                            onClick={() => handleOpenEditBill(sale)}
+                            title="Edit Bill (Customer, Table, Items, Payment)"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: '#ef4444', padding: '4px 6px' }}
+                            onClick={() => handleDeleteBill(sale)}
+                            title="Delete Bill & Restore Inventory"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
 
                   {foodSales.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-dim)' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-dim)' }}>
                         No cafe sales recorded yet. Use the Cafe POS tab to record your first order!
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile View: Clean Touch Cards for Recent Bills */}
+            <div className="food-sales-mobile-cards">
+              {foodSales.map((sale) => (
+                <div key={sale.id} className="food-sale-mobile-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#fff' }}>
+                        {sale.customerName || 'Walk-in Customer'}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                        🕒 {sale.date} {sale.time} · 📍 {sale.tableOrStation || 'Counter'}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: sale.paymentMethod === 'cash' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                      color: sale.paymentMethod === 'cash' ? '#4ade80' : '#38bdf8',
+                    }}>
+                      {sale.paymentMethod === 'cash' ? '💵 CASH' : '📱 UPI'}
+                    </span>
+                  </div>
+
+                  <div style={{
+                    fontSize: '0.8rem',
+                    color: '#cbd5e1',
+                    background: 'rgba(255,255,255,0.03)',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.06)'
+                  }}>
+                    {Array.isArray(sale.items)
+                      ? sale.items.map((i) => `${i.name} (x${i.quantity})`).join(', ')
+                      : 'Items'}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ff5500' }}>
+                      ₹{sale.totalAmount}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 8px', fontSize: '0.74rem', fontWeight: 700 }}
+                        onClick={() => setSelectedBillSale(sale)}
+                      >
+                        <Receipt size={13} /> Bill
+                      </button>
+                      <a
+                        href={getWhatsAppReceiptUrl(sale)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-sm"
+                        style={{ background: '#25d366', color: '#fff', padding: '5px 8px' }}
+                      >
+                        <MessageCircle size={14} />
+                      </a>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: '#38bdf8', padding: '5px 8px', border: '1px solid rgba(56, 189, 248, 0.3)' }}
+                        onClick={() => handleOpenEditBill(sale)}
+                        title="Edit Bill"
+                      >
+                        <Edit2 size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: '#ef4444', padding: '5px 8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                        onClick={() => handleDeleteBill(sale)}
+                        title="Delete Bill"
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {foodSales.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-dim)' }}>
+                  No cafe sales recorded yet. Use the Cafe POS tab to record your first order!
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1216,8 +1684,8 @@ ${itemLines}
           MODAL: ADD / EDIT PRODUCT (ADMIN ONLY)
           ============================================================ */}
       {isModalOpen && (
-        <div className="admin-modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="admin-modal-card" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-card admin-modal-card" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{
               display: 'flex',
@@ -1388,104 +1856,294 @@ ${itemLines}
                   />
                 </div>
 
-                {/* Image Selection Presets */}
+                {/* Product Photo Upload Section (Max 500KB) */}
                 <div className="admin-form-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <label className="admin-form-label" style={{ margin: 0 }}>Product Photo</label>
-                    <span style={{ fontSize: '0.72rem', color: '#ff7700', fontWeight: 600 }}>Click preset or enter URL</span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '4px' }}>
-                    {PRESET_IMAGES.map((preset) => {
-                      const isSelected = formData.image === preset.url;
-                      return (
-                        <div
-                          key={preset.label}
-                          onClick={() => setFormData({ ...formData, image: preset.url })}
-                          style={{
-                            border: `2px solid ${isSelected ? '#ff5500' : 'rgba(255,255,255,0.1)'}`,
-                            borderRadius: '10px',
-                            overflow: 'hidden',
-                            cursor: 'pointer',
-                            background: '#070a13',
-                            textAlign: 'center',
-                            position: 'relative',
-                            transition: 'all 0.15s ease',
-                            transform: isSelected ? 'scale(1.02)' : 'scale(1)',
-                            boxShadow: isSelected ? '0 0 12px rgba(255, 85, 0, 0.4)' : 'none',
-                          }}
-                        >
-                          <img
-                            src={preset.url}
-                            alt={preset.label}
-                            style={{ width: '100%', height: '46px', objectFit: 'cover', display: 'block' }}
-                          />
-                          {isSelected && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '4px',
-                              right: '4px',
-                              width: '16px',
-                              height: '16px',
-                              borderRadius: '50%',
-                              background: '#ff5500',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              boxShadow: '0 0 6px rgba(0,0,0,0.8)'
-                            }}>
-                              <Check size={10} color="#fff" strokeWidth={3} />
-                            </div>
-                          )}
-                          <div style={{
-                            fontSize: '0.68rem',
-                            fontWeight: isSelected ? 700 : 500,
-                            color: isSelected ? '#ff7700' : '#cbd5e1',
-                            padding: '4px 2px',
-                            background: isSelected ? 'rgba(255,85,0,0.1)' : 'rgba(0,0,0,0.6)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}>
-                            {preset.label}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Custom URL Input with Live Preview */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '8px',
-                      border: '1.5px solid rgba(255, 85, 0, 0.35)',
-                      overflow: 'hidden',
-                      background: '#070a13',
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <label className="admin-form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ImageIcon size={15} color="#ff7700" />
+                      <span>Product Photo</span>
+                    </label>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: '#10b981',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      padding: '2px 8px',
+                      borderRadius: '12px'
                     }}>
-                      {formData.image ? (
+                      Max 500 KB Limit
+                    </span>
+                  </div>
+
+                  {/* Hidden file input */}
+                  <input
+                    id="admin-food-file-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                    style={{ display: 'none' }}
+                    onChange={handleImageFileUpload}
+                    disabled={uploadingImage}
+                  />
+
+                  {/* Upload Area / Large HD Preview Container */}
+                  {formData.image ? (
+                    <div style={{
+                      borderRadius: '14px',
+                      overflow: 'hidden',
+                      border: '2px solid rgba(255, 85, 0, 0.5)',
+                      background: '#070a13',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      position: 'relative',
+                    }}>
+                      {/* Large HD Preview Frame */}
+                      <div style={{
+                        position: 'relative',
+                        height: '200px',
+                        width: '100%',
+                        background: 'radial-gradient(circle at center, #1e2235 0%, #080a11 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                      }}>
                         <img
                           src={formData.image}
-                          alt="Preview"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          alt="Product preview"
+                          style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            objectFit: 'contain',
+                            display: 'block',
+                          }}
                         />
+
+                        {/* Top Overlay Badge & Action Buttons */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          left: '10px',
+                          right: '10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          pointerEvents: 'none',
+                        }}>
+                          <span style={{
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            background: 'rgba(0, 0, 0, 0.75)',
+                            backdropFilter: 'blur(6px)',
+                            border: '1px solid rgba(16, 185, 129, 0.4)',
+                            color: '#34d399',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}>
+                            <CheckCircle2 size={13} color="#10b981" />
+                            {uploadedFileInfo ? `${uploadedFileInfo.name} (${uploadedFileInfo.sizeKB} KB)` : 'High Clarity (HD)'}
+                          </span>
+
+                          <div style={{ display: 'flex', gap: '6px', pointerEvents: 'auto' }}>
+                            <button
+                              type="button"
+                              onClick={() => document.getElementById('admin-food-file-input')?.click()}
+                              style={{
+                                padding: '5px 12px',
+                                borderRadius: '8px',
+                                background: 'rgba(255, 85, 0, 0.95)',
+                                border: 'none',
+                                color: '#fff',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                              }}
+                            >
+                              Change Photo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, image: '' });
+                                setUploadedFileInfo(null);
+                              }}
+                              style={{
+                                padding: '5px 9px',
+                                borderRadius: '8px',
+                                background: 'rgba(239, 68, 68, 0.95)',
+                                border: 'none',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                              }}
+                              title="Remove photo"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Bottom Full View Info */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          textAlign: 'center',
+                          fontSize: '0.72rem',
+                          color: '#e2e8f0',
+                          background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                          padding: '12px 6px 6px',
+                          fontWeight: 600,
+                        }}>
+                          Full Photo View · Crisp Resolution strictly under 500 KB
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => !uploadingImage && document.getElementById('admin-food-file-input')?.click()}
+                      style={{
+                        border: '2px dashed rgba(255, 85, 0, 0.45)',
+                        borderRadius: '14px',
+                        padding: '24px 16px',
+                        background: 'rgba(255, 85, 0, 0.03)',
+                        cursor: uploadingImage ? 'wait' : 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ff5500'; e.currentTarget.style.background = 'rgba(255, 85, 0, 0.08)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255, 85, 0, 0.45)'; e.currentTarget.style.background = 'rgba(255, 85, 0, 0.03)'; }}
+                    >
+                      {uploadingImage ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                          <RefreshCw size={28} color="#ff7700" className="animate-spin" />
+                          <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>Optimizing Photo for HD Clarity...</div>
+                          <div style={{ fontSize: '0.76rem', color: '#94a3b8' }}>Checking 500 KB limit & preserving full sharpness</div>
+                        </div>
                       ) : (
-                        <Coffee size={16} color="#64748b" />
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '52px',
+                            height: '52px',
+                            borderRadius: '12px',
+                            background: 'rgba(255, 85, 0, 0.12)',
+                            border: '1.5px solid rgba(255, 85, 0, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            <UploadCloud size={28} color="#ff7700" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
+                              Upload Photo from Device (Phone / PC)
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                              Click or tap here to choose image · JPG, PNG, WEBP · Max 500 KB
+                            </div>
+                          </div>
+                          <span style={{
+                            marginTop: '4px',
+                            display: 'inline-block',
+                            padding: '6px 16px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #ff5500 0%, #ff8800 100%)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            boxShadow: '0 4px 12px rgba(255, 85, 0, 0.35)',
+                          }}>
+                            Browse Photo
+                          </span>
+                        </div>
                       )}
                     </div>
+                  )}
+
+                  {/* Preset Quick Images */}
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '6px', fontWeight: 600 }}>
+                      Or choose from Cafe Presets:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      {PRESET_IMAGES.map((preset) => {
+                        const isSelected = formData.image === preset.url;
+                        return (
+                          <div
+                            key={preset.label}
+                            onClick={() => {
+                              setFormData({ ...formData, image: preset.url });
+                              setUploadedFileInfo(null);
+                            }}
+                            style={{
+                              border: `2px solid ${isSelected ? '#ff5500' : 'rgba(255,255,255,0.1)'}`,
+                              borderRadius: '10px',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              background: '#070a13',
+                              textAlign: 'center',
+                              position: 'relative',
+                              transition: 'all 0.15s ease',
+                              transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                              boxShadow: isSelected ? '0 0 12px rgba(255, 85, 0, 0.4)' : 'none',
+                            }}
+                          >
+                            <img
+                              src={preset.url}
+                              alt={preset.label}
+                              style={{ width: '100%', height: '44px', objectFit: 'cover', display: 'block' }}
+                            />
+                            {isSelected && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '3px',
+                                right: '3px',
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                background: '#ff5500',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 0 6px rgba(0,0,0,0.8)'
+                              }}>
+                                <Check size={10} color="#fff" strokeWidth={3} />
+                              </div>
+                            )}
+                            <div style={{
+                              fontSize: '0.66rem',
+                              fontWeight: isSelected ? 700 : 500,
+                              color: isSelected ? '#ff7700' : '#cbd5e1',
+                              padding: '3px 2px',
+                              background: isSelected ? 'rgba(255,85,0,0.1)' : 'rgba(0,0,0,0.6)',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}>
+                              {preset.label}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Custom URL Input */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
                     <input
                       type="text"
-                      placeholder="Custom image path or URL e.g. /images/pizza.jpg"
-                      value={formData.image}
-                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      placeholder="Or enter image URL e.g. https://... or /images/item.jpg"
+                      value={formData.image && !formData.image.startsWith('data:') ? formData.image : ''}
+                      onChange={(e) => {
+                        setFormData({ ...formData, image: e.target.value });
+                        setUploadedFileInfo(null);
+                      }}
                       className="admin-form-input"
-                      style={{ flex: 1, fontSize: '0.82rem', padding: '9px 12px' }}
+                      style={{ flex: 1, fontSize: '0.8rem', padding: '8px 12px' }}
                     />
                   </div>
                 </div>
@@ -1687,6 +2345,427 @@ ${itemLines}
                   }}
                 >
                   <Check size={16} /> Update Stock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── POS Thermal Receipt & Invoice Modal ── */}
+      {selectedBillSale && (
+        <div className="admin-modal-overlay" onClick={() => setSelectedBillSale(null)}>
+          <div
+            className="food-bill-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Action Bar (Top) */}
+            <div className="food-bill-modal-actions food-receipt-no-print">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Receipt size={18} style={{ color: '#ff5500' }} />
+                <strong style={{ color: '#fff', fontSize: '0.95rem' }}>Cafe POS Bill Receipt</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => window.print()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700 }}
+                  title="Print Thermal Slip"
+                >
+                  <Printer size={13} /> Print
+                </button>
+                <a
+                  href={getWhatsAppReceiptUrl(selectedBillSale)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-sm"
+                  style={{
+                    background: '#25d366',
+                    color: '#fff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                  }}
+                  title="Send via WhatsApp"
+                >
+                  <MessageCircle size={13} /> WhatsApp
+                </a>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => handleOpenEditBill(selectedBillSale)}
+                  style={{
+                    color: '#38bdf8',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontWeight: 700,
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    padding: '4px 8px',
+                  }}
+                  title="Edit this Bill"
+                >
+                  <Edit2 size={13} /> Edit
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => handleDeleteBill(selectedBillSale)}
+                  style={{
+                    color: '#f87171',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontWeight: 700,
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    padding: '4px 8px',
+                  }}
+                  title="Delete this Bill & Restore Stock"
+                >
+                  <Trash2 size={13} /> Delete
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setSelectedBillSale(null)}
+                  style={{ padding: '4px 8px' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Thermal Receipt Paper */}
+            <div className="food-receipt-printable">
+              <div className="food-receipt-header">
+                <div className="food-receipt-brand">TS GAMING CAFÉ</div>
+                <div className="food-receipt-sub">SNACKS · DRINKS · REFRESHMENTS</div>
+                <div className="food-receipt-address">Waluj, Chhatrapati Sambhajinagar</div>
+                <div className="food-receipt-phone">Helpline: +91 79724 30951</div>
+              </div>
+
+              <div className="food-receipt-divider" />
+
+              <div className="food-receipt-meta-grid">
+                <div><span>Bill No:</span> <strong>#TS-F{(selectedBillSale.id || '').slice(-6).toUpperCase() || 'NEW'}</strong></div>
+                <div><span>Date:</span> <strong>{selectedBillSale.date}</strong></div>
+                <div><span>Time:</span> <strong>{selectedBillSale.time || ''}</strong></div>
+                <div><span>Cashier:</span> <strong>{(selectedBillSale.handledBy || 'Staff').replace(/\s*\(Staff\)/gi, '')}</strong></div>
+                <div><span>Customer:</span> <strong>{selectedBillSale.customerName || 'Walk-in Gamer'}</strong></div>
+                {selectedBillSale.customerPhone && (
+                  <div><span>Phone:</span> <strong>+91 {selectedBillSale.customerPhone}</strong></div>
+                )}
+                <div><span>Station:</span> <strong>{selectedBillSale.tableOrStation || 'Counter'}</strong></div>
+              </div>
+
+              <div className="food-receipt-divider" />
+
+              <table className="food-receipt-table">
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Item</th>
+                    <th style={{ textAlign: 'center' }}>Qty</th>
+                    <th style={{ textAlign: 'right' }}>Rate</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(selectedBillSale.items || []).map((item, idx) => (
+                    <tr key={idx}>
+                      <td style={{ textAlign: 'left' }}>{item.name}</td>
+                      <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                      <td style={{ textAlign: 'right' }}>₹{item.price}</td>
+                      <td style={{ textAlign: 'right' }}>₹{item.subtotal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="food-receipt-divider" />
+
+              <div className="food-receipt-totals">
+                <div className="food-receipt-row">
+                  <span>Total Items:</span>
+                  <span>{selectedBillSale.totalItemsCount || (selectedBillSale.items || []).reduce((acc, i) => acc + i.quantity, 0)}</span>
+                </div>
+                <div className="food-receipt-row food-receipt-row--grand">
+                  <span>GRAND TOTAL:</span>
+                  <span>₹{Number(selectedBillSale.totalAmount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="food-receipt-row food-receipt-row--pay">
+                  <span>Payment Mode:</span>
+                  <span>{selectedBillSale.paymentMethod === 'cash' ? 'PAID VIA CASH 💵' : 'PAID VIA UPI 📱'}</span>
+                </div>
+              </div>
+
+              <div className="food-receipt-divider" />
+
+              <div className="food-receipt-footer">
+                <div>🎮 Game Hard · Eat Good 🍔</div>
+                <div>Thank you for visiting TS Gaming Café!</div>
+                <div style={{ fontSize: '0.68rem', marginTop: 4, color: '#666' }}>*** End of Receipt ***</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MODAL: EDIT BILL / SALE RECORD
+          ═══════════════════════════════════════════════════════════════════ */}
+      {editingSale && (
+        <div className="modal-overlay" onClick={() => setEditingSale(null)}>
+          <div
+            className="modal-card admin-modal-card"
+            style={{ maxWidth: '520px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid rgba(255,255,255,0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#38bdf8',
+                }}>
+                  <Edit2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                    Edit Cafe Bill #{editingSale.id?.slice(0, 8)}
+                  </h3>
+                  <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '2px' }}>
+                    Modify customer info, payment mode, or item quantities
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setEditingSale(null)}
+                style={{ padding: '4px 8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditBill}>
+              {/* Customer Name & Phone */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div>
+                  <label className="admin-form-label">Customer Name</label>
+                  <input
+                    type="text"
+                    value={editSaleForm.customerName}
+                    onChange={(e) => setEditSaleForm({ ...editSaleForm, customerName: e.target.value })}
+                    className="admin-form-input"
+                    placeholder="Customer Name"
+                  />
+                </div>
+                <div>
+                  <label className="admin-form-label">Phone (WhatsApp)</label>
+                  <input
+                    type="tel"
+                    value={editSaleForm.customerPhone}
+                    onChange={(e) => setEditSaleForm({ ...editSaleForm, customerPhone: e.target.value })}
+                    className="admin-form-input"
+                    placeholder="10-digit Phone"
+                  />
+                </div>
+              </div>
+
+              {/* Station & Payment Method */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <div>
+                  <label className="admin-form-label">Table / Station</label>
+                  <input
+                    type="text"
+                    value={editSaleForm.stationNumber}
+                    onChange={(e) => setEditSaleForm({ ...editSaleForm, stationNumber: e.target.value })}
+                    className="admin-form-input"
+                    placeholder="e.g. PS5 #01, Table 2"
+                  />
+                </div>
+                <div>
+                  <label className="admin-form-label">Payment Mode</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditSaleForm({ ...editSaleForm, paymentMethod: 'cash' })}
+                      style={{
+                        padding: '8px 6px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${editSaleForm.paymentMethod === 'cash' ? '#22c55e' : 'rgba(255,255,255,0.1)'}`,
+                        background: editSaleForm.paymentMethod === 'cash' ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
+                        color: editSaleForm.paymentMethod === 'cash' ? '#4ade80' : '#94a3b8',
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      💵 Cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditSaleForm({ ...editSaleForm, paymentMethod: 'upi' })}
+                      style={{
+                        padding: '8px 6px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${editSaleForm.paymentMethod === 'upi' ? '#38bdf8' : 'rgba(255,255,255,0.1)'}`,
+                        background: editSaleForm.paymentMethod === 'upi' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                        color: editSaleForm.paymentMethod === 'upi' ? '#38bdf8' : '#94a3b8',
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📱 UPI
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items in Bill */}
+              <div style={{ marginBottom: '14px' }}>
+                <label className="admin-form-label" style={{ marginBottom: '6px' }}>Items in this Bill</label>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  maxHeight: '190px',
+                  overflowY: 'auto',
+                  background: 'rgba(0,0,0,0.3)',
+                  padding: '8px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.06)'
+                }}>
+                  {editSaleForm.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        background: 'rgba(255,255,255,0.04)',
+                        borderRadius: '8px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#fff' }}>{item.name}</div>
+                        <div style={{ fontSize: '0.74rem', color: '#ff7700' }}>₹{item.price} each</div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEditBillItemQty(idx, -1)}
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '6px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: 'none',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Minus size={12} />
+                          </button>
+                          <span style={{ minWidth: '22px', textAlign: 'center', fontWeight: 800, color: '#fff', fontSize: '0.88rem' }}>
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleEditBillItemQty(idx, 1)}
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '6px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: 'none',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
+
+                        <span style={{ fontSize: '0.9rem', fontWeight: 900, color: '#fff', minWidth: '45px', textAlign: 'right' }}>
+                          ₹{(Number(item.price) || 0) * (Number(item.quantity) || 1)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total & Submit */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 14px',
+                background: 'rgba(255, 85, 0, 0.1)',
+                borderRadius: '10px',
+                marginBottom: '16px',
+              }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Updated Total:</span>
+                <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#ff5500' }}>
+                  ₹{editSaleForm.items.reduce((acc, i) => acc + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => handleDeleteBill(editingSale)}
+                  style={{ color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                >
+                  <Trash2 size={14} /> Delete Bill
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingSale(null)}
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 2, justifyContent: 'center' }}
+                >
+                  <Check size={16} /> Save Changes
                 </button>
               </div>
             </form>

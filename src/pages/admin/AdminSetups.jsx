@@ -7,7 +7,8 @@ import {
 } from '../../firebase/firestore';
 import { uploadSetupImage } from '../../firebase/storage';
 import { useToast } from '../../context/ToastContext';
-import { Plus, Edit2, Trash2, X, Gamepad2, Sparkles, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Gamepad2, Sparkles, Filter, UploadCloud, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { processAndCompressImage, MAX_IMAGE_SIZE_KB } from '../../utils/imageCompressor';
 
 const TYPES = ['PS5', 'PS4', 'PS3', 'PS2', 'PC', 'Racing'];
 const STATUSES = ['available', 'occupied', 'maintenance'];
@@ -124,6 +125,8 @@ export default function AdminSetups() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [imageFile, setImageFile] = useState(null);
+  const [compressingImage, setCompressingImage] = useState(false);
+  const [imageSizeInfo, setImageSizeInfo] = useState(null);
   const [saving, setSaving] = useState(false);
   const [typeFilter, setTypeFilter] = useState('All');
   const [seeding, setSeeding] = useState(false);
@@ -143,6 +146,7 @@ export default function AdminSetups() {
     });
     setEditingId(null);
     setImageFile(null);
+    setImageSizeInfo(null);
     setShowModal(true);
   };
 
@@ -162,7 +166,43 @@ export default function AdminSetups() {
     });
     setEditingId(setup.id);
     setImageFile(null);
+    setImageSizeInfo(null);
     setShowModal(true);
+  };
+
+  const handleSetupImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCompressingImage(true);
+    try {
+      const res = await processAndCompressImage(file, MAX_IMAGE_SIZE_KB, 1200);
+      setForm((prev) => ({ ...prev, image: res.dataUrl }));
+      setImageSizeInfo({
+        name: res.fileName,
+        sizeKB: res.sizeKB,
+        originalKB: res.originalKB,
+      });
+
+      try {
+        const blob = await (await fetch(res.dataUrl)).blob();
+        const compressedFile = new File([blob], res.fileName, { type: 'image/jpeg' });
+        setImageFile(compressedFile);
+      } catch (blobErr) {
+        setImageFile(file);
+      }
+
+      toast.success(
+        'Image Uploaded! 📷',
+        `${res.fileName} optimized to ${res.sizeKB}KB (strictly <= 500KB limit).`
+      );
+    } catch (err) {
+      console.warn('Setup image compression error:', err);
+      toast.error('Image Error', err.message || 'Please select an image under 500KB.');
+    } finally {
+      setCompressingImage(false);
+      e.target.value = '';
+    }
   };
 
   const handleTypeSelectInForm = (type) => {
@@ -244,15 +284,23 @@ export default function AdminSetups() {
 
       if (editingId) {
         if (imageFile) {
-          data.image = await uploadSetupImage(imageFile, editingId);
+          try {
+            data.image = await uploadSetupImage(imageFile, editingId);
+          } catch (storageErr) {
+            console.warn('Storage upload fallback to compressed image:', storageErr);
+          }
         }
         await updateSetup(editingId, data);
         toast.success('Updated', `${data.name} updated.`);
       } else {
         const ref = await addSetup(data);
         if (imageFile) {
-          const imgUrl = await uploadSetupImage(imageFile, ref.id);
-          await updateSetup(ref.id, { image: imgUrl });
+          try {
+            const imgUrl = await uploadSetupImage(imageFile, ref.id);
+            await updateSetup(ref.id, { image: imgUrl });
+          } catch (storageErr) {
+            console.warn('Storage upload fallback to compressed image:', storageErr);
+          }
         }
         toast.success('Added', `${data.name} added.`);
       }
@@ -364,10 +412,32 @@ export default function AdminSetups() {
       {/* Setup cards */}
       <div className="admin-setups-manage-grid">
         {filteredSetups.map(setup => (
-          <div key={setup.id} className="glass admin-setup-manage-card">
-            <div className="admin-setup-manage-card__image" style={{ background: 'rgba(147, 51, 234, 0.08)' }}>
+          <div key={setup.id} className="glass admin-setup-manage-card" style={{ borderRadius: '14px', overflow: 'hidden' }}>
+            <div className="admin-setup-manage-card__image" style={{
+              position: 'relative',
+              height: '160px',
+              width: '100%',
+              background: 'radial-gradient(circle at center, rgba(147, 51, 234, 0.18) 0%, #0a0b10 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
               {setup.image ? (
-                <img src={setup.image} alt={setup.name} />
+                <img
+                  src={setup.image}
+                  alt={setup.name}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    objectPosition: 'center',
+                    display: 'block',
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <Gamepad2 size={44} style={{ color: 'var(--color-primary)' }} />
@@ -638,21 +708,224 @@ export default function AdminSetups() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Console Image (Optional)</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ImageIcon size={15} color="#9333ea" />
+                    <span>Console Image (Optional)</span>
+                  </label>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: '#10b981',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    padding: '2px 8px',
+                    borderRadius: '12px'
+                  }}>
+                    Max 500 KB Limit
+                  </span>
+                </div>
+
                 <input
                   type="file"
-                  accept="image/*"
-                  onChange={e => setImageFile(e.target.files[0])}
-                  className="form-input"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  onChange={handleSetupImageUpload}
+                  disabled={compressingImage}
                   id="setup-image-input"
+                  style={{ display: 'none' }}
                 />
-                {form.image && (
-                  <img
-                    src={form.image}
-                    alt="Current"
-                    style={{ height: 80, borderRadius: 'var(--radius-sm)', marginTop: 6 }}
-                  />
+
+                {form.image ? (
+                  <div style={{
+                    borderRadius: '14px',
+                    overflow: 'hidden',
+                    border: '2px solid rgba(168, 85, 247, 0.5)',
+                    background: '#070a13',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                    position: 'relative',
+                  }}>
+                    {/* Large HD Preview Canvas */}
+                    <div style={{
+                      position: 'relative',
+                      height: '200px',
+                      width: '100%',
+                      background: 'radial-gradient(circle at center, #261642 0%, #080a11 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                    }}>
+                      <img
+                        src={form.image}
+                        alt="Console preview"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain',
+                          display: 'block',
+                        }}
+                      />
+
+                      {/* Top Overlay Badge & Action Buttons */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '10px',
+                        left: '10px',
+                        right: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        pointerEvents: 'none',
+                      }}>
+                        <span style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          background: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(6px)',
+                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                          color: '#34d399',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                          {imageSizeInfo ? `${imageSizeInfo.name} (${imageSizeInfo.sizeKB} KB)` : 'High Clarity (HD)'}
+                        </span>
+
+                        <div style={{ display: 'flex', gap: '6px', pointerEvents: 'auto' }}>
+                          <button
+                            type="button"
+                            onClick={() => document.getElementById('setup-image-input')?.click()}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '8px',
+                              background: 'rgba(147, 51, 234, 0.95)',
+                              border: 'none',
+                              color: '#fff',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                            }}
+                          >
+                            Change Photo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setForm(p => ({ ...p, image: '' }));
+                              setImageFile(null);
+                              setImageSizeInfo(null);
+                            }}
+                            style={{
+                              padding: '5px 9px',
+                              borderRadius: '8px',
+                              background: 'rgba(239, 68, 68, 0.95)',
+                              border: 'none',
+                              color: '#fff',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                            }}
+                            title="Remove photo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bottom Full View Info */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        textAlign: 'center',
+                        fontSize: '0.72rem',
+                        color: '#e2e8f0',
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                        padding: '12px 6px 6px',
+                        fontWeight: 600,
+                      }}>
+                        Full Console Photo · Crisp Resolution strictly under 500 KB
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => !compressingImage && document.getElementById('setup-image-input')?.click()}
+                    style={{
+                      border: '2px dashed rgba(147, 51, 234, 0.45)',
+                      borderRadius: '14px',
+                      padding: '24px 16px',
+                      background: 'rgba(147, 51, 234, 0.03)',
+                      cursor: compressingImage ? 'wait' : 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#a855f7'; e.currentTarget.style.background = 'rgba(147, 51, 234, 0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(147, 51, 234, 0.45)'; e.currentTarget.style.background = 'rgba(147, 51, 234, 0.03)'; }}
+                  >
+                    {compressingImage ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <RefreshCw size={28} color="#a855f7" className="animate-spin" />
+                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>Optimizing Photo for HD Clarity...</div>
+                        <div style={{ fontSize: '0.76rem', color: '#94a3b8' }}>Checking 500 KB limit & preserving full sharpness</div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <div style={{
+                          width: '52px',
+                          height: '52px',
+                          borderRadius: '12px',
+                          background: 'rgba(147, 51, 234, 0.12)',
+                          border: '1.5px solid rgba(147, 51, 234, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <UploadCloud size={28} color="#a855f7" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
+                            Upload Console Photo from Device (Phone / PC)
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                            Click or tap here to choose image · JPG, PNG, WEBP · Max 500 KB
+                          </div>
+                        </div>
+                        <span style={{
+                          marginTop: '4px',
+                          display: 'inline-block',
+                          padding: '6px 16px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          boxShadow: '0 4px 12px rgba(147, 51, 234, 0.35)',
+                        }}>
+                          Browse Photo
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )}
+
+                {/* Optional direct URL fallback */}
+                <input
+                  type="text"
+                  placeholder="Or enter image URL e.g. /images/gallery/setup1.jpg"
+                  value={form.image && !form.image.startsWith('data:') ? form.image : ''}
+                  onChange={(e) => {
+                    setForm(p => ({ ...p, image: e.target.value }));
+                    setImageFile(null);
+                    setImageSizeInfo(null);
+                  }}
+                  className="form-input"
+                  style={{ marginTop: '8px', fontSize: '0.8rem', padding: '8px 12px' }}
+                />
               </div>
             </div>
 

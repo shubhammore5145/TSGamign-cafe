@@ -19,6 +19,7 @@ const Booking = lazy(() => import('./pages/Booking'));
 // Admin Protection & Layout
 import AdminRoute from './components/AdminRoute';
 import AdminLayout from './pages/admin/AdminLayout';
+import { useBookingAutoManager } from './hooks/useBookingAutoManager';
 
 // Admin Pages
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
@@ -36,6 +37,9 @@ const AdminCustomers = lazy(() => import('./pages/admin/AdminCustomers'));
 import './pages/admin/AdminSetups.css';
 
 function AppContent() {
+  // Global auto-manager: frees finished PlayStation setups & completes expired bookings in real-time
+  useBookingAutoManager();
+
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin') || location.pathname === '/login';
 

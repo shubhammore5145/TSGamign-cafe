@@ -1,0 +1,326 @@
+/* ═══════════════════════════════════════════════════════════════════
+   TS GAMING CAFÉ — CAFE POS THERMAL BILL & RECEIPT STYLING
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Modal Container */
+.food-bill-modal-card {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  animation: foodBillPop 0.22s ease-out;
+}
+
+@keyframes foodBillPop {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Modal Actions Header */
+.food-bill-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Printable Thermal Receipt Paper */
+.food-receipt-printable {
+  background: #fdfdfd;
+  color: #111827;
+  font-family: 'Courier New', Courier, monospace;
+  padding: 24px 20px;
+  margin: 16px;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+
+/* Top Perforated Receipt Header */
+.food-receipt-header {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.food-receipt-brand {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #000;
+}
+
+.food-receipt-sub {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #4b5563;
+  margin-top: 2px;
+}
+
+.food-receipt-address {
+  font-size: 0.65rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.food-receipt-phone {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-top: 2px;
+}
+
+.food-receipt-divider {
+  border-top: 1px dashed #9ca3af;
+  margin: 10px 0;
+}
+
+.food-receipt-meta-grid {
+  font-size: 0.72rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  row-gap: 4px;
+  column-gap: 8px;
+  color: #374151;
+}
+
+.food-receipt-meta-grid span {
+  color: #6b7280;
+}
+
+.food-receipt-meta-grid strong {
+  color: #111827;
+}
+
+/* Receipt Table */
+.food-receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  margin: 6px 0;
+}
+
+.food-receipt-table th {
+  padding: 4px 2px;
+  border-bottom: 1px solid #d1d5db;
+  color: #4b5563;
+  font-weight: 800;
+}
+
+.food-receipt-table td {
+  padding: 4px 2px;
+  color: #111827;
+}
+
+/* Totals */
+.food-receipt-totals {
+  font-size: 0.75rem;
+}
+
+.food-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.food-receipt-row--grand {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #000;
+  padding-top: 4px;
+}
+
+.food-receipt-row--pay {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #15803d;
+  padding-top: 2px;
+}
+
+/* Footer */
+.food-receipt-footer {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #4b5563;
+  margin-top: 10px;
+  line-height: 1.4;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRINT MEDIA RULES — THERMAL SLIP 80MM / 58MM PRINTING
+   ═══════════════════════════════════════════════════════════════════ */
+@media print {
+  /* Hide all app chrome */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .food-receipt-printable,
+  .food-receipt-printable * {
+    visibility: visible !important;
+  }
+
+  .food-receipt-no-print {
+    display: none !important;
+  }
+
+  .food-receipt-printable {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 78mm !important;
+    margin: 0 !important;
+    padding: 8mm 4mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS & TOUCH OPTIMIZATION
+   ═══════════════════════════════════════════════════════════════════ */
+.admin-food-pos-grid {
+  display: grid;
+  grid-template-columns: 1fr 390px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* POS Products Grid: Always exact 2 columns on mobile (No cut-off 3rd column) */
+.admin-pos-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 960px) {
+  .admin-food-pos-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-pos-products-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+}
+
+/* Sales Records Mobile Cards */
+.food-sales-mobile-cards {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .food-sales-desktop-table {
+    display: none !important;
+  }
+
+  .food-sales-mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .food-sale-mobile-card {
+    background: #0d1222;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Floating Sticky Bottom Cart Bar for Mobile */
+.mobile-pos-cart-bar {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .mobile-pos-cart-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    bottom: 16px;
+    left: 12px;
+    right: 12px;
+    background: linear-gradient(135deg, #182032 0%, #0c101d 100%);
+    border: 2px solid #ff5500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 20px rgba(255, 85, 0, 0.35);
+    border-radius: 14px;
+    padding: 12px 16px;
+    z-index: 999;
+    color: #ffffff;
+    cursor: pointer;
+    animation: slideUpCartBar 0.25s ease-out;
+  }
+
+  @keyframes slideUpCartBar {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .btn-checkout-pill {
+    padding: 7px 15px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ff5500 0%, #ff8800 100%);
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.82rem;
+    box-shadow: 0 4px 12px rgba(255, 85, 0, 0.45);
+  }
+}
+
+/* Modal styling for mobile phones */
+.admin-modal-card {
+  background: #0d111c;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 22px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .admin-modal-card {
+    padding: 16px;
+    max-height: 92vh;
+    border-radius: 14px;
+  }
+
+  .admin-food-pos-grid .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
