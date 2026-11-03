@@ -611,17 +611,11 @@ ${itemLines}
       </div>
 
       {/* ── Main Tab Navigation ── */}
-      <div style={{
-        display: 'flex',
-        gap: '8px',
-        borderBottom: '1px solid var(--color-border)',
-        paddingBottom: '10px',
-        marginBottom: '1.25rem',
-      }}>
+      <div className="admin-food-tabs">
         {isAdmin && (
           <button
             onClick={() => setActiveTab('inventory')}
-            className={`btn ${activeTab === 'inventory' ? 'btn-primary' : 'btn-ghost'}`}
+            className={`btn admin-food-tab-btn ${activeTab === 'inventory' ? 'btn-primary' : 'btn-ghost'}`}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Package size={16} /> <span>Stock Inventory ({totalProducts})</span>
@@ -630,7 +624,7 @@ ${itemLines}
 
         <button
           onClick={() => setActiveTab('pos')}
-          className={`btn ${activeTab === 'pos' ? 'btn-primary' : 'btn-ghost'}`}
+          className={`btn admin-food-tab-btn ${activeTab === 'pos' ? 'btn-primary' : 'btn-ghost'}`}
           style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}
         >
           <ShoppingCart size={16} /> <span>Cafe POS Billing</span>
@@ -650,7 +644,7 @@ ${itemLines}
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-ghost'}`}
+          className={`btn admin-food-tab-btn ${activeTab === 'history' ? 'btn-primary' : 'btn-ghost'}`}
           style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <Receipt size={16} /> <span>Sales Records ({todaySales.length} Today)</span>
@@ -687,7 +681,7 @@ ${itemLines}
             marginBottom: '1.25rem',
           }}>
             {/* Search */}
-            <div style={{ position: 'relative', minWidth: '260px', flex: '1 1 260px' }}>
+            <div style={{ position: 'relative', minWidth: '0', flex: '1 1 200px' }}>
               <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-dim)' }} />
               <input
                 type="text"
@@ -724,11 +718,7 @@ ${itemLines}
           </div>
 
           {/* Product Cards Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '16px',
-          }}>
+          <div className="admin-inventory-grid">
             {filteredItems.map((item) => {
               const stock = Number(item.stock) || 0;
               const isOutOfStock = stock <= 0;
@@ -953,32 +943,44 @@ ${itemLines}
               flexDirection: 'column',
               gap: '10px',
               marginBottom: '14px',
+              width: '100%',
+              minWidth: 0,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px',
+                width: '100%',
+              }}>
+                <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', margin: 0 }}>
                   Select Items to Bill
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={handleOpenAdd}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #ff5500 0%, #ff8800 100%)',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(255, 85, 0, 0.35)',
-                    }}
-                  >
-                    <Plus size={14} /> Add Product
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={handleOpenAdd}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #ff5500 0%, #ff8800 100%)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(255, 85, 0, 0.35)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Plus size={13} /> Add Product
+                    </button>
+                  )}
                   <span style={{ fontSize: '0.78rem', color: '#ff7700', fontWeight: 700 }}>
                     ({filteredItems.length})
                   </span>
@@ -986,25 +988,19 @@ ${itemLines}
               </div>
 
               {/* Horizontal Scrollable Categories */}
-              <div style={{
-                display: 'flex',
-                gap: '8px',
-                overflowX: 'auto',
-                paddingBottom: '4px',
-                scrollbarWidth: 'none',
-              }}>
+              <div className="admin-pos-categories-scroller">
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
                     style={{
-                      padding: '6px 14px',
+                      padding: '5px 12px',
                       borderRadius: '8px',
                       border: '1px solid',
                       borderColor: selectedCategory === cat ? '#ff5500' : 'rgba(255, 255, 255, 0.12)',
                       background: selectedCategory === cat ? 'linear-gradient(135deg, #ff5500 0%, #ff8800 100%)' : 'rgba(255, 255, 255, 0.05)',
                       color: selectedCategory === cat ? '#ffffff' : '#94a3b8',
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
@@ -1026,18 +1022,7 @@ ${itemLines}
                   <div
                     key={item.id}
                     onClick={() => !isOutOfStock && addToCart(item)}
-                    style={{
-                      background: inCart ? 'rgba(255, 85, 0, 0.12)' : 'var(--color-bg-card)',
-                      border: `1.5px solid ${inCart ? '#ff5500' : 'rgba(255, 255, 255, 0.08)'}`,
-                      borderRadius: '12px',
-                      padding: '10px',
-                      cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                      opacity: isOutOfStock ? 0.5 : 1,
-                      transition: 'all 0.15s ease',
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                    }}
+                    className={`admin-pos-item-card ${inCart ? 'admin-pos-item-card--in-cart' : ''} ${isOutOfStock ? 'admin-pos-item-card--out-of-stock' : ''}`}
                   >
                     {/* Top Category Badge & Stock */}
                     <div style={{
@@ -1045,65 +1030,83 @@ ${itemLines}
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       marginBottom: '6px',
+                      width: '100%',
                     }}>
                       <span style={{
-                        fontSize: '0.68rem',
+                        fontSize: '0.65rem',
                         fontWeight: 800,
                         color: '#ff7700',
                         textTransform: 'uppercase',
                         letterSpacing: '0.4px',
                         background: 'rgba(255, 85, 0, 0.12)',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
+                        padding: '2px 6px',
+                        borderRadius: '5px',
+                        maxWidth: '65%',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}>
                         {item.category || 'Item'}
                       </span>
-                      <span style={{ fontSize: '0.72rem', color: isOutOfStock ? '#ef4444' : '#94a3b8', fontWeight: 600 }}>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        color: isOutOfStock ? '#ef4444' : '#94a3b8',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                      }}>
                         {isOutOfStock ? 'Out' : `${item.stock} left`}
                       </span>
                     </div>
 
                     {/* Full Product Photo Container (No Cropping) */}
-                    <div style={{
-                      height: '135px',
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      marginBottom: '8px',
-                      background: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '6px',
-                      boxShadow: 'inset 0 0 8px rgba(0,0,0,0.06)',
-                    }}>
+                    <div className="admin-pos-item-img-box">
                       <img
                         src={item.image || '/images/more-items.jpg'}
                         alt={item.name}
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                          width: 'auto',
-                          height: 'auto',
-                          objectFit: 'contain',
-                          display: 'block',
-                          margin: '0 auto',
-                        }}
+                        className="admin-pos-item-img"
                         onError={(e) => {
                           e.target.src = '/images/more-items.jpg';
                         }}
                       />
                     </div>
 
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#fff', marginBottom: '2px' }}>
+                    {/* Product Name (Fixed 2 lines for uniform card heights) */}
+                    <div style={{
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      color: '#fff',
+                      marginBottom: '4px',
+                      lineHeight: '1.2',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      height: '2.4em',
+                    }}>
                       {item.name}
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {/* Price and Cart Action Badge */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: 'auto',
+                      paddingTop: '2px',
+                    }}>
                       <span style={{ fontWeight: 900, color: '#ff5500', fontSize: '0.95rem' }}>
                         ₹{item.price}
                       </span>
-                      <span style={{ fontSize: '0.72rem', color: isOutOfStock ? '#ef4444' : '#94a3b8' }}>
-                        {isOutOfStock ? 'Out' : `${item.stock} left`}
+                      <span style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        color: inCart ? '#ffffff' : '#ff7700',
+                        background: inCart ? '#ff5500' : 'rgba(255, 85, 0, 0.12)',
+                        padding: '2px 7px',
+                        borderRadius: '6px',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {inCart ? `${inCart.quantity} in cart` : '+ Add'}
                       </span>
                     </div>
 
